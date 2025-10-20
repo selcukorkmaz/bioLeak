@@ -48,32 +48,27 @@
 
 # Permute within folds (optionally stratified by outcome) and recompute global metric
 .permute_once <- function(fit, task, stratified = TRUE) {
-  preds <- fit@predictions
+  preds <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
   permuted <- vector("list", length(preds))
+
   for (i in seq_along(preds)) {
     df <- preds[[i]]
-    if (stratified && task == "binomial") {
-      # permute labels within class inside fold (keeps class balance)
-      if (is.factor(df$truth)) {
-        levs <- levels(df$truth)
-        for (lv in levs) {
-          idx <- which(df$truth == lv)
-          if (length(idx) > 1) df$truth[idx] <- sample(df$truth[idx])
-        }
-      } else {
-        for (lv in c(0, 1)) {
-          idx <- which(df$truth == lv)
-          if (length(idx) > 1) df$truth[idx] <- sample(df$truth[idx])
-        }
-      }
+
+    if (task == "binomial") {
+      # if stratified, we only shuffle within fold (preserves class ratio globally)
+      df$truth <- sample(df$truth)
     } else {
+      # for regression/survival tasks, full shuffle
       df$truth <- sample(df$truth)
     }
+
     permuted[[i]] <- df
   }
+
   ap <- do.call(rbind, permuted)
   .main_metric(task, ap$truth, ap$pred)
 }
+
 
 #' Audit leakage and confounding
 #'

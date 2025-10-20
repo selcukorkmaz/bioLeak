@@ -1,27 +1,27 @@
 {
     "id": "4DE8E869",
-    "path": null,
+    "path": "~/GitHub/bioLeak_examples.R",
     "project_path": null,
     "type": "r_source",
-    "hash": "1215366405",
+    "hash": "0",
     "contents": "",
     "dirty": true,
     "created": 1760958140504.0,
     "source_on_save": false,
-    "relative_order": 10,
+    "relative_order": 7,
     "properties": {
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "5,0",
-        "scrollLine": "4"
+        "cursorPosition": "31,2",
+        "scrollLine": "6"
     },
     "folds": "",
-    "lastKnownWriteTime": 7307491043415436322,
-    "encoding": "",
+    "lastKnownWriteTime": 1760965415,
+    "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1760964014990,
+    "last_content_update": 1760965435221,
     "read_only": false,
     "read_only_alternatives": []
 }

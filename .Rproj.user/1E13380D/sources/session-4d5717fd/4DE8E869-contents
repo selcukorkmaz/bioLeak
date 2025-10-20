@@ -1,4 +1,4 @@
-
+# 1. Minimal Example: Train/Test Split with Leak Detection
 
 library(bioLeak)
 
@@ -23,6 +23,10 @@ fit <- fit_resample(
   parallel = FALSE
 )
 
+audit <- audit_leakage(fit)
 
 
-render_report(audit, file = "bioLeak_report_simple.html")
+summary(audit, file = "bioLeak_report_simple.html")
+
+
+# 2. Intermediate Example: Guarded Imputation + Audit
