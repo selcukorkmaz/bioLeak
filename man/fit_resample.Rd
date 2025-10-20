@@ -8,8 +8,8 @@ fit_resample(
   x,
   outcome,
   splits,
-  preprocess = list(impute = "median", normalize = "zscore", filter = list(var_thresh =
-    0, iqr_thresh = 0), fs = "none"),
+  preprocess = list(impute = list(method = "median"), normalize = list(method =
+    "zscore"), filter = list(var_thresh = 0, iqr_thresh = 0), fs = list(method = "none")),
   learner = c("glmnet", "ranger"),
   learner_args = list(),
   metrics = c("auc", "pr_auc", "accuracy"),
