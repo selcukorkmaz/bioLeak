@@ -16,10 +16,12 @@
 #' @return LeakFit object
 #' @export
 fit_resample <- function(x, outcome, splits,
-                         preprocess = list(impute = "median",
-                                           normalize = "zscore",
-                                           filter = list(var_thresh = 0, iqr_thresh = 0),
-                                           fs = "none"),
+                         preprocess = list(
+                           impute = list(method = "median"),
+                           normalize = list(method = "zscore"),
+                           filter = list(var_thresh = 0, iqr_thresh = 0),
+                           fs = list(method = "none")
+                         ),
                          learner = c("glmnet", "ranger"),
                          learner_args = list(),
                          metrics = c("auc", "pr_auc", "accuracy"),
@@ -30,7 +32,8 @@ fit_resample <- function(x, outcome, splits,
   set.seed(seed)
   learner <- match.arg(learner, several.ok = TRUE)
   Xall <- .bio_get_x(x)
-  yall <- .bio_get_y(x, outcome)
+  yall <- as.numeric(unlist(x[[outcome]]))
+  Xall <- Xall[, setdiff(colnames(Xall), outcome), drop = FALSE]
   ids  <- seq_len(nrow(Xall))
   task <- if (.bio_is_binomial(yall)) "binomial"
   else if (is.numeric(yall)) "gaussian"
@@ -71,9 +74,10 @@ fit_resample <- function(x, outcome, splits,
       if (!requireNamespace("glmnet", quietly = TRUE)) stop("Install 'glmnet'.")
       fam <- if (task == "binomial") "binomial" else "gaussian"
       la  <- modifyList(list(alpha = 0.9, standardize = FALSE), learner_args)
-      cvfit <- glmnet::cv.glmnet(Xtrg, ytr, family = fam, alpha = la$alpha)
-      pred  <- as.numeric(predict(cvfit, Xteg, s = "lambda.min",
+      cvfit <- glmnet::cv.glmnet(as.matrix(Xtrg), ytr, family = fam, alpha = la$alpha)
+      pred  <- as.numeric(predict(cvfit, as.matrix(Xteg), s = "lambda.min",
                                   type = if (task == "binomial") "response" else "link"))
+
       return(list(pred = pred, fit = cvfit))
     }
     if (learner_name == "ranger") {
@@ -99,9 +103,31 @@ fit_resample <- function(x, outcome, splits,
     Xte <- Xall[te, , drop = FALSE]; yte <- yall[te]
 
     if (length(unique(ytr)) < 2)
-      return(list(metrics = NA, pred = NA, guard = NA, learner = NULL))
+      return(list(metrics = as.list(setNames(rep(NA_real_, length(metrics)), metrics)),
+                  pred = data.frame(id = integer(0), truth = numeric(0), pred = numeric(0)),
+                  guard = list(state = NULL),
+                  learner = NULL,
+                  feat_names = colnames(Xtr)))
 
-    guard <- .guard_fit(Xtr, ytr, preprocess, task)
+    ytr <- as.numeric(as.factor(ytr))
+
+    if (length(unique(ytr)) < 2 || anyNA(ytr)) {
+      return(list(
+        metrics = as.list(setNames(rep(NA_real_, length(metrics)), metrics)),
+        pred = data.frame(id = integer(0), truth = numeric(0), pred = numeric(0)),
+        guard = list(state = NULL),
+        learner = NULL,
+        feat_names = colnames(Xtr)
+      ))
+    }
+
+
+    guard <- .guard_fit(
+      Xtr, ytr,
+      steps = if (exists("preprocess") && is.list(preprocess)) preprocess else list(),
+      task  = task
+    )
+
     Xtrg  <- guard$transform(Xtr)
     Xteg  <- guard$transform(Xte)
     colnames(Xtrg) <- make.names(colnames(Xtrg))
@@ -137,10 +163,19 @@ fit_resample <- function(x, outcome, splits,
 
   # parallel or sequential execution -----------------------------------------
   if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
-    out <- future.apply::future_lapply(folds, progress_wrap, future.seed = TRUE)
+    out <- future.apply::future_lapply(seq_along(folds), function(i) {
+      fold <- folds[[i]]
+      fold$fold <- i  # fold numarasını ekle
+      progress_wrap(fold)
+    }, future.seed = TRUE)
   } else {
-    out <- lapply(folds, progress_wrap)
+    out <- lapply(seq_along(folds), function(i) {
+      fold <- folds[[i]]
+      fold$fold <- i  # fold numarasını ekle
+      progress_wrap(fold)
+    })
   }
+
   close(pb)
 
   # collect results -----------------------------------------------------------
