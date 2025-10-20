@@ -144,35 +144,55 @@ fit_resample <- function(x, outcome, splits,
   close(pb)
 
   # collect results -----------------------------------------------------------
-out_flat <- do.call(c, out)
-out_flat <- Filter(Negate(is.null), out_flat)
-learners_used <- rep(learner, each = length(splits@indices))
+  met_rows <- list()
+  preds <- list()
+  guards <- list()
+  lears <- list()
+  featn <- NULL
+  audit_rows <- list()
 
-  met_df <- do.call(rbind, lapply(seq_along(out_flat), function(i) {
-    m <- out_flat[[i]]$metrics
-    data.frame(fold = ((i - 1) %% nfold) + 1,
-               learner = learners_used[i],
-               t(as.data.frame(m)), row.names = NULL, check.names = FALSE)
-  }))
-  preds <- lapply(out_flat, `[[`, "pred")
-  guards <- lapply(out_flat, `[[`, "guard")
-  lears <- lapply(out_flat, `[[`, "learner")
-  featn <- out_flat[[1]]$feat_names
+  for (fold_idx in seq_along(out)) {
+    fold_res <- out[[fold_idx]]
+    if (is.null(fold_res)) next
+    fold_info <- folds[[fold_idx]]
+    for (ln in names(fold_res)) {
+      res <- fold_res[[ln]]
+      if (is.null(res)) next
+      m <- res$metrics
+      met_rows[[length(met_rows) + 1]] <- data.frame(
+        fold = fold_info$fold,
+        learner = ln,
+        t(as.data.frame(m)),
+        row.names = NULL,
+        check.names = FALSE
+      )
+      preds[[length(preds) + 1]] <- res$pred
+      guards[[length(guards) + 1]] <- res$guard
+      lears[[length(lears) + 1]] <- res$learner
+      if (is.null(featn) && !is.null(res$feat_names)) featn <- res$feat_names
+      audit_rows[[length(audit_rows) + 1]] <- data.frame(
+        fold = fold_info$fold,
+        n_train = length(fold_info$train),
+        n_test = length(fold_info$test),
+        learner = ln,
+        features_final = if (!is.null(res$guard$filter$keep))
+          sum(res$guard$filter$keep) else NA_integer_,
+        row.names = NULL
+      )
+    }
+  }
+
+  if (!length(met_rows)) {
+    stop("No successful folds were completed. Check learner and preprocessing settings.")
+  }
+
+  met_df <- do.call(rbind, met_rows)
+  audit_df <- do.call(rbind, audit_rows)
 
   # summarize metrics ---------------------------------------------------------
   metric_summary <- aggregate(. ~ learner, data = met_df[, -1, drop = FALSE],
                               FUN = function(x) c(mean = mean(x, na.rm = TRUE),
                                                   sd = sd(x, na.rm = TRUE)))
-
-  # leakage audit -------------------------------------------------------------
-  audit_df <- data.frame(
-    fold = seq_len(nfold),
-    n_train = sapply(folds, function(f) length(f$train)),
-    n_test  = sapply(folds, function(f) length(f$test)),
-    learner = rep(learner, each = nfold),
-    features_final = sapply(out_flat, function(o)
-      if (!is.null(o$guard$filter$keep)) sum(o$guard$filter$keep) else NA)
-  )
 
   # optional refit ------------------------------------------------------------
   final_model <- NULL
