@@ -68,9 +68,5 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     "  ✓  No strong evidence of leakage.\n"
   ))
 
-  cat("\n----------------------------------------------\n")
-  cat("Use `plot(object)` for visual summary (optional)\n")
-  cat("----------------------------------------------\n\n")
-
   invisible(object)
 }

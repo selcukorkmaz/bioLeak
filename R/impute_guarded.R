@@ -149,14 +149,15 @@ impute_guarded <- function(train,
   else if (method == "missForest") {
     if (!requireNamespace("missForest", quietly = TRUE))
       stop("Install 'missForest' for robust nonparametric imputation.")
-    mf_args <- list(train, verbose = FALSE)
+    mf_args <- list(xmis = train, verbose = FALSE)
     if (parallel) mf_args$parallelize <- "forests"
     imp_model <- do.call(missForest::missForest, mf_args)
     train_imp <- imp_model$ximp
     model <- imp_model
+
     comb <- rbind(train_imp, test)
-    test_imp_full <- suppressWarnings(do.call(missForest::missForest,
-                                              c(list(comb, verbose = FALSE), mf_args)))
+    mf_args$xmis <- comb  # comb verisini yeniden ver
+    test_imp_full <- suppressWarnings(do.call(missForest::missForest, mf_args))
     test_imp <- tail(test_imp_full$ximp, n = nrow(test))
   }
 

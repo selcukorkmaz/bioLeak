@@ -128,10 +128,25 @@
     X <- X_imp
     state$impute <- list(method = "mice", maxit = maxit, med = meds)
 
+  } else if (imp_method == "missForest") {
+    if (!requireNamespace("missForest", quietly = TRUE)) {
+      stop("Package 'missForest' is required for impute$method='missForest'.", call. = FALSE)
+    }
+    mf_args <- list(
+      xmis = X,
+      maxiter = impute_cfg$maxiter %||% 10,
+      ntree = impute_cfg$ntree %||% 100,
+      parallelize = "no",  # <<--- ÖNEMLİ DEĞİŞİKLİK
+      verbose = FALSE
+    )
+    X_imp <- suppressWarnings(do.call(missForest::missForest, mf_args)$ximp)
+    meds <- vapply(X_imp, function(col) stats::median(col, na.rm = TRUE), numeric(1))
+    X <- X_imp
+    state$impute <- list(method = "missForest", med = meds)
   } else if (imp_method == "none") {
     state$impute <- list(method = "none")
   } else {
-    stop("Unknown impute method. Use 'median', 'knn', 'mice', or 'none'.")
+    stop("Unknown impute method. Use 'median', 'knn', 'mice', 'missForest', or 'none'.")
   }
   audit <- c(audit, list(paste0("impute: ", state$impute$method)))
 

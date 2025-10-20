@@ -3,7 +3,7 @@
     "path": "~/GitHub/bioLeak/R/fit_resample.R",
     "project_path": "R/fit_resample.R",
     "type": "r_source",
-    "hash": "2510512126",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1760944335929.0,
@@ -13,8 +13,8 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "252,16",
-        "scrollLine": "240"
+        "cursorPosition": "245,51",
+        "scrollLine": "220"
     },
     "folds": "",
     "lastKnownWriteTime": 1760964006,
