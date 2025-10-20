@@ -390,12 +390,11 @@
     # keep may be indexed on pre-encoded space; rebuild logical selector by name
     keep_names <- names(keep)
     if (!is.null(keep_names)) {
-      if (!all(keep_names %in% colnames(Xnew))) {
-        # align: add missing as zeros
-        miss <- setdiff(keep_names, colnames(Xnew))
-        if (length(miss) > 0) for (m in miss) Xnew[[m]] <- 0
-        Xnew <- Xnew[, keep_names, drop = FALSE]
-      }
+      # ensure all expected columns exist and align order explicitly by name
+      miss <- setdiff(keep_names, colnames(Xnew))
+      if (length(miss) > 0) for (m in miss) Xnew[[m]] <- 0
+      Xnew <- Xnew[, keep_names, drop = FALSE]
+      keep <- keep[keep_names]
       Xnew <- Xnew[, keep, drop = FALSE]
     } else {
       # if names missing (rare), fall back to length match
