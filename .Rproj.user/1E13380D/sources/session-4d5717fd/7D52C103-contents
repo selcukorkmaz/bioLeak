@@ -98,20 +98,23 @@ fit_resample <- function(x, outcome, splits,
   # fold-level function -------------------------------------------------------
   do_fold <- function(fold) {
     set.seed(seed + fold$fold)
-    tr <- fold$train; te <- fold$test
-    Xtr <- Xall[tr, , drop = FALSE]; ytr <- yall[tr]
-    Xte <- Xall[te, , drop = FALSE]; yte <- yall[te]
+    tr <- fold$train
+    te <- fold$test
 
-    if (length(unique(ytr)) < 2)
-      return(list(metrics = as.list(setNames(rep(NA_real_, length(metrics)), metrics)),
-                  pred = data.frame(id = integer(0), truth = numeric(0), pred = numeric(0)),
-                  guard = list(state = NULL),
-                  learner = NULL,
-                  feat_names = colnames(Xtr)))
+    Xtr <- Xall[tr, , drop = FALSE]
+    Xte <- Xall[te, , drop = FALSE]
+    ytr <- yall[tr]
+    yte <- yall[te]
 
-    ytr <- as.numeric(as.factor(ytr))
+    # --- SAFETY FIX: ensure outcome is a proper factor and aligned ---
+    if (is.numeric(ytr) || is.character(ytr)) ytr <- factor(ytr)
+    if (is.numeric(yte) || is.character(yte)) yte <- factor(yte, levels = levels(ytr))
+    ytr <- droplevels(ytr)
+    yte <- factor(yte, levels = levels(ytr))
 
-    if (length(unique(ytr)) < 2 || anyNA(ytr)) {
+    # --- Skip folds with one-class training sets ---
+    if (length(unique(ytr)) < 2) {
+      warning(sprintf("Fold %s skipped: only one class in training data", fold$fold))
       return(list(
         metrics = as.list(setNames(rep(NA_real_, length(metrics)), metrics)),
         pred = data.frame(id = integer(0), truth = numeric(0), pred = numeric(0)),
@@ -121,30 +124,36 @@ fit_resample <- function(x, outcome, splits,
       ))
     }
 
-
+    # --- Continue preprocessing and training ---
     guard <- .guard_fit(
       Xtr, ytr,
       steps = if (exists("preprocess") && is.list(preprocess)) preprocess else list(),
       task  = task
     )
 
-    Xtrg  <- guard$transform(Xtr)
-    Xteg  <- guard$transform(Xte)
+    Xtrg <- guard$transform(Xtr)
+    Xteg <- guard$transform(Xte)
     colnames(Xtrg) <- make.names(colnames(Xtrg))
     colnames(Xteg) <- make.names(colnames(Xteg))
 
     results <- list()
     for (ln in learner) {
+      # Train one learner; ensure consistent level matching
       model <- train_one_learner(ln, Xtrg, ytr, Xteg, yte)
+
       ms <- vapply(metrics, function(m) compute_metric(m, yte, model$pred), numeric(1))
-      results[[ln]] <- list(metrics = ms,
-                            pred = data.frame(id = ids[te], truth = yte, pred = model$pred),
-                            guard = guard$state,
-                            learner = model$fit,
-                            feat_names = colnames(Xtrg))
+      results[[ln]] <- list(
+        metrics = ms,
+        pred = data.frame(id = ids[te], truth = yte, pred = model$pred),
+        guard = guard$state,
+        learner = model$fit,
+        feat_names = colnames(Xtrg)
+      )
     }
+
     results
   }
+
 
   folds <- splits@indices
   nfold <- length(folds)

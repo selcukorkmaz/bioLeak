@@ -26,7 +26,7 @@ fit <- fit_resample(
 audit <- audit_leakage(fit)
 
 
-summary(audit, file = "bioLeak_report_simple.html")
+summary(audit)
 
 
 # 2. Intermediate Example: Guarded Imputation + Audit
@@ -112,12 +112,60 @@ summary(audit)
 
 # 3. Advanced Example: Full Workflow with KNN, Nested CV, and Audit Trail
 
+library(bioLeak)
+
+set.seed(42)
+
+# -------------------------------------------------------------------------
+# 1. Simulate batch-structured biomedical data
+# -------------------------------------------------------------------------
+n <- 150
+X <- data.frame(
+  age = rnorm(n, 50, 10),
+  biomarker1 = rnorm(n),
+  biomarker2 = rnorm(n),
+  batch = rep(paste0("Center", 1:5), each = 30),
+  y = rbinom(n, 1, 0.5)
+)
+
+# -------------------------------------------------------------------------
+# 2. Create leakage-safe nested cross-validation splits
+# -------------------------------------------------------------------------
+splits <- make_splits(
+  x = X,
+  outcome = "y",
+  mode = "batch_blocked",
+  batch = "batch",
+  v = 5,
+  repeats = 1,
+  stratify = TRUE,
+  nested = TRUE,      # inner CV inside each outer training set
+  seed = 42
+)
+
+# A short summary is automatically printed
+splits@mode
+splits@indices
+splits@info
 
 
-
-
-
-
-
-
-
+# -------------------------------------------------------------------------
+# 3. Fit KNN classifier with leakage-guarded preprocessing
+# -------------------------------------------------------------------------
+fit <- fit_resample(
+  x = X,
+  outcome = "y",
+  splits = splits,
+  learner = "ranger",
+  learner_args = list(num.trees = 300, mtry = 2),
+  preprocess = list(
+    impute = list(method = "knn"), 
+    normalize = list(method = "zscore"),   
+    filter = list(var_thresh = 0, iqr_thresh = 0),
+    fs = list(method = "none"),           
+    winsor = TRUE                         
+  ),
+  metrics = c("auc", "accuracy"),
+  parallel = TRUE,
+  refit = TRUE
+)
