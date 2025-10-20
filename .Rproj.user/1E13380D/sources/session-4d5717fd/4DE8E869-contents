@@ -1,0 +1,26 @@
+library(bioLeak)
+
+set.seed(1)
+X <- data.frame(
+  x1 = rnorm(100),
+  x2 = rnorm(100),
+  y  = rbinom(100, 1, 0.5)
+)
+
+
+splits <- make_splits(X, outcome = "y", mode = "subject_grouped", v = 5, stratify = TRUE)
+splits
+
+
+fit <- fit_resample(
+  x = X,
+  outcome = "y",
+  splits = splits,
+  learner = "glmnet",
+  learner_args = list(alpha = 1),
+  metrics = c("auc", "accuracy"),
+  parallel = FALSE
+)
+
+
+render_report(audit, file = "bioLeak_report_simple.html")
