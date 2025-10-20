@@ -103,6 +103,18 @@
   # Coerce to data.frame for flexible handling
   if (is.matrix(X)) X <- as.data.frame(X, check.names = FALSE)
   stopifnot(is.data.frame(X))
+  # --- Karakter tipli sütunları sayısala çevir (eğer sayısal görünümlüyse) ---
+  for (nm in names(X)) {
+    if (is.character(X[[nm]])) {
+      nz <- X[[nm]][!is.na(X[[nm]])]
+      if (length(nz) && all(grepl("^\\s*-?\\d+(\\.\\d+)?\\s*$", nz))) {
+        X[[nm]] <- as.numeric(X[[nm]])
+      } else {
+        X[[nm]] <- as.factor(X[[nm]])
+      }
+    }
+  }
+
   n0 <- nrow(X)
 
   # Keep original column names for diagnostics
@@ -142,7 +154,13 @@
   # 2) Imputation (train-only fitting) ----------------------------------------
   imp_method <- impute_cfg$method %||% "median"
 
-  if (imp_method == "median") {
+  has_na <- any(vapply(X, function(col) any(is.na(col)), logical(1)))
+
+
+  if (!has_na) {
+    state$impute <- list(method = "none")
+    audit <- c(audit, list("impute: none (no NA)"))
+  } else if (imp_method == "median") {
     meds <- vapply(X, function(col) stats::median(col, na.rm = TRUE), numeric(1))
     for (j in seq_len(ncol(X))) {
       idx <- is.na(X[[j]])
