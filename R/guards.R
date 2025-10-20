@@ -112,7 +112,7 @@
   prep <- .guard_ensure_levels(X)
   X <- prep$data
   encoding_levels <- prep$levels
-  mm <- stats::model.matrix(~ . - 1, data = X)
+  mm <- stats::model.matrix(~ . - 1, data = X, na.action = stats::na.pass)
   X <- as.data.frame(mm, check.names = FALSE)
   p_after_encode <- ncol(X)
 
@@ -340,7 +340,7 @@
     # Handle mixed types with the same level structure learned during training
     prep_new <- .guard_ensure_levels(Xnew, state$encoding$levels)
     Xnew <- prep_new$data
-    Xnew <- stats::model.matrix(~ . - 1, data = Xnew)
+    Xnew <- stats::model.matrix(~ . - 1, data = Xnew, na.action = stats::na.pass)
     Xnew <- as.data.frame(Xnew, check.names = FALSE)
 
     # Replace non-finite
