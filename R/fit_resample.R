@@ -159,6 +159,7 @@ fit_resample <- function(x, outcome, splits,
       res <- fold_res[[ln]]
       if (is.null(res)) next
       m <- res$metrics
+      if (all(is.na(m))) next
       met_rows[[length(met_rows) + 1]] <- data.frame(
         fold = fold_info$fold,
         learner = ln,
@@ -166,17 +167,27 @@ fit_resample <- function(x, outcome, splits,
         row.names = NULL,
         check.names = FALSE
       )
-      preds[[length(preds) + 1]] <- res$pred
-      guards[[length(guards) + 1]] <- res$guard
+      if (is.data.frame(res$pred) || is.matrix(res$pred)) {
+        preds[[length(preds) + 1]] <- res$pred
+      }
+      if (!is.null(res$guard) && is.list(res$guard)) {
+        guards[[length(guards) + 1]] <- res$guard
+        if (is.null(featn) && !is.null(res$feat_names)) featn <- res$feat_names
+      } else {
+        guards[[length(guards) + 1]] <- NULL
+      }
       lears[[length(lears) + 1]] <- res$learner
-      if (is.null(featn) && !is.null(res$feat_names)) featn <- res$feat_names
       audit_rows[[length(audit_rows) + 1]] <- data.frame(
         fold = fold_info$fold,
         n_train = length(fold_info$train),
         n_test = length(fold_info$test),
         learner = ln,
-        features_final = if (!is.null(res$guard$filter$keep))
-          sum(res$guard$filter$keep) else NA_integer_,
+        features_final = if (!is.null(res$guard) &&
+                              is.list(res$guard) &&
+                              !is.null(res$guard$filter) &&
+                              !is.null(res$guard$filter$keep)) {
+          sum(res$guard$filter$keep)
+        } else NA_integer_,
         row.names = NULL
       )
     }
