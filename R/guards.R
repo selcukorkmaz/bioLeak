@@ -58,9 +58,10 @@
   if (!is.null(levels_map)) {
     missing_cols <- setdiff(names(levels_map), names(df))
     if (length(missing_cols)) {
-      for (mc in missing_cols) {
-        df[[mc]] <- factor(rep(NA_character_, nrow(df)), levels = levels_map[[mc]])
-      }
+      new_cols_df <- as.data.frame(lapply(levels_map[missing_cols], function(lvls) {
+        factor(rep(NA_character_, nrow(df)), levels = lvls)
+      }))
+      df <- cbind(df, new_cols_df)
     }
   }
 

@@ -53,6 +53,51 @@
 #' @return S3 object of class "GuardFit" with fields:
 #'   \code{transform}, \code{state}, \code{p_out}, \code{steps}
 #' @export
+.guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__") {
+  stopifnot(is.data.frame(df))
+  if (!is.null(levels_map)) {
+    missing_cols <- setdiff(names(levels_map), names(df))
+    if (length(missing_cols)) {
+      new_cols_df <- as.data.frame(lapply(levels_map[missing_cols], function(lvls) {
+        factor(rep(NA_character_, nrow(df)), levels = lvls)
+      }))
+      df <- cbind(df, new_cols_df)
+    }
+  }
+
+  cat_cols <- names(df)[!vapply(df, is.numeric, logical(1))]
+  if (!length(cat_cols) && is.null(levels_map)) {
+    return(list(data = df, levels = list()))
+  }
+
+  if (is.null(levels_map)) levels_map <- list()
+
+  for (nm in cat_cols) {
+    col <- df[[nm]]
+    if (is.logical(col)) {
+      col <- factor(col, levels = c(FALSE, TRUE))
+    } else if (!is.factor(col)) {
+      col <- factor(col)
+    }
+
+    lvls <- levels_map[[nm]]
+    if (is.null(lvls)) {
+      lvls <- levels(col)
+      if (length(lvls) <= 1) {
+        dummy <- paste0(dummy_prefix, nm)
+        while (dummy %in% lvls) dummy <- paste0(dummy, "_")
+        lvls <- unique(c(lvls, dummy))
+      }
+    }
+
+    col <- factor(col, levels = lvls)
+    df[[nm]] <- col
+    levels_map[[nm]] <- lvls
+  }
+
+  list(data = df, levels = levels_map)
+}
+
 .guard_fit <- function(X, y = NULL, steps = list(), task = c("binomial","gaussian")) {
   task <- match.arg(task)
   # Coerce to data.frame for flexible handling
@@ -64,12 +109,12 @@
   orig_colnames <- colnames(X)
 
   # 0) Mixed-type handling: one-hot encode non-numeric columns -----------------
-  num_idx <- vapply(X, is.numeric, logical(1))
-  if (!all(num_idx)) {
-    # Safely handle factors/characters via model.matrix
-    mm <- stats::model.matrix(~ . - 1, data = X)
-    X <- as.data.frame(mm, check.names = FALSE)
-  }
+  prep <- .guard_ensure_levels(X)
+  X <- prep$data
+  encoding_levels <- prep$levels
+  mm <- stats::model.matrix(~ . - 1, data = X)
+  X <- as.data.frame(mm, check.names = FALSE)
+  p_after_encode <- ncol(X)
 
   # Replace non-finite with NA to unify missingness treatment
   for (j in seq_len(ncol(X))) {
@@ -77,6 +122,7 @@
   }
 
   state <- list()
+  state$encoding <- list(levels = encoding_levels)
   audit <- list()
 
   # 1) Robust Winsorization (train-only) --------------------------------------
@@ -184,6 +230,7 @@
   min_keep <- filt_cfg$min_keep %||% NULL
 
   keep <- rep(TRUE, ncol(X))
+  names(keep) <- colnames(X)
   if (var_th > 0) {
     v <- vapply(X, stats::var, numeric(1))
     keep <- keep & (v >= var_th)
@@ -276,7 +323,7 @@
   state$diagnostics <- list(
     n_train = n0,
     p_in    = length(orig_colnames),
-    p_after_encode = ncol(as.data.frame(stats::model.matrix(~ . - 1, data = as.data.frame(setNames(rep(0, length(orig_colnames)), orig_colnames))))),
+    p_after_encode = p_after_encode,
     p_out   = ncol(X),
     removed_by_filter = sum(!state$filter$keep)
   )
@@ -290,11 +337,11 @@
     if (is.matrix(Xnew)) Xnew <- as.data.frame(Xnew, check.names = FALSE)
     stopifnot(is.data.frame(Xnew))
 
-    # Handle mixed types: model.matrix with columns as in train encoding space
-    if (!all(vapply(Xnew, is.numeric, logical(1)))) {
-      Xnew <- stats::model.matrix(~ . - 1, data = Xnew)
-      Xnew <- as.data.frame(Xnew, check.names = FALSE)
-    }
+    # Handle mixed types with the same level structure learned during training
+    prep_new <- .guard_ensure_levels(Xnew, state$encoding$levels)
+    Xnew <- prep_new$data
+    Xnew <- stats::model.matrix(~ . - 1, data = Xnew)
+    Xnew <- as.data.frame(Xnew, check.names = FALSE)
 
     # Replace non-finite
     for (j in seq_len(ncol(Xnew))) {
@@ -344,12 +391,11 @@
     # keep may be indexed on pre-encoded space; rebuild logical selector by name
     keep_names <- names(keep)
     if (!is.null(keep_names)) {
-      if (!all(keep_names %in% colnames(Xnew))) {
-        # align: add missing as zeros
-        miss <- setdiff(keep_names, colnames(Xnew))
-        if (length(miss) > 0) for (m in miss) Xnew[[m]] <- 0
-        Xnew <- Xnew[, keep_names, drop = FALSE]
-      }
+      # ensure all expected columns exist and align order explicitly by name
+      miss <- setdiff(keep_names, colnames(Xnew))
+      if (length(miss) > 0) for (m in miss) Xnew[[m]] <- 0
+      Xnew <- Xnew[, keep_names, drop = FALSE]
+      keep <- keep[keep_names]
       Xnew <- Xnew[, keep, drop = FALSE]
     } else {
       # if names missing (rare), fall back to length match

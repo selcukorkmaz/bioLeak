@@ -159,11 +159,11 @@ fit <- fit_resample(
   learner = "ranger",
   learner_args = list(num.trees = 300, mtry = 2),
   preprocess = list(
-    impute = list(method = "knn"), 
-    normalize = list(method = "zscore"),   
+    impute = list(method = "knn"),
+    normalize = list(method = "zscore"),
     filter = list(var_thresh = 0, iqr_thresh = 0),
-    fs = list(method = "none"),           
-    winsor = TRUE                         
+    fs = list(method = "none"),
+    winsor = TRUE
   ),
   metrics = c("auc", "accuracy"),
   parallel = TRUE,
