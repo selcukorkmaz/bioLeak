@@ -160,7 +160,7 @@
 
   if (!has_na) {
     state$impute <- list(method = "none")
-    audit <- c(audit, list("impute: none (no NA)"))
+    state$impute$label <- "impute: none (no NA)"
   } else if (imp_method == "median") {
     meds <- vapply(X, function(col) stats::median(col, na.rm = TRUE), numeric(1))
     for (j in seq_len(ncol(X))) {
@@ -209,11 +209,57 @@
     X <- X_imp
     state$impute <- list(method = "missForest", med = meds)
   } else if (imp_method == "none") {
-    state$impute <- list(method = "none")
+    orig_cols <- colnames(X)
+    med <- vapply(orig_cols, function(nm) {
+      col <- X[[nm]]
+      if (all(is.na(col))) return(0)
+      stats::median(col, na.rm = TRUE)
+    }, numeric(1))
+
+    indicator_map <- list()
+    fallback_used <- FALSE
+    for (nm in orig_cols) {
+      col <- X[[nm]]
+      miss_idx <- is.na(col)
+      if (!any(miss_idx)) next
+      fallback_used <- TRUE
+      ind_name <- paste0(nm, "__missing")
+      indicator_map[[nm]] <- ind_name
+      X[[ind_name]] <- as.numeric(miss_idx)
+      fill_val <- med[[nm]]
+      if (!is.finite(fill_val)) fill_val <- 0
+      if (!any(!miss_idx)) {
+        # Column is entirely NA; keep indicator but set baseline to 0
+        X[[nm]] <- rep(fill_val, length(col))
+      } else {
+        X[[nm]][miss_idx] <- fill_val
+      }
+    }
+
+    state$impute <- list(
+      method = "none",
+      fallback = if (fallback_used) "median" else NULL,
+      med = med,
+      indicators = indicator_map,
+      base_cols = orig_cols
+    )
+
+    if (fallback_used) {
+      warning("Missing values detected with impute$method='none'; applying median fallback with missingness indicators to ensure compatibility.",
+              call. = FALSE)
+      state$impute$label <- "impute: none (fallback median)"
+    } else {
+      state$impute$label <- "impute: none"
+    }
   } else {
     stop("Unknown impute method. Use 'median', 'knn', 'mice', 'missForest', or 'none'.")
   }
-  audit <- c(audit, list(paste0("impute: ", state$impute$method)))
+
+  state$impute$order <- colnames(X)
+  if (is.null(state$impute$label))
+    state$impute$label <- paste0("impute: ", state$impute$method)
+
+  audit <- c(audit, list(state$impute$label))
 
   # 3) Normalization -----------------------------------------------------------
   norm_cfg <- steps$normalize %||% list()
@@ -375,7 +421,56 @@
     }
 
     # Impute using TRAIN-FITTED parameters (medians from train/imputed-train)
-    if (!identical(state$impute$method, "none")) {
+    if (identical(state$impute$method, "none") && !is.null(state$impute$fallback)) {
+      base_cols <- state$impute$base_cols %||% character(0)
+      med <- state$impute$med %||% numeric(0)
+      ind_map <- state$impute$indicators %||% list()
+
+      # Ensure all training columns exist in new data
+      missing_base <- setdiff(base_cols, colnames(Xnew))
+      if (length(missing_base) > 0) {
+        for (mc in missing_base) Xnew[[mc]] <- NA_real_
+      }
+
+      # Drop columns unseen during training imputation step
+      expected_cols <- unique(c(base_cols, unlist(ind_map, use.names = FALSE)))
+      extra_cols <- setdiff(colnames(Xnew), expected_cols)
+      if (length(extra_cols) > 0)
+        Xnew <- Xnew[, setdiff(colnames(Xnew), extra_cols), drop = FALSE]
+
+      # Apply fallback imputation and create indicators
+      for (nm in base_cols) {
+        if (!nm %in% colnames(Xnew)) next
+        idx <- is.na(Xnew[[nm]])
+        ind_name <- ind_map[[nm]]
+        if (!is.null(ind_name)) {
+          Xnew[[ind_name]] <- as.numeric(idx)
+        }
+        fill_val <- med[[nm]]
+        if (is.null(fill_val) || !is.finite(fill_val)) fill_val <- 0
+        if (any(idx)) Xnew[[nm]][idx] <- fill_val
+        if (!is.null(ind_name) && !ind_name %in% colnames(Xnew)) {
+          Xnew[[ind_name]] <- 0
+        }
+      }
+
+      # Ensure indicator columns exist even if no missing values in new data
+      for (nm in base_cols) {
+        ind_name <- ind_map[[nm]]
+        if (!is.null(ind_name) && !ind_name %in% colnames(Xnew)) {
+          Xnew[[ind_name]] <- 0
+        }
+      }
+
+      # Reorder to match training order for downstream steps
+      order_cols <- state$impute$order %||% colnames(Xnew)
+      missing_ord <- setdiff(order_cols, colnames(Xnew))
+      if (length(missing_ord) > 0) {
+        for (mo in missing_ord) Xnew[[mo]] <- 0
+      }
+      Xnew <- Xnew[, order_cols, drop = FALSE]
+
+    } else if (!identical(state$impute$method, "none")) {
       med <- state$impute$med
       # align columns if train/test encodings differ (missing columns -> fill with 0 then impute)
       missing_cols <- setdiff(names(med), colnames(Xnew))
