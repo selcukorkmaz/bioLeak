@@ -126,8 +126,13 @@ fit_resample <- function(x, outcome, splits,
 
     # --- Continue preprocessing and training ---
     guard <- .guard_fit(
-      Xtr, ytr,
-      steps = if (exists("preprocess") && is.list(preprocess)) preprocess else list(),
+      X = Xtr,
+      y = ytr,
+      steps = if (exists("preprocess") &&
+                  is.list(preprocess))
+        preprocess
+      else
+        list(),
       task  = task
     )
 
