@@ -137,8 +137,10 @@ make_splits <- function(x, outcome = NULL,
 
   # ---- Batch-blocked ----
   if (mode == "batch_blocked") {
-    bid <- .as_factor(cd[[batch]])
+    bid <- factor(cd[[batch]], levels = unique(cd[[batch]]))  # preserve order
     blevels <- levels(bid)
+
+    if (length(blevels) < v) v <- length(blevels)
 
     if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
       y <- cd[[outcome]]
@@ -147,7 +149,30 @@ make_splits <- function(x, outcome = NULL,
     }
 
     for (r in seq_len(repeats)) {
-      if (isTRUE(stratify) && exists("b_lab")) {
+      set.seed(seed + r)
+      # if (isTRUE(stratify) && exists("b_lab")) {
+      #   bfold <- integer(length(blevels)); names(bfold) <- blevels
+      #   for (cl in levels(b_lab)) {
+      #     b_in <- names(b_lab)[b_lab == cl]
+      #     bfold[b_in] <- sample(rep(seq_len(v), length.out = length(b_in)))
+      #   }
+      # } else {
+      #   if (v >= length(blevels)) {
+      #     bfold <- seq_len(length(blevels))
+      #     names(bfold) <- blevels
+      #     bfold <- sample(bfold)
+      #   } else {
+      #     bfold <- sample(rep(seq_len(v), length.out = length(blevels)))
+      #     names(bfold) <- blevels
+      #   }
+      # }
+
+      if (v >= length(blevels)) {
+        # One batch per fold: force unique assignment, ignore stratify
+        bfold <- seq_len(length(blevels))
+        names(bfold) <- blevels
+        bfold <- sample(bfold)  # randomize order
+      } else if (isTRUE(stratify) && exists("b_lab")) {
         bfold <- integer(length(blevels)); names(bfold) <- blevels
         for (cl in levels(b_lab)) {
           b_in <- names(b_lab)[b_lab == cl]
@@ -158,6 +183,7 @@ make_splits <- function(x, outcome = NULL,
         names(bfold) <- blevels
       }
 
+
       for (k in seq_len(v)) {
         test_b <- blevels[bfold == k]
         test <- which(bid %in% test_b)
@@ -165,9 +191,11 @@ make_splits <- function(x, outcome = NULL,
         if (length(train) == 0L || length(test) == 0L) next
         indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = k, repeat_id = r)
       }
+
       .msg("batch_blocked: repeat %d/%d done.", r, repeats)
     }
   }
+
 
   # ---- Study LOOCV ----
   if (mode == "study_loocv") {

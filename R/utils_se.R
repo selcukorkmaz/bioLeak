@@ -9,13 +9,24 @@
       if (length(an) == 0) stop("No assays found in SummarizedExperiment.")
       assay_name <- an[1L]
     }
-    t(SummarizedExperiment::assay(x, assay_name))  # samples x features
-  } else if (is.matrix(x) || is.data.frame(x)) {
-    as.matrix(x)
+    out <- t(SummarizedExperiment::assay(x, assay_name))  # samples x features
+    out <- as.data.frame(out, stringsAsFactors = FALSE)
+  } else if (is.data.frame(x)) {
+    out <- x  # keep original structure
+  } else if (is.matrix(x)) {
+    # convert to numeric data.frame if possible
+    out <- as.data.frame(x, stringsAsFactors = FALSE)
+    # attempt numeric conversion for columns that look numeric
+    out[] <- lapply(out, function(col) {
+      suppressWarnings(num <- as.numeric(col))
+      if (!anyNA(num) || is.numeric(col)) num else col
+    })
   } else {
     stop("Unsupported x type.")
   }
+  return(out)
 }
+
 
 .bio_get_y <- function(x, outcome) {
   if (.bio_is_se(x)) {
