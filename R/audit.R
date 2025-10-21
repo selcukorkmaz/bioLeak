@@ -155,11 +155,24 @@ audit_leakage <- function(fit,
   # --- Batch / study association with folds ---------------------------------
   # Need: a per-sample fold assignment (first time each sample appears in test)
   n_samples <- length(unique(do.call(c, lapply(fit@predictions, function(d) d$id))))
-  fold_id <- rep(NA_integer_, n_samples)
+  # fold_id <- rep(NA_integer_, n_samples)
+  # for (i in seq_along(fit@splits@indices)) {
+  #   te <- fit@splits@indices[[i]]$test
+  #   fold_id[te] <- ifelse(is.na(fold_id[te]), i, fold_id[te])
+  # }
+
+  # Extract all unique sample IDs appearing in predictions
+  ids_all <- sort(unique(do.call(c, lapply(fit@predictions, `[[`, "id"))))
+  fold_id <- rep(NA_integer_, length(ids_all))
+  names(fold_id) <- ids_all
+
+  # Assign fold numbers to each test ID
   for (i in seq_along(fit@splits@indices)) {
-    te <- fit@splits@indices[[i]]$test
-    fold_id[te] <- ifelse(is.na(fold_id[te]), i, fold_id[te])
+    te_ids <- fit@splits@indices[[i]]$test
+    te_ids <- intersect(te_ids, ids_all)
+    fold_id[as.character(te_ids)] <- i
   }
+
 
   # Get metadata: prefer provided 'coldata', else try to retrieve from splits@info
   if (is.null(coldata) && !is.null(fit@splits@info$coldata)) {

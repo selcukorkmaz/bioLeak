@@ -204,7 +204,12 @@ make_splits <- function(x, outcome = NULL,
       test <- which(sid == s)
       train <- setdiff(seq_len(n), test)
       if (length(train) == 0L || length(test) == 0L) next
-      indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = which(levels(sid) == s), repeat_id = 1)
+      indices[[length(indices) + 1L]] <- list(
+        train = train,
+        test = test,
+        fold = as.integer(which(levels(sid) == s)),
+        repeat_id = as.integer(1)
+      )
     }
   }
 
@@ -222,7 +227,7 @@ make_splits <- function(x, outcome = NULL,
       tmin <- min(tt[test])
       train <- Xidx[tt[Xidx] <= (tmin - horizon)]
       if (length(train) < 5 || length(test) < 3) next
-      indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = k, repeat_id = 1)
+      indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = as.integer(k), repeat_id = as.integer(1))
     }
   }
 
@@ -280,3 +285,5 @@ setMethod("show", "LeakSplits", function(object) {
   cat(sprintf("Total folds: %d | Hash: %s\n",
               nrow(object@info$summary), object@info$hash))
 })
+
+
