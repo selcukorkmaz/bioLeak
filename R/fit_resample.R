@@ -68,14 +68,55 @@ fit_resample <- function(x, outcome, splits,
     NA_real_
   }
 
+  # --- Robust design matrix builder ------------------------------------------
+  make_design_matrix <- function(X, ref_cols = NULL) {
+    X <- as.data.frame(X)
+    X <- X[, !names(X) %in% c("y", "outcome"), drop = FALSE]
+
+    mf <- stats::model.frame(~ ., data = X, na.action = stats::na.pass)
+    mm <- stats::model.matrix(~ . - 1, data = mf)
+    mm <- as.matrix(mm)
+
+    if (!is.null(ref_cols)) {
+      missing_cols <- setdiff(ref_cols, colnames(mm))
+      if (length(missing_cols)) {
+        mm <- cbind(
+          mm,
+          matrix(0, nrow = nrow(mm), ncol = length(missing_cols),
+                 dimnames = list(NULL, missing_cols))
+        )
+      }
+      extra_cols <- setdiff(colnames(mm), ref_cols)
+      if (length(extra_cols)) {
+        mm <- mm[, setdiff(colnames(mm), extra_cols), drop = FALSE]
+      }
+      mm <- mm[, ref_cols, drop = FALSE]
+      return(list(matrix = mm, columns = ref_cols))
+    }
+
+    if (!ncol(mm)) {
+      stop("All predictors have zero variance after preprocessing.")
+    }
+
+    keep <- apply(mm, 2, sd, na.rm = TRUE) > 0
+    if (!any(keep)) {
+      stop("All predictors have zero variance after preprocessing.")
+    }
+    mm <- mm[, keep, drop = FALSE]
+
+    list(matrix = mm, columns = colnames(mm))
+  }
+
   # single learner wrapper ----------------------------------------------------
   train_one_learner <- function(learner_name, Xtrg, ytr, Xteg, yte) {
     if (learner_name == "glmnet") {
       if (!requireNamespace("glmnet", quietly = TRUE)) stop("Install 'glmnet'.")
       fam <- if (task == "binomial") "binomial" else "gaussian"
       la  <- modifyList(list(alpha = 0.9, standardize = FALSE), learner_args)
-      cvfit <- glmnet::cv.glmnet(as.matrix(Xtrg), ytr, family = fam, alpha = la$alpha)
-      pred  <- as.numeric(predict(cvfit, as.matrix(Xteg), s = "lambda.min",
+      Xtr_design <- make_design_matrix(Xtrg)
+      Xte_design <- make_design_matrix(Xteg, ref_cols = Xtr_design$columns)
+      cvfit <- glmnet::cv.glmnet(Xtr_design$matrix, ytr, family = fam, alpha = la$alpha)
+      pred  <- as.numeric(predict(cvfit, Xte_design$matrix, s = "lambda.min",
                                   type = if (task == "binomial") "response" else "link"))
 
       return(list(pred = pred, fit = cvfit))
