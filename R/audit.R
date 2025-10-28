@@ -166,6 +166,12 @@ audit_leakage <- function(fit,
 
   perm_eval <- function(b) {
     truths <- perm_source(b)
+    if (length(truths) != length(pred_list)) {
+      stop(
+        "Permutation source returned ", length(truths),
+        " truth sets for ", length(pred_list), " prediction tables"
+      )
+    }
     new_preds <- Map(function(df, tr) {
       df$truth <- .coerce_truth_like(df$truth, tr)
       df
