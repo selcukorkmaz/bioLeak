@@ -98,6 +98,15 @@
   list(data = df, levels = levels_map)
 }
 
+#' @title Fit leakage-safe preprocessing pipeline
+#' @description Builds and fits a guarded preprocessing pipeline on training data, then
+#' constructs a transformer for consistent application to new data.
+#' @inheritParams .guard_ensure_levels
+#' @param y Optional outcome for supervised feature selection.
+#' @param steps List of configuration options (see Details).
+#' @param task "binomial" or "gaussian".
+#' @return An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.
+#' @export
 .guard_fit <- function(X, y = NULL, steps = list(), task = c("binomial","gaussian")) {
   task <- match.arg(task)
   # Coerce to data.frame for flexible handling
@@ -123,6 +132,7 @@
   # 0) Mixed-type handling: one-hot encode non-numeric columns -----------------
   prep <- .guard_ensure_levels(X)
   X <- prep$data
+  if (!ncol(X)) stop("Input X has no columns after preprocessing.")
   encoding_levels <- prep$levels
   mf <- stats::model.frame(~ . , data = as.data.frame(X), na.action = stats::na.pass)
   mm <- stats::model.matrix(~ . - 1, data = mf)  # satır sayısı korunur
@@ -276,7 +286,7 @@
   } else if (norm_method == "robust") {
     mu <- vapply(X, stats::median, numeric(1))
     sdv <- vapply(X, stats::mad, numeric(1))
-    sdv[sdv == 0 | !is.finite(sdv)] <- 1
+    sdv[sdv < 1e-12 | !is.finite(sdv)] <- 1
     X <- sweep(X, 2, mu, "-")
     X <- sweep(X, 2, sdv, "/")
     state$normalize <- list(method = "robust", mu = mu, sd = sdv)
@@ -392,7 +402,11 @@
     p_out   = ncol(X),
     removed_by_filter = sum(!state$filter$keep)
   )
-  state$audit <- data.frame(step = seq_along(audit), action = unlist(audit), stringsAsFactors = FALSE)
+  state$audit <- data.frame(
+    step = seq_along(audit),
+    action = as.character(unlist(audit)),
+    stringsAsFactors = FALSE
+  )
   state$hash  <- .guard_hash(list(impute = state$impute, normalize = state$normalize,
                                   filter = list(var_th = var_th, iqr_th = iqr_th),
                                   fs = state$fs))
@@ -405,6 +419,7 @@
     # Handle mixed types with the same level structure learned during training
     prep_new <- .guard_ensure_levels(Xnew, state$encoding$levels)
     Xnew <- prep_new$data
+    if (!ncol(Xnew)) stop("Input X has no columns after preprocessing.")
     mf <- stats::model.frame(~ ., data = as.data.frame(Xnew), na.action = stats::na.pass)
     Xnew <- stats::model.matrix(~ . - 1, data = mf)
     Xnew <- as.data.frame(Xnew, check.names = FALSE)
@@ -551,6 +566,7 @@
     ),
     class = "GuardFit"
   )
+  out$hash <- state$hash
   out
 }
 
