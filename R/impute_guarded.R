@@ -86,34 +86,44 @@ impute_guarded <- function(train,
 
   # Simple deterministic methods
   if (method %in% c("mean", "median", "mode", "constant")) {
-    impute_values <- vapply(names(train), function(col) {
+    impute_values <- lapply(names(train), function(col) {
       x <- train[[col]]
       if (!anyNA(x)) return(NA)
       if (is.numeric(x)) {
         switch(method,
                mean   = mean(x, na.rm = TRUE),
                median = median(x, na.rm = TRUE),
-               mode   = { ux <- unique(x[!is.na(x)]); ux[which.max(tabulate(match(x, ux)))] },
-               constant_value)
+               mode   = {
+                 non_missing <- x[!is.na(x)]
+                 ux <- unique(non_missing)
+                 ux[which.max(tabulate(match(non_missing, ux)))]
+               },
+               constant = constant_value)
       } else {
-        ux <- unique(x[!is.na(x)])
-        if (length(ux) == 0) NA else ux[which.max(tabulate(match(x, ux)))]
+        non_missing <- x[!is.na(x)]
+        ux <- unique(non_missing)
+        if (length(ux) == 0) {
+          if (is.factor(x)) return(factor(NA, levels = levels(x)))
+          return(NA)
+        }
+        ux[which.max(tabulate(match(non_missing, ux)))]
       }
-    }, FUN.VALUE = numeric(1), USE.NAMES = TRUE)
+    })
+    names(impute_values) <- names(train)
 
-    train_imp <- as.data.frame(lapply(names(train), function(col) {
-      x <- train[[col]]
-      val <- impute_values[[col]]
-      ifelse(is.na(x), val, x)
-    }))
-    names(train_imp) <- names(train)
+    train_imp <- train
+    test_imp <- test
 
-    test_imp <- as.data.frame(lapply(names(test), function(col) {
-      x <- test[[col]]
+    for (col in names(train)) {
       val <- impute_values[[col]]
-      ifelse(is.na(x), val, x)
-    }))
-    names(test_imp) <- names(test)
+      if (length(val) == 1 && all(is.na(val))) next
+      if (anyNA(train_imp[[col]])) {
+        train_imp[[col]][is.na(train_imp[[col]])] <- val
+      }
+      if (col %in% names(test_imp) && anyNA(test_imp[[col]])) {
+        test_imp[[col]][is.na(test_imp[[col]])] <- val
+      }
+    }
     model <- impute_values
   }
 
@@ -121,11 +131,12 @@ impute_guarded <- function(train,
   else if (method == "knn") {
     if (!requireNamespace("VIM", quietly = TRUE))
       stop("Install 'VIM' for kNN imputation.")
-    args <- list(k = k, imp_var = FALSE)
-    train_imp <- suppressWarnings(VIM::kNN(train, !!!args))
+    args <- list(data = train, k = k, imp_var = FALSE)
+    train_imp <- suppressWarnings(do.call(VIM::kNN, args))
     model <- list(method = "knn", k = k)
     test_comb <- rbind(train, test)
-    test_imp_full <- suppressWarnings(VIM::kNN(test_comb, !!!args))
+    args$data <- test_comb
+    test_imp_full <- suppressWarnings(do.call(VIM::kNN, args))
     test_imp <- tail(test_imp_full, n = nrow(test))
   }
 
