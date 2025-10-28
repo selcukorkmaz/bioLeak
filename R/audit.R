@@ -118,6 +118,8 @@ audit_leakage <- function(fit,
     info = fit@splits@info,
     seed = seed
   )
+  trail$metric <- metric
+  if (!is.null(fit@info$learner)) trail$learner <- fit@info$learner
 
   # --- Reconstruct main metric from CV predictions --------------------------
   task <- fit@task
@@ -132,6 +134,17 @@ audit_leakage <- function(fit,
   all_pred <- do.call(rbind, pred_list)
 
   metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred)
+
+  delta <- NA_real_
+  perm_mean <- NA_real_
+  perm_sd <- NA_real_
+  pval <- NA_real_
+  p_se <- NA_real_
+
+  if (is.na(metric_obs) || !is.finite(metric_obs)) {
+    warning("Observed metric is NA or non-finite; skipping permutation gap calculation.")
+    metric_obs <- NA_real_
+  }
 
   # Weights per fold for IF aggregation
   weights <- vapply(folds, function(f) length(f$test), integer(1))
@@ -190,34 +203,36 @@ audit_leakage <- function(fit,
     perm_vals <- sapply(seq_len(B), function(i) { set.seed(seed + i); perm_eval(i) })
   }
 
-  if (!any(is.finite(perm_vals))) {
-    perm_mean <- NA_real_
-    perm_sd <- NA_real_
-    pval <- NA_real_
-    p_se <- NA_real_
-    delta <- NA_real_
-  } else {
-    perm_mean <- mean(perm_vals, na.rm = TRUE)
-    perm_sd <- stats::sd(perm_vals, na.rm = TRUE)
-    finite_perm <- is.finite(perm_vals)
-    pval <- if (higher_better) {
-      (1 + sum(perm_vals[finite_perm] >= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
+  if (!is.na(metric_obs) && is.finite(metric_obs)) {
+    if (!any(is.finite(perm_vals))) {
+      perm_mean <- NA_real_
+      perm_sd <- NA_real_
+      pval <- NA_real_
+      p_se <- NA_real_
+      delta <- NA_real_
     } else {
-      (1 + sum(perm_vals[finite_perm] <= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
+      perm_mean <- mean(perm_vals, na.rm = TRUE)
+      perm_sd <- stats::sd(perm_vals, na.rm = TRUE)
+      finite_perm <- is.finite(perm_vals)
+      pval <- if (higher_better) {
+        (1 + sum(perm_vals[finite_perm] >= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
+      } else {
+        (1 + sum(perm_vals[finite_perm] <= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
+      }
+      p_se <- sqrt(pval * (1 - pval) / (sum(finite_perm) + 1))
+      delta <- if (higher_better) metric_obs - perm_mean else perm_mean - metric_obs
     }
-    p_se <- sqrt(pval * (1 - pval) / (sum(finite_perm) + 1))
-    delta <- if (higher_better) metric_obs - perm_mean else perm_mean - metric_obs
   }
 
   seci <- list(se = NA_real_, ci = c(NA_real_, NA_real_), z = NA_real_)
-  if (ci_method == "if" && exists(".se_ci_delta", mode = "function") && is.finite(se_obs)) {
+  if (ci_method == "if" && exists(".se_ci_delta", mode = "function") && is.finite(se_obs) && is.finite(delta)) {
     seci_try <- try(.se_ci_delta(delta, se_obs, perm_vals), silent = TRUE)
     if (!inherits(seci_try, "try-error")) {
       seci <- seci_try
     } else {
       seci <- list(se = NA_real_, ci = c(NA_real_, NA_real_), z = NA_real_)
     }
-  } else if (ci_method == "bootstrap" && any(is.finite(perm_vals))) {
+  } else if (ci_method == "bootstrap" && any(is.finite(perm_vals)) && is.finite(metric_obs)) {
     perm_vals_finite <- perm_vals[is.finite(perm_vals)]
     boot_vals <- replicate(boot_B, {
       sample_vals <- sample(perm_vals_finite, replace = TRUE)
@@ -243,6 +258,9 @@ audit_leakage <- function(fit,
     p_value    = pval,
     n_perm     = length(perm_vals)
   )
+
+  perm_df[] <- lapply(perm_df, function(x)
+    if (is.numeric(x)) round(x, 6) else x)
 
   # --- Batch / study association with folds ---------------------------------
   ids_all <- sort(unique(do.call(c, lapply(fit@predictions, `[[`, "id"))))
