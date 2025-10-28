@@ -6,6 +6,28 @@
 #' When \code{perm_stratify = "auto"}, numeric outcomes with at least 20
 #' observations will be binned by quantiles for stratification, while factor
 #' outcomes always stratify by their levels.
+# Cached quantile breaks for numeric stratification ------------------------
+
+.quantile_break_cache <- new.env(parent = emptyenv())
+
+.get_cached_quantile_breaks <- function(vals, probs) {
+  key_stats <- c(
+    length(vals),
+    sum(vals, na.rm = TRUE),
+    sum(vals^2, na.rm = TRUE),
+    min(vals, na.rm = TRUE),
+    max(vals, na.rm = TRUE)
+  )
+  key <- paste(key_stats, collapse = ":")
+  if (exists(key, envir = .quantile_break_cache, inherits = FALSE)) {
+    return(get(key, envir = .quantile_break_cache, inherits = FALSE))
+  }
+  breaks <- stats::quantile(vals, probs = probs, na.rm = TRUE)
+  breaks <- unique(breaks)
+  assign(key, breaks, envir = .quantile_break_cache)
+  breaks
+}
+
 #.majority_level helper
 .majority_level <- function(vals) {
   vals <- vals[!is.na(vals)]
@@ -62,7 +84,7 @@
 .permute_labels_factory <- function(cd, outcome, mode, folds, perm_stratify,
                                     time_block, block_len, seed,
                                     group_col = NULL, batch_col = NULL,
-                                    study_col = NULL) {
+                                    study_col = NULL, verbose = FALSE) {
   if (is.null(cd) || !outcome %in% names(cd)) {
     stop("Metadata with outcome column required for restricted permutations.")
   }
@@ -83,15 +105,24 @@
   if (should_stratify) {
     if (is.factor(y_all)) {
       strata_vec <- y_all
+      if (isTRUE(verbose)) {
+        message("[permute_labels] Stratifying by factor outcome levels: ",
+                paste(levels(strata_vec), collapse = ", "))
+      }
     } else if (is.numeric(y_all)) {
       if (isTRUE(perm_stratify) && length(y_all) < MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION) {
         stop("Numeric outcomes require at least 20 observations when perm_stratify = TRUE.")
       }
       # for regression, bins by quantiles to maintain structure
-      br <- stats::quantile(y_all, probs = seq(0, 1, length.out = 5), na.rm = TRUE)
-      br <- unique(br)
+      br <- .get_cached_quantile_breaks(y_all, probs = seq(0, 1, length.out = 5))
       strata_vec <- cut(y_all, breaks = br, include.lowest = TRUE, labels = FALSE)
+      if (isTRUE(verbose)) {
+        message("[permute_labels] Stratifying numeric outcome into ",
+                length(unique(stats::na.omit(strata_vec))), " bins.")
+      }
     }
+  } else if (isTRUE(verbose)) {
+    message("[permute_labels] Stratification disabled for outcome '", outcome, "'.")
   }
   if (identical(mode, "time_series")) {
     if (!exists(".stationary_bootstrap", mode = "function")) {
@@ -104,8 +135,15 @@
   set.seed(seed)
   function(b) {
     set.seed(seed + b)
+    if (isTRUE(verbose)) {
+      message("[permute_labels] Generating permuted labels for replicate ", b, ".")
+    }
     res <- vector("list", length(folds))
     for (i in seq_along(folds)) {
+      if (isTRUE(verbose)) {
+        message(sprintf("[permute_labels] Permuting fold %d/%d using mode '%s'.",
+                        i, length(folds), mode))
+      }
       te_idx <- folds[[i]]$test
       permuted <- switch(mode,
         subject_grouped = {
@@ -114,6 +152,10 @@
           if (is.null(subj_col)) subj_col <- seq_along(y_all)
           subj <- subj_col[te_idx]
           strata <- if (!is.null(strata_vec)) strata_vec[te_idx] else NULL
+          if (isTRUE(verbose) && !is.null(strata)) {
+            message("[permute_labels] Subject-grouped strata used: ",
+                    paste(sort(unique(stats::na.omit(strata))), collapse = ", "))
+          }
           .permute_subject_grouped(y_all[te_idx], subj, strata)
         },
         batch_blocked = {
