@@ -28,55 +28,50 @@
        pval = unname(cs$p.value), cramer_v = as.numeric(v))
 }
 
-# Compute main metric from CV predictions
-.main_metric <- function(task, truth, pred) {
-  if (task == "binomial") {
+# Compute metric from predictions
+.metric_value <- function(metric, task, truth, pred) {
+  if (metric == "rmse") {
+    return(sqrt(mean((as.numeric(truth) - pred)^2)))
+  }
+  if (metric == "auc") {
     if (requireNamespace("pROC", quietly = TRUE)) {
       roc <- pROC::roc(truth, pred, quiet = TRUE)
-      as.numeric(pROC::auc(roc))
-    } else {
+      return(as.numeric(pROC::auc(roc)))
+    }
+    yb <- if (is.factor(truth)) as.numeric(truth) - 1 else truth
+    pos <- pred[yb == 1]; neg <- pred[yb == 0]
+    if (length(pos) && length(neg)) return(mean(outer(pos, neg, ">")))
+    return(NA_real_)
+  }
+  if (metric == "pr_auc") {
+    if (requireNamespace("PRROC", quietly = TRUE)) {
       yb <- if (is.factor(truth)) as.numeric(truth) - 1 else truth
-      pos <- pred[yb == 1]; neg <- pred[yb == 0]
-      if (length(pos) && length(neg)) mean(outer(pos, neg, ">")) else NA_real_
+      pr <- PRROC::pr.curve(scores.class0 = pred[yb == 1],
+                            scores.class1 = pred[yb == 0], curve = FALSE)
+      return(pr$auc.integral)
     }
-  } else if (task == "gaussian") {
-    sqrt(mean((as.numeric(truth) - pred)^2))  # RMSE (lower better)
-  } else {
-    NA_real_
+    return(NA_real_)
   }
-}
-
-# Permute within folds (optionally stratified by outcome) and recompute global metric
-.permute_once <- function(fit, task, stratified = TRUE) {
-  preds <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
-  permuted <- vector("list", length(preds))
-
-  for (i in seq_along(preds)) {
-    df <- preds[[i]]
-
-    if (task == "binomial") {
-      # if stratified, we only shuffle within fold (preserves class ratio globally)
-      df$truth <- sample(df$truth)
-    } else {
-      # for regression/survival tasks, full shuffle
-      df$truth <- sample(df$truth)
-    }
-
-    permuted[[i]] <- df
+  if (metric == "cindex" && requireNamespace("survival", quietly = TRUE)) {
+    return(survival::concordance.index(pred, truth)$c.index)
   }
-
-  ap <- do.call(rbind, permuted)
-  .main_metric(task, ap$truth, ap$pred)
+  NA_real_
 }
-
 
 #' Audit leakage and confounding
 #'
 #' @param fit LeakFit
-#' @param n_perm integer, number of permutations for permutation test (default 200)
+#' @param metric performance metric ("auc","pr_auc","rmse","cindex")
+#' @param B integer, number of permutations
 #' @param perm_stratify logical, stratify permutation by class within fold (binomial)
+#' @param time_block block resampling method for time-series modes
+#' @param block_len integer block length (NULL for automatic)
+#' @param include_z logical, whether to compute IF-based z-score for Δ
+#' @param ci_method "if" or "bootstrap" for Δ confidence interval
+#' @param boot_B bootstrap resamples when ci_method = "bootstrap"
 #' @param parallel logical, use future.apply for permutations
 #' @param seed integer random seed
+#' @param return_perm logical, store permutation distribution
 #' @param batch_cols character vector of metadata columns to test association with folds
 #' @param coldata optional data.frame of sample-level metadata (rows align to original samples)
 #' @param X_ref optional numeric matrix/data.frame (samples x features) used for duplicate detection
@@ -88,10 +83,17 @@
 #' @return LeakAudit
 #' @export
 audit_leakage <- function(fit,
-                          n_perm = 200,
+                          metric = c("auc", "pr_auc", "rmse", "cindex"),
+                          B = 1000,
                           perm_stratify = TRUE,
+                          time_block = c("circular", "stationary"),
+                          block_len = NULL,
+                          include_z = TRUE,
+                          ci_method = c("if", "bootstrap"),
+                          boot_B = 400,
                           parallel = FALSE,
                           seed = 1,
+                          return_perm = TRUE,
                           batch_cols = NULL,
                           coldata = NULL,
                           X_ref = NULL,
@@ -101,8 +103,11 @@ audit_leakage <- function(fit,
                           nn_k = 50,
                           max_pairs = 5000) {
 
+  metric <- match.arg(metric)
   feature_space <- match.arg(feature_space)
   sim_method    <- match.arg(sim_method)
+  time_block <- match.arg(time_block)
+  ci_method <- match.arg(ci_method)
 
   set.seed(seed)
 
@@ -115,39 +120,101 @@ audit_leakage <- function(fit,
   )
 
   # --- Reconstruct main metric from CV predictions --------------------------
-  all_pred <- do.call(rbind, fit@predictions)
   task <- fit@task
-  metric_obs <- .main_metric(task, all_pred$truth, all_pred$pred)
+  folds <- fit@splits@indices
+  if (is.null(coldata) && !is.null(fit@splits@info$coldata)) {
+    coldata <- fit@splits@info$coldata
+  }
+  outcome_col <- fit@splits@info$outcome
+  if (is.null(outcome_col)) outcome_col <- fit@outcome
 
-  # --- Permutation test (parallelizable) ------------------------------------
-  perm_fun <- function(b) .permute_once(fit, task, stratified = perm_stratify)
+  pred_list <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
+  all_pred <- do.call(rbind, pred_list)
+
+  metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred)
+
+  # Weights per fold for IF aggregation
+  weights <- vapply(folds, function(f) length(f$test), integer(1))
+  weights <- weights / sum(weights)
+
+  se_obs <- NA_real_
+  if (metric == "auc") {
+    obs_truth <- lapply(pred_list, `[[`, "truth")
+    obs_pred <- lapply(pred_list, `[[`, "pred")
+    if_stat <- .cvauc_if(pred = obs_pred, truth = obs_truth, weights = weights)
+    se_obs <- if_stat$se_auc
+  }
+
+  higher_better <- metric %in% c("auc", "pr_auc", "cindex")
+
+  # --- Permutations ----------------------------------------------------------
+  perm_source <- NULL
+  if (!is.null(coldata) && !is.null(outcome_col) && outcome_col %in% names(coldata)) {
+    perm_source <- .permute_labels_factory(
+      cd = coldata, outcome = outcome_col, mode = fit@splits@mode,
+      folds = folds, perm_stratify = perm_stratify, time_block = time_block,
+      block_len = block_len, seed = seed,
+      group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
+      study_col = fit@splits@info$study
+    )
+  }
+  if (is.null(perm_source)) {
+    perm_source <- function(b) {
+      lapply(pred_list, function(df) sample(df$truth))
+    }
+  }
+
+  perm_eval <- function(b) {
+    truths <- perm_source(b)
+    new_preds <- Map(function(df, tr) {
+      df$truth <- .coerce_truth_like(df$truth, tr)
+      df
+    }, pred_list, truths)
+    agg <- do.call(rbind, new_preds)
+    .metric_value(metric, task, agg$truth, agg$pred)
+  }
+
   if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
-    perm_vals <- future.apply::future_sapply(seq_len(n_perm), function(i) {
-      set.seed(seed + i); perm_fun(i)
+    perm_vals <- future.apply::future_sapply(seq_len(B), function(i) {
+      set.seed(seed + i); perm_eval(i)
     }, future.seed = TRUE)
   } else {
-    perm_vals <- sapply(seq_len(n_perm), function(i) { set.seed(seed + i); perm_fun(i) })
+    perm_vals <- sapply(seq_len(B), function(i) { set.seed(seed + i); perm_eval(i) })
   }
 
-  # Direction & p-value (exact, with +1 correction)
-  if (task == "gaussian") {
-    # lower is better
-    pval <- (1 + sum(perm_vals <= metric_obs, na.rm = TRUE)) / (1 + sum(is.finite(perm_vals)))
-    gap  <- mean(perm_vals, na.rm = TRUE) - metric_obs
-    z    <- (mean(perm_vals, na.rm = TRUE) - metric_obs) / (sd(perm_vals, na.rm = TRUE) + 1e-12)
+  perm_mean <- mean(perm_vals, na.rm = TRUE)
+  delta <- if (higher_better) metric_obs - perm_mean else perm_mean - metric_obs
+  pval <- if (higher_better) {
+    (1 + sum(perm_vals >= metric_obs, na.rm = TRUE)) / (1 + sum(is.finite(perm_vals)))
   } else {
-    # higher is better
-    pval <- (1 + sum(perm_vals >= metric_obs, na.rm = TRUE)) / (1 + sum(is.finite(perm_vals)))
-    gap  <- metric_obs - mean(perm_vals, na.rm = TRUE)
-    z    <- (metric_obs - mean(perm_vals, na.rm = TRUE)) / (sd(perm_vals, na.rm = TRUE) + 1e-12)
+    (1 + sum(perm_vals <= metric_obs, na.rm = TRUE)) / (1 + sum(is.finite(perm_vals)))
   }
+  perm_sd <- stats::sd(perm_vals, na.rm = TRUE)
+  p_se <- sqrt(pval * (1 - pval) / (B + 1))
+
+  seci <- if (ci_method == "if") {
+    .se_ci_delta(delta, se_obs, perm_vals)
+  } else {
+    boot_vals <- replicate(boot_B, {
+      sample_vals <- sample(perm_vals, replace = TRUE)
+      if (higher_better) metric_obs - mean(sample_vals) else mean(sample_vals) - metric_obs
+    })
+    alpha <- (1 - 0.95) / 2
+    list(
+      se = stats::sd(boot_vals),
+      ci = stats::quantile(boot_vals, probs = c(alpha, 1 - alpha)),
+      z = ifelse(stats::sd(boot_vals) > 0, delta / stats::sd(boot_vals), NA_real_)
+    )
+  }
+
+  z_val <- if (isTRUE(include_z)) seci$z else NA_real_
 
   perm_df <- data.frame(
     metric_obs = metric_obs,
-    perm_mean  = mean(perm_vals, na.rm = TRUE),
-    perm_sd    = sd(perm_vals, na.rm = TRUE),
-    gap        = gap,
-    z          = z,
+    perm_mean  = perm_mean,
+    perm_sd    = perm_sd,
+    gap        = delta,
+    z          = z_val,
     p_value    = pval,
     n_perm     = length(perm_vals)
   )
@@ -251,15 +318,17 @@ audit_leakage <- function(fit,
   }
 
   # --- Assemble S4 object ----------------------------------------------------
+  perm_distribution <- if (isTRUE(return_perm)) perm_vals else numeric(0)
+
   new("LeakAudit",
       fit = fit,
       permutation_gap = perm_df,
-      perm_distribution = perm_vals,
+      perm_distribution = perm_distribution,
       batch_assoc = batch_df,
       duplicates = dup_df,
       trail = trail,
       info = list(
-        n_perm = n_perm,
+        n_perm = B,
         perm_stratify = perm_stratify,
         parallel = parallel,
         sim_method = sim_method,
@@ -267,6 +336,23 @@ audit_leakage <- function(fit,
         duplicate_threshold = sim_threshold,
         nn_k = nn_k,
         max_pairs = max_pairs,
-        batch_cols = batch_cols
+        batch_cols = batch_cols,
+        permutation_se = p_se,
+        ci_delta = seci$ci,
+        se_delta = seci$se,
+        ci_method = ci_method,
+        include_z = include_z
       ))
 }
+.coerce_truth_like <- function(template, values) {
+  if (is.factor(template)) {
+    factor(values, levels = levels(template))
+  } else if (is.logical(template)) {
+    as.logical(values)
+  } else if (is.numeric(template)) {
+    as.numeric(values)
+  } else {
+    values
+  }
+}
+

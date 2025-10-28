@@ -6,10 +6,17 @@
 \usage{
 audit_leakage(
   fit,
-  n_perm = 200,
+  metric = c("auc", "pr_auc", "rmse", "cindex"),
+  B = 1000,
   perm_stratify = TRUE,
+  time_block = c("circular", "stationary"),
+  block_len = NULL,
+  include_z = TRUE,
+  ci_method = c("if", "bootstrap"),
+  boot_B = 400,
   parallel = FALSE,
   seed = 1,
+  return_perm = TRUE,
   batch_cols = NULL,
   coldata = NULL,
   X_ref = NULL,
@@ -23,13 +30,27 @@ audit_leakage(
 \arguments{
 \item{fit}{LeakFit}
 
-\item{n_perm}{integer, number of permutations for permutation test (default 200)}
+\item{metric}{performance metric ("auc","pr_auc","rmse","cindex")}
+
+\item{B}{integer, number of permutations}
 
 \item{perm_stratify}{logical, stratify permutation by class within fold (binomial)}
+
+\item{time_block}{block resampling method for time-series modes}
+
+\item{block_len}{integer block length (NULL for automatic)}
+
+\item{include_z}{logical, whether to compute IF-based z-score for Δ}
+
+\item{ci_method}{"if" or "bootstrap" for Δ confidence interval}
+
+\item{boot_B}{bootstrap resamples when ci_method = "bootstrap"}
 
 \item{parallel}{logical, use future.apply for permutations}
 
 \item{seed}{integer random seed}
+
+\item{return_perm}{logical, store permutation distribution}
 
 \item{batch_cols}{character vector of metadata columns to test association with folds}
 
