@@ -11,14 +11,10 @@
 .quantile_break_cache <- new.env(parent = emptyenv())
 
 .get_cached_quantile_breaks <- function(vals, probs) {
-  key_stats <- c(
-    length(vals),
-    sum(vals, na.rm = TRUE),
-    sum(vals^2, na.rm = TRUE),
-    min(vals, na.rm = TRUE),
-    max(vals, na.rm = TRUE)
-  )
-  key <- paste(key_stats, collapse = ":")
+  key <- digest::digest(list(
+    vals = sort(vals[!is.na(vals)]),
+    probs = probs
+  ))
   if (exists(key, envir = .quantile_break_cache, inherits = FALSE)) {
     return(get(key, envir = .quantile_break_cache, inherits = FALSE))
   }
