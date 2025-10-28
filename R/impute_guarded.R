@@ -100,6 +100,14 @@ impute_guarded <- function(train,
                },
                constant = constant_value)
       } else {
+        if (method == "constant") {
+          if (is.factor(x)) {
+            return(factor(constant_value, levels = levels(x)))
+          }
+          return(constant_value)
+        }
+
+        # For non-numeric columns, 'mean' and 'median' fall back to the mode
         non_missing <- x[!is.na(x)]
         ux <- unique(non_missing)
         if (length(ux) == 0) {
