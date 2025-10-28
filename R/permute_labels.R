@@ -11,17 +11,20 @@
 .quantile_break_cache <- new.env(parent = emptyenv())
 
 .get_cached_quantile_breaks <- function(vals, probs) {
-  key <- digest::digest(list(
-    vals = sort(vals[!is.na(vals)]),
-    probs = probs
-  ))
-  if (exists(key, envir = .quantile_break_cache, inherits = FALSE)) {
-    return(get(key, envir = .quantile_break_cache, inherits = FALSE))
+  vals_clean <- vals[!is.na(vals)]
+  if (requireNamespace("digest", quietly = TRUE)) {
+    key <- digest::digest(list(vals = vals_clean, probs = probs))
+    if (exists(key, envir = .quantile_break_cache, inherits = FALSE)) {
+      return(get(key, envir = .quantile_break_cache, inherits = FALSE))
+    }
+    breaks <- stats::quantile(vals_clean, probs = probs, na.rm = TRUE)
+    breaks <- unique(breaks)
+    assign(key, breaks, envir = .quantile_break_cache)
+    return(breaks)
+  } else {
+    # Fallback: compute directly without caching
+    return(unique(stats::quantile(vals_clean, probs = probs, na.rm = TRUE)))
   }
-  breaks <- stats::quantile(vals, probs = probs, na.rm = TRUE)
-  breaks <- unique(breaks)
-  assign(key, breaks, envir = .quantile_break_cache)
-  breaks
 }
 
 #.majority_level helper
@@ -141,6 +144,12 @@
                         i, length(folds), mode))
       }
       te_idx <- folds[[i]]$test
+      if (isTRUE(verbose) && !is.null(strata_vec)) {
+        strata_fold <- stats::na.omit(strata_vec[te_idx])
+        if (length(unique(strata_fold)) < 2L) {
+          message("[permute_labels] Warning: Fewer than two non-NA strata present in this test fold; stratification has limited effect.")
+        }
+      }
       permuted <- switch(mode,
         subject_grouped = {
           subj_col <- if (!is.null(group_col) && group_col %in% names(cd)) cd[[group_col]] else NULL
@@ -159,6 +168,13 @@
           if (!is.null(batch_col) && batch_col %in% names(cd)) batch_vals <- cd[[batch_col]]
           if (is.null(batch_vals) && "batch" %in% names(cd)) batch_vals <- cd[["batch"]]
           if (is.null(batch_vals)) stop("Batch column not found for batch_blocked mode.")
+          if (isTRUE(verbose)) {
+            ktab <- table(batch_vals[te_idx])
+            if (any(ktab == 1L)) {
+              message("[permute_labels] Note: ", sum(ktab == 1L),
+                      " batch level(s) in this fold have only one sample; permutation within those is identity.")
+            }
+          }
           .permute_within_batch(y_all[te_idx], batch_vals[te_idx])
         },
         study_loocv = {
@@ -166,6 +182,13 @@
           if (!is.null(study_col) && study_col %in% names(cd)) study_vals <- cd[[study_col]]
           if (is.null(study_vals) && "study" %in% names(cd)) study_vals <- cd[["study"]]
           if (is.null(study_vals)) stop("Study column not found for study_loocv mode.")
+          if (isTRUE(verbose)) {
+            ktab <- table(study_vals[te_idx])
+            if (any(ktab == 1L)) {
+              message("[permute_labels] Note: ", sum(ktab == 1L),
+                      " study level(s) in this fold have only one sample; permutation within those is identity.")
+            }
+          }
           .permute_within_study(y_all[te_idx], study_vals[te_idx])
         },
         time_series = {
@@ -179,6 +202,10 @@
             .stationary_bootstrap(te_idx_sorted, mean_block = L)
           } else {
             .circular_block_permute(te_idx_sorted, block_len = L)
+          }
+          stopifnot(length(perm_idx) == length(te_idx_sorted))
+          if (any(!perm_idx %in% te_idx_sorted)) {
+            stop(".stationary_bootstrap/.circular_block_permute must return a permutation of the provided indices.")
           }
           y_all[perm_idx]
         },
