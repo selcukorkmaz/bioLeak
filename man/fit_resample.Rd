@@ -13,6 +13,7 @@ fit_resample(
   learner = c("glmnet", "ranger"),
   learner_args = list(),
   metrics = c("auc", "pr_auc", "accuracy"),
+  class_weights = NULL,
   parallel = FALSE,
   refit = TRUE,
   seed = 1
@@ -32,6 +33,8 @@ fit_resample(
 \item{learner_args}{list of additional arguments passed to learner(s)}
 
 \item{metrics}{named list of metric functions or vector of metric names}
+
+\item{class_weights}{optional named numeric vector of weights for binomial outcomes}
 
 \item{parallel}{logical, use future.apply for multicore execution}
 
