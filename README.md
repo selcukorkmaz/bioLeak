@@ -54,18 +54,10 @@ into existing modelling workflows.
 
 ## Installation
 
-`bioLeak` is distributed as an R package. Install the development version from
-source using [`remotes`](https://cran.r-project.org/package=remotes):
+`bioLeak` is distributed as an R package. Install the development version from a Git repository:
 
 ```r
-# install.packages("remotes")
-remotes::install_local("/path/to/bioLeak")
-```
-
-or directly from a Git repository:
-
-```r
-remotes::install_github("owner/bioLeak")
+remotes::install_github("selcukorkmaz/bioLeak")
 ```
 
 Most advanced functionality relies on optional dependencies. You will be
