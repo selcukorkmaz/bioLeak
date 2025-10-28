@@ -19,6 +19,10 @@
 #' @param return_outliers logical; return logical matrix of Winsorized outlier flags
 #' @param vars optional character vector; impute only selected variables
 #' @return A LeakImpute object with imputed data, model, and diagnostic summary.
+#' @seealso
+#' [VIM::kNN()], [mice::mice()], [missForest::missForest()]
+#' @references
+#' Rousseeuw & Croux (1993), *Alternative to the Median Absolute Deviation.*
 #' @export
 impute_guarded <- function(train,
                            test,
@@ -32,6 +36,17 @@ impute_guarded <- function(train,
                            return_outliers = FALSE,
                            vars = NULL) {
   method <- match.arg(method)
+  has_old_seed <- exists(".Random.seed", envir = .GlobalEnv)
+  old_seed <- if (has_old_seed) get(".Random.seed", envir = .GlobalEnv) else NULL
+  on.exit({
+    if (exists("old_seed", inherits = FALSE)) {
+      if (!is.null(old_seed)) {
+        assign(".Random.seed", old_seed, envir = .GlobalEnv)
+      } else if (!has_old_seed && exists(".Random.seed", envir = .GlobalEnv)) {
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    }
+  }, add = TRUE)
   set.seed(seed)
 
   if (!is.data.frame(train) || !is.data.frame(test))
@@ -95,8 +110,8 @@ impute_guarded <- function(train,
                median = median(x, na.rm = TRUE),
                mode   = {
                  non_missing <- x[!is.na(x)]
-                 ux <- unique(non_missing)
-                 ux[which.max(tabulate(match(non_missing, ux)))]
+                 tab <- sort(table(non_missing), decreasing = TRUE)
+                 type.convert(names(tab)[1L], as.is = TRUE)
                },
                constant = constant_value)
       } else {
@@ -109,12 +124,16 @@ impute_guarded <- function(train,
 
         # For non-numeric columns, 'mean' and 'median' fall back to the mode
         non_missing <- x[!is.na(x)]
-        ux <- unique(non_missing)
-        if (length(ux) == 0) {
+        if (length(non_missing) == 0) {
           if (is.factor(x)) return(factor(NA, levels = levels(x)))
           return(NA)
         }
-        ux[which.max(tabulate(match(non_missing, ux)))]
+        tab <- sort(table(non_missing), decreasing = TRUE)
+        if (is.factor(x)) {
+          factor(names(tab)[1L], levels = levels(x))
+        } else {
+          type.convert(names(tab)[1L], as.is = TRUE)
+        }
       }
     })
     names(impute_values) <- names(train)
@@ -180,6 +199,10 @@ impute_guarded <- function(train,
     test_imp <- tail(test_imp_full$ximp, n = nrow(test))
   }
 
+  if (!is.null(test_imp)) {
+    test_imp[is.na(test_imp)] <- NA
+  }
+
   # ---------- Postprocessing ----------
   # Restore factor levels
   for (col in names(test_imp)) {
@@ -195,6 +218,12 @@ impute_guarded <- function(train,
     post_missing_test  = colSums(is.na(test_imp)),
     stringsAsFactors = FALSE
   )
+
+  diagnostics$missing_train <- as.integer(diagnostics$missing_train)
+  diagnostics$missing_test  <- as.integer(diagnostics$missing_test)
+
+  outlier_count <- if (!is.null(outlier_flags)) colSums(outlier_flags) else rep(0L, ncol(train))
+  diagnostics$outliers_train <- outlier_count
 
   # ---------- Assemble result ----------
   structure(
