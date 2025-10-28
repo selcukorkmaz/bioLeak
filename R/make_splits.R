@@ -264,7 +264,8 @@ make_splits <- function(x, outcome = NULL,
     outcome = outcome, v = v, repeats = repeats, seed = seed, mode = mode,
     group = group, batch = batch, study = study, time = time,
     stratify = stratify, nested = nested, horizon = horizon,
-    summary = split_summary, hash = hash_val, inner = inner_indices
+    summary = split_summary, hash = hash_val, inner = inner_indices,
+    coldata = cd
   )
 
   new("LeakSplits", mode = mode, indices = indices, info = info)
