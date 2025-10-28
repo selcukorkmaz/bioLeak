@@ -138,11 +138,13 @@ audit_leakage <- function(fit,
   weights <- weights / sum(weights)
 
   se_obs <- NA_real_
-  if (metric == "auc") {
+  if (metric == "auc" && exists(".cvauc_if", mode = "function")) {
     obs_truth <- lapply(pred_list, `[[`, "truth")
     obs_pred <- lapply(pred_list, `[[`, "pred")
-    if_stat <- .cvauc_if(pred = obs_pred, truth = obs_truth, weights = weights)
-    se_obs <- if_stat$se_auc
+    if_stat <- try(.cvauc_if(pred = obs_pred, truth = obs_truth, weights = weights), silent = TRUE)
+    if (!inherits(if_stat, "try-error") && !is.null(if_stat$se_auc)) {
+      se_obs <- if_stat$se_auc
+    }
   }
 
   higher_better <- metric %in% c("auc", "pr_auc", "cindex")
@@ -188,28 +190,45 @@ audit_leakage <- function(fit,
     perm_vals <- sapply(seq_len(B), function(i) { set.seed(seed + i); perm_eval(i) })
   }
 
-  perm_mean <- mean(perm_vals, na.rm = TRUE)
-  delta <- if (higher_better) metric_obs - perm_mean else perm_mean - metric_obs
-  pval <- if (higher_better) {
-    (1 + sum(perm_vals >= metric_obs, na.rm = TRUE)) / (1 + sum(is.finite(perm_vals)))
+  if (!any(is.finite(perm_vals))) {
+    perm_mean <- NA_real_
+    perm_sd <- NA_real_
+    pval <- NA_real_
+    p_se <- NA_real_
+    delta <- NA_real_
   } else {
-    (1 + sum(perm_vals <= metric_obs, na.rm = TRUE)) / (1 + sum(is.finite(perm_vals)))
+    perm_mean <- mean(perm_vals, na.rm = TRUE)
+    perm_sd <- stats::sd(perm_vals, na.rm = TRUE)
+    finite_perm <- is.finite(perm_vals)
+    pval <- if (higher_better) {
+      (1 + sum(perm_vals[finite_perm] >= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
+    } else {
+      (1 + sum(perm_vals[finite_perm] <= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
+    }
+    p_se <- sqrt(pval * (1 - pval) / (sum(finite_perm) + 1))
+    delta <- if (higher_better) metric_obs - perm_mean else perm_mean - metric_obs
   }
-  perm_sd <- stats::sd(perm_vals, na.rm = TRUE)
-  p_se <- sqrt(pval * (1 - pval) / (B + 1))
 
-  seci <- if (ci_method == "if") {
-    .se_ci_delta(delta, se_obs, perm_vals)
-  } else {
+  seci <- list(se = NA_real_, ci = c(NA_real_, NA_real_), z = NA_real_)
+  if (ci_method == "if" && exists(".se_ci_delta", mode = "function") && is.finite(se_obs)) {
+    seci_try <- try(.se_ci_delta(delta, se_obs, perm_vals), silent = TRUE)
+    if (!inherits(seci_try, "try-error")) {
+      seci <- seci_try
+    } else {
+      seci <- list(se = NA_real_, ci = c(NA_real_, NA_real_), z = NA_real_)
+    }
+  } else if (ci_method == "bootstrap" && any(is.finite(perm_vals))) {
+    perm_vals_finite <- perm_vals[is.finite(perm_vals)]
     boot_vals <- replicate(boot_B, {
-      sample_vals <- sample(perm_vals, replace = TRUE)
+      sample_vals <- sample(perm_vals_finite, replace = TRUE)
       if (higher_better) metric_obs - mean(sample_vals) else mean(sample_vals) - metric_obs
     })
-    alpha <- (1 - 0.95) / 2
-    list(
-      se = stats::sd(boot_vals),
-      ci = stats::quantile(boot_vals, probs = c(alpha, 1 - alpha)),
-      z = ifelse(stats::sd(boot_vals) > 0, delta / stats::sd(boot_vals), NA_real_)
+    alpha <- 0.025
+    se_boot <- stats::sd(boot_vals)
+    seci <- list(
+      se = se_boot,
+      ci = as.numeric(stats::quantile(boot_vals, probs = c(alpha, 1 - alpha))),
+      z = ifelse(se_boot > 0, delta / se_boot, NA_real_)
     )
   }
 
@@ -226,53 +245,52 @@ audit_leakage <- function(fit,
   )
 
   # --- Batch / study association with folds ---------------------------------
-  # Need: a per-sample fold assignment (first time each sample appears in test)
-  n_samples <- length(unique(do.call(c, lapply(fit@predictions, function(d) d$id))))
-  # fold_id <- rep(NA_integer_, n_samples)
-  # for (i in seq_along(fit@splits@indices)) {
-  #   te <- fit@splits@indices[[i]]$test
-  #   fold_id[te] <- ifelse(is.na(fold_id[te]), i, fold_id[te])
-  # }
-
-  # Extract all unique sample IDs appearing in predictions
   ids_all <- sort(unique(do.call(c, lapply(fit@predictions, `[[`, "id"))))
   fold_id <- rep(NA_integer_, length(ids_all))
-  names(fold_id) <- ids_all
+  names(fold_id) <- as.character(ids_all)
 
-  # Assign fold numbers to each test ID
   for (i in seq_along(fit@splits@indices)) {
-    te_ids <- fit@splits@indices[[i]]$test
-    te_ids <- intersect(te_ids, ids_all)
+    te_ids <- intersect(fit@splits@indices[[i]]$test, ids_all)
     fold_id[as.character(te_ids)] <- i
   }
 
-
-  # Get metadata: prefer provided 'coldata', else try to retrieve from splits@info
   if (is.null(coldata) && !is.null(fit@splits@info$coldata)) {
     coldata <- fit@splits@info$coldata
   }
+  if (!is.null(coldata)) {
+    if (!is.null(rownames(coldata))) {
+      coldata <- coldata[as.character(ids_all), , drop = FALSE]
+    } else if (nrow(coldata) == length(ids_all)) {
+      rownames(coldata) <- as.character(ids_all)
+    } else {
+      warning("`coldata` not aligned to predictions; batch association skipped.")
+      coldata <- NULL
+    }
+  }
 
-  batch_results <- NULL
-  if (!is.null(coldata) && length(fold_id) == nrow(coldata)) {
-    # If user didn't pass batch_cols, try plausible keys
+  batch_df <- data.frame()
+  if (!is.null(coldata)) {
     if (is.null(batch_cols)) {
       batch_cols <- intersect(c("batch", "plate", "center", "site", "study"), colnames(coldata))
     }
     if (length(batch_cols) > 0) {
+      fold_valid <- !is.na(fold_id)
       batch_results <- lapply(batch_cols, function(bc) {
         if (!bc %in% colnames(coldata)) return(NULL)
-        tab <- table(fold = fold_id[!is.na(fold_id)],
-                     batch = as.factor(coldata[[bc]][!is.na(fold_id)]))
+        tab <- table(
+          fold = fold_id[fold_valid],
+          batch = as.factor(coldata[fold_valid, bc])
+        )
         as.data.frame(.chisq_assoc(tab))
       })
       names(batch_results) <- batch_cols
-      batch_df <- do.call(rbind, Map(function(nm, df) { df$batch_col <- nm; df }, names(batch_results), batch_results))
-      batch_df <- batch_df[, c("batch_col", "stat", "df", "pval", "cramer_v")]
-    } else {
-      batch_df <- data.frame()
+      keep_idx <- !vapply(batch_results, is.null, logical(1))
+      if (any(keep_idx)) {
+        batch_results <- batch_results[keep_idx]
+        batch_df <- do.call(rbind, Map(function(nm, df) { df$batch_col <- nm; df }, names(batch_results), batch_results))
+        batch_df <- batch_df[, c("batch_col", "stat", "df", "pval", "cramer_v")]
+      }
     }
-  } else {
-    batch_df <- data.frame()
   }
 
   # --- Duplicate / near-duplicate detection ---------------------------------
@@ -296,8 +314,9 @@ audit_leakage <- function(fit,
       nn <- RANN::nn2(Xn, k = min(nn_k + 1, n))  # includes self
       idx <- rep(seq_len(n), times = ncol(nn$nn.idx))
       jdx <- as.vector(nn$nn.idx)
-      idx <- idx[jdx != idx]   # drop self
-      jdx <- jdx[jdx != idx]
+      mask <- (idx != jdx)
+      idx <- idx[mask]
+      jdx <- jdx[mask]
       # compute cosine for candidate pairs
       cosv <- rowSums(Xn[idx, , drop = FALSE] * Xn[jdx, , drop = FALSE])
       keep <- which(cosv >= sim_threshold)
