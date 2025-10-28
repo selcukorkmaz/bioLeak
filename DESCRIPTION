@@ -15,6 +15,7 @@ Encoding: UTF-8
 LazyData: true
 Depends: R (>= 4.3)
 Imports:
+    digest,
     methods,
     stats,
     utils,
