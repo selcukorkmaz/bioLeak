@@ -61,16 +61,14 @@
     stop("Metadata with outcome column required for restricted permutations.")
   }
   y_all <- cd[[outcome]]
+  MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION <- 20L
   strata_vec <- NULL
   should_stratify <- FALSE
   if (isTRUE(perm_stratify)) {
     should_stratify <- TRUE
   } else if (identical(perm_stratify, "auto")) {
-    if (is.factor(y_all)) {
-      should_stratify <- TRUE
-    } else if (is.numeric(y_all)) {
-      should_stratify <- length(y_all) >= 20
-    }
+    should_stratify <- is.factor(y_all) ||
+      (is.numeric(y_all) && length(y_all) >= MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION)
   }
   if (should_stratify) {
     if (is.factor(y_all)) {
@@ -80,6 +78,14 @@
       br <- stats::quantile(y_all, probs = seq(0, 1, length.out = 5), na.rm = TRUE)
       br <- unique(br)
       strata_vec <- cut(y_all, breaks = br, include.lowest = TRUE, labels = FALSE)
+    }
+  }
+  if (identical(mode, "time_series")) {
+    if (!exists(".stationary_bootstrap", mode = "function")) {
+      stop("Missing .stationary_bootstrap() implementation.")
+    }
+    if (!exists(".circular_block_permute", mode = "function")) {
+      stop("Missing .circular_block_permute() implementation.")
     }
   }
   set.seed(seed)
@@ -119,14 +125,8 @@
             L <- max(5L, floor(length(te_idx_sorted) * 0.1))
           }
           perm_idx <- if (identical(time_block, "stationary")) {
-            if (!exists(".stationary_bootstrap", mode = "function")) {
-              stop("Missing .stationary_bootstrap() implementation.")
-            }
             .stationary_bootstrap(te_idx_sorted, mean_block = L)
           } else {
-            if (!exists(".circular_block_permute", mode = "function")) {
-              stop("Missing .circular_block_permute() implementation.")
-            }
             .circular_block_permute(te_idx_sorted, block_len = L)
           }
           y_all[perm_idx]
