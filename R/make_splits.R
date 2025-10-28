@@ -42,6 +42,9 @@ make_splits <- function(x, outcome = NULL,
   stopifnot(is.numeric(horizon), horizon >= 0)
   set.seed(seed)
 
+  if (!methods::isClass("LeakSplits"))
+    stop("S4 class 'LeakSplits' must be defined before using make_splits().")
+
   # ---- Extract metadata ----
   X <- .bio_get_x(x)
   n <- nrow(X)
@@ -110,9 +113,14 @@ make_splits <- function(x, outcome = NULL,
       y <- cd[[outcome]]
       g_lab <- tapply(seq_len(n), gid, function(ix) .majority_class(y[ix]))
       g_lab <- factor(g_lab)
+      if (length(unique(g_lab)) < 2) {
+        warning("Stratification ignored: only one class present at group level.")
+        stratify <- FALSE
+      }
     }
 
     for (r in seq_len(repeats)) {
+      set.seed(seed + 1000 * r)
       if (isTRUE(stratify) && exists("g_lab")) {
         gfold <- integer(length(lev)); names(gfold) <- lev
         for (cl in levels(g_lab)) {
@@ -146,10 +154,14 @@ make_splits <- function(x, outcome = NULL,
       y <- cd[[outcome]]
       b_lab <- tapply(seq_len(n), bid, function(ix) .majority_class(y[ix]))
       b_lab <- factor(b_lab)
+      if (length(unique(b_lab)) < 2) {
+        warning("Stratification ignored: only one class present at group level.")
+        stratify <- FALSE
+      }
     }
 
     for (r in seq_len(repeats)) {
-      set.seed(seed + r)
+      set.seed(seed + 1000 * r)
       # if (isTRUE(stratify) && exists("b_lab")) {
       #   bfold <- integer(length(blevels)); names(bfold) <- blevels
       #   for (cl in levels(b_lab)) {
@@ -226,7 +238,8 @@ make_splits <- function(x, outcome = NULL,
       test <- Xidx[max(1, (k - 1) * fold_size + 1):min(n, k * fold_size)]
       tmin <- min(tt[test])
       train <- Xidx[tt[Xidx] <= (tmin - horizon)]
-      if (length(train) < 5 || length(test) < 3) next
+      if (length(train) < 1L) next
+      if (length(test) < 3L) next
       indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = as.integer(k), repeat_id = as.integer(1))
     }
   }
@@ -251,6 +264,11 @@ make_splits <- function(x, outcome = NULL,
   # ---- Summary ----
   if (length(indices) == 0L)
     stop("No valid folds generated. Check inputs (group/batch/study/time, v, repeats, horizon).")
+
+  fold_repeat_keys <- vapply(indices, function(z) paste(z$fold, z$repeat_id), character(1))
+  if (anyDuplicated(fold_repeat_keys)) {
+    warning("Duplicate fold/repeat combinations detected; check v and repeats settings.")
+  }
 
   split_summary <- data.frame(
     fold      = vapply(indices, `[[`, integer(1), "fold"),
