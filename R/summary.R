@@ -95,3 +95,54 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 
   invisible(object)
 }
+
+#' Summarize a LeakFit object
+#'
+#' Provides a concise summary of resampled model performance,
+#' including learners, folds, and mean ± SD of metrics.
+#'
+#' @param object A \code{LeakFit} object returned by [fit_resample()].
+#' @param digits Number of digits to display.
+#' @param ... Not used.
+#' @return Invisibly returns the summary data frame.
+#' @export
+summary.LeakFit <- function(object, digits = 3, ...) {
+  if (!inherits(object, "LeakFit"))
+    stop("Object must be of class 'LeakFit'.")
+
+  cat("\n===========================\n")
+  cat(" bioLeak Model Fit Summary\n")
+  cat("===========================\n\n")
+
+  # Basic info
+  info <- object@info
+  cat(sprintf("Task: %s\n", object@task))
+  cat(sprintf("Outcome: %s\n", object@outcome))
+  cat(sprintf("Learners: %s\n", paste(unique(object@metrics$learner), collapse = ", ")))
+  cat(sprintf("Total folds: %d\n", length(object@splits@indices)))
+  cat(sprintf("Refit performed: %s\n", if (isTRUE(info$refit)) "Yes" else "No"))
+  cat(sprintf("Hash: %s\n\n", substr(info$hash, 1, 12)))
+
+  # Metric summary
+  if (nrow(object@metric_summary) > 0) {
+    cat("Cross-validated metrics (mean ± SD):\n")
+    ms <- object@metric_summary
+    metrics_fmt <- as.data.frame(ms)
+    print(round(metrics_fmt, digits))
+    cat("\n")
+  } else {
+    cat("No metric summary available.\n\n")
+  }
+
+  # Audit information
+  if (nrow(object@audit) > 0) {
+    cat("Audit overview:\n")
+    audit_df <- head(object@audit, 5)
+    print(audit_df, row.names = FALSE)
+    cat("\n")
+  } else {
+    cat("No audit information stored.\n\n")
+  }
+
+  invisible(object@metric_summary)
+}
