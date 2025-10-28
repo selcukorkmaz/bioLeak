@@ -9,6 +9,7 @@ plot_perm_distribution <- function(audit) {
   obs <- audit@permutation_gap$metric_obs
   graphics::hist(perm, breaks = "FD", col = "grey80", border = "white",
                  main = "Permutation distribution", xlab = "Metric")
+  graphics::box()
   graphics::abline(v = obs, col = "red", lwd = 2)
   perm_mean <- mean(perm, na.rm = TRUE)
   graphics::abline(v = perm_mean, col = "blue", lty = 2, lwd = 2)
@@ -19,6 +20,11 @@ plot_perm_distribution <- function(audit) {
                    lwd = 2,
                    lty = c(1, 2),
                    bg = "white")
+  invisible(list(
+    observed = obs,
+    permuted_mean = perm_mean,
+    perm_distribution = perm
+  ))
 }
 
 #' Plot fold balance of positives/negatives per fold
@@ -76,6 +82,19 @@ plot_fold_balance <- function(fit) {
                    col = legend_col,
                    pt.bg = rep(NA, length(legend_entries)),
                    bg = "white")
+  graphics::box()
+  invisible(list(
+    fold_summary = tab,
+    bar_positions = bp,
+    legend = data.frame(
+      label = legend_entries,
+      fill = I(legend_fill),
+      border = I(legend_border),
+      lty = legend_lty,
+      pch = legend_pch,
+      col = legend_col
+    )
+  ))
 }
 
 #' Plot overlap diagnostics between train/test groups
@@ -107,14 +126,19 @@ plot_overlap_checks <- function(fit, column = NULL) {
     graphics::mtext("WARNING: Overlaps detected!", side = 3, line = 0.5,
                     col = "red", font = 2)
   }
+  invisible(list(
+    overlap_counts = counts,
+    column = column
+  ))
 }
 
 #' Plot ACF of test predictions for time-series leakage checks
 #' @param fit LeakFit
 #' @export
-plot_time_acf <- function(fit, lag.max = NULL) {
+plot_time_acf <- function(fit, lag.max = 20) {
   stopifnot(inherits(fit, "LeakFit"))
   all_pred <- do.call(rbind, fit@predictions)
-  graphics::acf(all_pred$pred, main = "Prediction autocorrelation",
-                lag.max = lag.max)
+  acf_res <- graphics::acf(all_pred$pred, main = "Prediction autocorrelation",
+                           lag.max = lag.max, plot = TRUE)
+  invisible(list(acf = acf_res, lag.max = lag.max))
 }
