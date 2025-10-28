@@ -1,5 +1,11 @@
 # Restricted permutation engines ------------------------------------------------
 
+#' Permutation label factory
+#'
+#' Constructs permutation closures used by \code{audit_leakage()}.
+#' When \code{perm_stratify = "auto"}, numeric outcomes with at least 20
+#' observations will be binned by quantiles for stratification, while factor
+#' outcomes always stratify by their levels.
 #.majority_level helper
 .majority_level <- function(vals) {
   vals <- vals[!is.na(vals)]
@@ -61,6 +67,10 @@
     stop("Metadata with outcome column required for restricted permutations.")
   }
   y_all <- cd[[outcome]]
+  if (all(is.na(y_all))) {
+    stop("Outcome column contains only NA values.")
+  }
+
   MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION <- 20L
   strata_vec <- NULL
   should_stratify <- FALSE
@@ -74,6 +84,9 @@
     if (is.factor(y_all)) {
       strata_vec <- y_all
     } else if (is.numeric(y_all)) {
+      if (isTRUE(perm_stratify) && length(y_all) < MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION) {
+        stop("Numeric outcomes require at least 20 observations when perm_stratify = TRUE.")
+      }
       # for regression, bins by quantiles to maintain structure
       br <- stats::quantile(y_all, probs = seq(0, 1, length.out = 5), na.rm = TRUE)
       br <- unique(br)
