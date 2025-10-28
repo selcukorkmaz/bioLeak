@@ -62,7 +62,17 @@
   }
   y_all <- cd[[outcome]]
   strata_vec <- NULL
+  should_stratify <- FALSE
   if (isTRUE(perm_stratify)) {
+    should_stratify <- TRUE
+  } else if (identical(perm_stratify, "auto")) {
+    if (is.factor(y_all)) {
+      should_stratify <- TRUE
+    } else if (is.numeric(y_all)) {
+      should_stratify <- length(y_all) >= 20
+    }
+  }
+  if (should_stratify) {
     if (is.factor(y_all)) {
       strata_vec <- y_all
     } else if (is.numeric(y_all)) {
@@ -109,8 +119,14 @@
             L <- max(5L, floor(length(te_idx_sorted) * 0.1))
           }
           perm_idx <- if (identical(time_block, "stationary")) {
+            if (!exists(".stationary_bootstrap", mode = "function")) {
+              stop("Missing .stationary_bootstrap() implementation.")
+            }
             .stationary_bootstrap(te_idx_sorted, mean_block = L)
           } else {
+            if (!exists(".circular_block_permute", mode = "function")) {
+              stop("Missing .circular_block_permute() implementation.")
+            }
             .circular_block_permute(te_idx_sorted, block_len = L)
           }
           y_all[perm_idx]
