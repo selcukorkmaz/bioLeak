@@ -361,12 +361,12 @@ audit_leakage <- function(fit,
   }
 
   # --- Assemble S4 object ----------------------------------------------------
-  perm_distribution <- if (isTRUE(return_perm)) perm_vals else numeric(0)
+  perm_values <- if (isTRUE(return_perm)) perm_vals else numeric(0)
 
   new("LeakAudit",
       fit = fit,
       permutation_gap = perm_df,
-      perm_distribution = perm_distribution,
+      perm_values = perm_values,
       batch_assoc = batch_df,
       duplicates = dup_df,
       trail = trail,
