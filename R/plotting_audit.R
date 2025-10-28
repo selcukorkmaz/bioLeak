@@ -5,7 +5,7 @@
 #' @export
 plot_perm_distribution <- function(audit) {
   stopifnot(inherits(audit, "LeakAudit"))
-  perm <- audit@perm_distribution
+  perm <- audit@perm_values
   obs <- audit@permutation_gap$metric_obs
   graphics::hist(perm, breaks = "FD", col = "grey80", border = "white",
                  main = "Permutation distribution", xlab = "Metric")
@@ -23,7 +23,7 @@ plot_perm_distribution <- function(audit) {
   invisible(list(
     observed = obs,
     permuted_mean = perm_mean,
-    perm_distribution = perm
+    perm_values = perm
   ))
 }
 
