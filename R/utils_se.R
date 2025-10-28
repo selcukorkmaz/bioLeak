@@ -19,7 +19,13 @@
     # attempt numeric conversion for columns that look numeric
     out[] <- lapply(out, function(col) {
       suppressWarnings(num <- as.numeric(col))
-      if (!anyNA(num) || is.numeric(col)) num else col
+      if (is.numeric(col)) {
+        col
+      } else if (!anyNA(num)) {
+        num
+      } else {
+        col
+      }
     })
   } else {
     stop("Unsupported x type.")
@@ -34,8 +40,19 @@
     if (!(outcome %in% colnames(cd))) stop("Outcome column not in colData.")
     cd[[outcome]]
   } else {
-    if (is.null(outcome)) stop("Provide outcome when x is not SummarizedExperiment.")
-    outcome
+    if (is.null(outcome))
+      stop("Provide outcome column name when x is not a SummarizedExperiment.")
+    if (is.character(outcome) && outcome %in% colnames(x)) {
+      if (is.data.frame(x)) {
+        x[[outcome]]
+      } else if (is.matrix(x)) {
+        x[, outcome]
+      } else {
+        x[[outcome]]
+      }
+    } else {
+      stop("Outcome not found in data frame or matrix.")
+    }
   }
 }
 
@@ -53,11 +70,13 @@
 }
 
 .bio_hash_indices <- function(idx) {
-  # simple hash: paste and digest-like base hash
+  if (requireNamespace("digest", quietly = TRUE))
+    return(paste0("h", substr(digest::digest(idx), 1, 8)))
   paste0("h", sprintf("%08X", as.integer(sum(unlist(idx)) %% .Machine$integer.max)))
 }
 
 .bio_is_classification <- function(y) is.factor(y) || (is.numeric(y) && length(unique(y)) <= 10)
+.bio_is_regression <- function(y) is.numeric(y) && length(unique(y)) > 10
 .bio_is_binomial <- function(y) {
   if (is.factor(y)) return(nlevels(y) == 2)
   if (is.numeric(y)) {
