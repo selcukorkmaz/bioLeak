@@ -1,4 +1,4 @@
-#' Create leakage-resistant splits (enhanced)
+#' Create leakage-resistant splits
 #'
 #' @description
 #' Generates leakage-safe cross-validation splits for common biomedical setups:

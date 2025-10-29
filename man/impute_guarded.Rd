@@ -51,3 +51,9 @@ and then applied to the test data. Includes Median Absolute Deviation (MAD)–ba
 Winsorization for robust outlier handling, automatic factor level preservation,
 and diagnostic summaries.
 }
+\references{
+Rousseeuw & Croux (1993), *Alternative to the Median Absolute Deviation.*
+}
+\seealso{
+[VIM::kNN()], [mice::mice()], [missForest::missForest()]
+}

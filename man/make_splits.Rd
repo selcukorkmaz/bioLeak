@@ -2,7 +2,7 @@
 % Please edit documentation in R/make_splits.R
 \name{make_splits}
 \alias{make_splits}
-\title{Create leakage-resistant splits (enhanced)}
+\title{Create leakage-resistant splits}
 \usage{
 make_splits(
   x,

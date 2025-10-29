@@ -20,3 +20,6 @@ Invisibly returns the input object.
 Provides a console summary of the leakage audit results,
 including permutation gap, batch association, and duplicates.
 }
+\seealso{
+[plot.LeakAudit()], [bioLeak()], [make_splits()]
+}
