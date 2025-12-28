@@ -66,3 +66,14 @@ subject-grouped, batch-blocked, study leave-one-out, and time-series
 rolling-origin. Supports repeats, optional stratification, nested inner CV,
 and an optional prediction horizon for time series.
 }
+\examples{
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:10, each = 2),
+  outcome = rbinom(20, 1, 0.5),
+  x1 = rnorm(20),
+  x2 = rnorm(20)
+)
+splits <- make_splits(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject", v = 5)
+}

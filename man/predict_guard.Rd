@@ -7,10 +7,20 @@
 predict_guard(fit, newdata)
 }
 \arguments{
-\item{fit}{GuardFit object returned by .guard_fit()}
+\item{fit}{GuardFit object returned by [.guard_fit()].}
 
-\item{newdata}{matrix/data.frame to transform}
+\item{newdata}{matrix/data.frame to transform.}
+}
+\value{
+A data.frame of transformed predictors.
 }
 \description{
 Apply a fitted GuardFit transformer to new data
+}
+\examples{
+x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
+fit <- .guard_fit(x, y = c(1, 2, 3),
+                  steps = list(impute = list(method = "median")),
+                  task = "gaussian")
+predict_guard(fit, x)
 }

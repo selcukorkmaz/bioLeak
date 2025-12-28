@@ -3,12 +3,17 @@
 #' Provides a console summary of the leakage audit results,
 #' including permutation gap, batch association, and duplicates.
 #'
-#' @seealso [plot.LeakAudit()], [bioLeak()], [make_splits()]
+#' @seealso [plot_perm_distribution()], [plot_fold_balance()], [plot_overlap_checks()]
 #'
 #' @param object LeakAudit
 #' @param digits number of digits for numeric display
 #' @param ... ignored
 #' @return Invisibly returns the input object.
+#' @examples
+#' \dontrun{
+#' # audit <- audit_leakage(fit, metric = "auc", B = 50)
+#' summary(audit)
+#' }
 #' @export
 summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!inherits(object, "LeakAudit"))
@@ -20,8 +25,15 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 
   fit <- object@fit
   info <- fit@info
-  warn_sym <- if (cli::is_utf8_output()) "⚠️" else "WARNING:"
-  ok_sym   <- if (cli::is_utf8_output()) "✓" else "OK:"
+  utf8_ok <- FALSE
+  if (requireNamespace("cli", quietly = TRUE)) {
+    utf8_ok <- isTRUE(cli::is_utf8_output())
+  } else {
+    loc <- tryCatch(l10n_info(), error = function(e) NULL)
+    if (!is.null(loc) && isTRUE(loc$`UTF-8`)) utf8_ok <- TRUE
+  }
+  warn_sym <- if (utf8_ok) "⚠️" else "WARNING:"
+  ok_sym   <- if (utf8_ok) "✓" else "OK:"
 
   task <- fit@task %||% NA_character_
   outcome <- fit@outcome %||% NA_character_
@@ -42,7 +54,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     pg <- object@permutation_gap
     cat("Permutation Gap Test:\n")
     cat(sprintf("  Observed metric: %s\n",
-                formatC(pg$metric, digits = digits, format = "f")))
+                formatC(pg$metric_obs, digits = digits, format = "f")))
     cat(sprintf("  Permuted mean ± SD: %s ± %s\n",
                 formatC(pg$perm_mean, digits = digits, format = "f"),
                 formatC(pg$perm_sd, digits = digits, format = "f")))
@@ -68,8 +80,10 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!is.null(object@duplicates) && nrow(object@duplicates) > 0) {
     dd <- object@duplicates
     cat("Near-Duplicate Samples:\n")
-    cat(sprintf("  %d pairs detected above cosine ≥ %s\n",
+    sim_label <- object@info$sim_method %||% "cosine"
+    cat(sprintf("  %d pairs detected above %s ≥ %s\n",
                 nrow(dd),
+                sim_label,
                 formatC(object@info$duplicate_threshold, digits = digits, format = "f")))
     head_pairs <- utils::head(dd, 5)
     cat("  Example pairs:\n")
@@ -105,6 +119,11 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 #' @param digits Number of digits to display.
 #' @param ... Not used.
 #' @return Invisibly returns the summary data frame.
+#' @examples
+#' \dontrun{
+#' # fit <- fit_resample(...)
+#' summary(fit)
+#' }
 #' @export
 summary.LeakFit <- function(object, digits = 3, ...) {
   if (!inherits(object, "LeakFit"))

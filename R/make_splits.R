@@ -29,6 +29,16 @@
 #' @param progress logical, print progress for large jobs.
 #'
 #' @return LeakSplits S4 object
+#' @examples
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:10, each = 2),
+#'   outcome = rbinom(20, 1, 0.5),
+#'   x1 = rnorm(20),
+#'   x2 = rnorm(20)
+#' )
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 5)
 #' @export
 make_splits <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
@@ -291,6 +301,19 @@ make_splits <- function(x, outcome = NULL,
 
 
 #' @title Display summary for LeakSplits objects
+#' @description Prints fold counts, sizes, and hash metadata for quick inspection.
+#' @examples
+#' \dontrun{
+#' df <- data.frame(
+#'   subject = rep(1:10, each = 2),
+#'   outcome = rbinom(20, 1, 0.5),
+#'   x1 = rnorm(20),
+#'   x2 = rnorm(20)
+#' )
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 5)
+#' show(splits)
+#' }
 #' @export
 setMethod("show", "LeakSplits", function(object) {
   cat(sprintf("LeakSplits object (mode = %s, v = %d, repeats = %d)\n",
@@ -304,5 +327,3 @@ setMethod("show", "LeakSplits", function(object) {
   cat(sprintf("Total folds: %d | Hash: %s\n",
               nrow(object@info$summary), object@info$hash))
 })
-
-

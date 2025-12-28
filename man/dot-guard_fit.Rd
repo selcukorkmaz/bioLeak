@@ -7,7 +7,7 @@
 .guard_fit(X, y = NULL, steps = list(), task = c("binomial", "gaussian"))
 }
 \arguments{
-\item{X}{matrix/data.frame of predictors (training)}
+\item{X}{matrix/data.frame of predictors (training).}
 
 \item{y}{Optional outcome for supervised feature selection.}
 
@@ -19,6 +19,27 @@
 An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.
 }
 \description{
-Builds and fits a guarded preprocessing pipeline on training data, then
-constructs a transformer for consistent application to new data.
+Builds and fits a guarded preprocessing pipeline on training data,
+then constructs a transformer for consistent application to new data.
+}
+\details{
+The pipeline applies, in order:
+\itemize{
+  \item Winsorization (optional) to limit outliers.
+  \item Imputation learned on training data only.
+  \item Normalization (z-score or robust).
+  \item Variance/IQR filtering.
+  \item Feature selection (optional; t-test, lasso, PCA).
+}
+All statistics are estimated on the training data and re-used for new data.
+}
+\examples{
+x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
+fit <- .guard_fit(x, y = c(1, 2, 3),
+                  steps = list(impute = list(method = "median")),
+                  task = "gaussian")
+fit$transform(x)
+}
+\seealso{
+[predict_guard()]
 }

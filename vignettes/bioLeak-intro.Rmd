@@ -1,0 +1,133 @@
+---
+title: "bioLeak overview"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{bioLeak overview}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+bioLeak provides leakage-aware splitting, guarded preprocessing, and audit
+diagnostics for biomedical modeling workflows. It is designed for omics and
+clinical data where leakage can arise from grouped samples, batches, studies,
+or time ordering.
+
+## Workflow overview
+
+Typical usage follows this flow:
+
+1. Create leakage-safe splits with `make_splits()`.
+2. Fit models with fold-specific preprocessing using `fit_resample()`.
+3. Audit leakage with `audit_leakage()` and export a report with
+   `audit_report()`.
+
+Inputs can be `data.frame`, `matrix`, or `SummarizedExperiment` objects.
+
+## Splitting
+
+```{r splits, eval=FALSE}
+library(bioLeak)
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:10, each = 2),
+  batch = sample(letters[1:2], 20, replace = TRUE),
+  outcome = rbinom(20, 1, 0.5),
+  x1 = rnorm(20),
+  x2 = rnorm(20)
+)
+
+splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "subject_grouped",
+  group = "subject",
+  v = 5
+)
+```
+
+Other modes include `batch_blocked`, `study_loocv`, and `time_series` with
+an optional prediction horizon.
+
+## Guarded preprocessing and fitting
+
+```{r fit, eval=FALSE}
+fit <- fit_resample(
+  df,
+  outcome = "outcome",
+  splits = splits,
+  learner = "glmnet",
+  metrics = "auc",
+  preprocess = list(
+    impute = list(method = "median"),
+    normalize = list(method = "zscore"),
+    filter = list(var_thresh = 0)
+  )
+)
+summary(fit)
+```
+
+You can also plug in custom learners via `custom_learners`:
+
+```{r custom-learner, eval=FALSE}
+custom <- list(
+  glm = list(
+    fit = function(x, y, task, weights, ...) {
+      stats::glm(y ~ ., data = as.data.frame(x),
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+                                type = "response"))
+    }
+  )
+)
+fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
+                     learner = "glm", custom_learners = custom,
+                     metrics = "accuracy")
+```
+
+## Auditing and report
+
+```{r audit, eval=FALSE}
+audit <- audit_leakage(fit, metric = "auc", B = 100)
+summary(audit)
+audit_report(audit, output_dir = ".")
+```
+
+To check duplicates, provide a reference feature matrix and a similarity
+method:
+
+```{r duplicates, eval=FALSE}
+audit <- audit_leakage(
+  fit,
+  metric = "auc",
+  B = 100,
+  X_ref = df[, c("x1", "x2")],
+  sim_method = "pearson",
+  sim_threshold = 0.99
+)
+```
+
+For multiple learners, run audits per learner:
+
+```{r per-learner, eval=FALSE}
+audits <- audit_leakage_by_learner(fit, metric = "auc", B = 50)
+audits
+```
+
+## Simulation suite
+
+The simulation helper can be used to validate leakage detection pipelines:
+
+```{r sim, eval=FALSE}
+res <- simulate_leakage_suite(
+  n = 300, p = 10, mode = "subject_grouped",
+  learner = "ranger", leakage = "subject_overlap",
+  seeds = 1:3, parallel = FALSE
+)
+head(res)
+```

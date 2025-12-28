@@ -9,7 +9,7 @@ simulate_leakage_suite(
   p = 20,
   prevalence = 0.5,
   mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
-  learner = c("glmnet", "ranger", "xgboost"),
+  learner = c("glmnet", "ranger"),
   leakage = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),
   rho = 0,
   K = 5,
@@ -32,7 +32,7 @@ simulate_leakage_suite(
 \item{mode}{Character. Cross-validation mode:
 `"subject_grouped"`, `"batch_blocked"`, `"study_loocv"`, `"time_series"`.}
 
-\item{learner}{Character. Base learner: `"glmnet"`, `"ranger"`, or `"xgboost"`.}
+\item{learner}{Character. Base learner: `"glmnet"` or `"ranger"`.}
 
 \item{leakage}{Character. Leakage type:
 `"none"`, `"subject_overlap"`, `"batch_confounded"`, `"peek_norm"`, `"lookahead"`.}
@@ -79,6 +79,8 @@ The function can optionally run in parallel using
 `parallel::mclapply()` for Linux/macOS systems.
 **Windows users** should set `parallel = FALSE` (or `mc.cores = 1`)
 because `mclapply` is not supported under Windows.
+\code{signal_strength} scales the linear predictor before converting to
+outcome probabilities; larger values yield stronger separation.
 }
 \examples{
 \dontrun{

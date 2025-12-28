@@ -7,8 +7,20 @@
 plot_time_acf(fit, lag.max = 20)
 }
 \arguments{
-\item{fit}{LeakFit}
+\item{fit}{LeakFit.}
+
+\item{lag.max}{maximum lag to show.}
+}
+\value{
+A list with the autocorrelation results and \code{lag.max}.
 }
 \description{
-Plot ACF of test predictions for time-series leakage checks
+Uses the autocorrelation function of out-of-fold predictions to detect
+temporal dependence that may indicate leakage.
+}
+\examples{
+\dontrun{
+# fit <- fit_resample(...)
+plot_time_acf(fit, lag.max = 20)
+}
 }

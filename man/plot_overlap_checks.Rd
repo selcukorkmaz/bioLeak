@@ -7,10 +7,20 @@
 plot_overlap_checks(fit, column = NULL)
 }
 \arguments{
-\item{fit}{LeakFit}
+\item{fit}{LeakFit.}
 
-\item{column}{metadata column name (e.g., subject, batch)}
+\item{column}{metadata column name (e.g., subject, batch).}
+}
+\value{
+A list containing overlap counts and the requested column.
 }
 \description{
-Plot overlap diagnostics between train/test groups
+Compares unique group counts per fold and highlights overlaps between train
+and test groups (e.g., subject or batch IDs).
+}
+\examples{
+\dontrun{
+# fit <- fit_resample(...)
+plot_overlap_checks(fit, column = "subject")
+}
 }

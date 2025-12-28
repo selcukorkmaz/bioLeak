@@ -7,7 +7,8 @@
 \alias{LeakAudit-class}
 \title{S4 Classes for bioLeak Pipeline}
 \description{
-S4 Classes for bioLeak Pipeline
+These classes capture splits, model fits, and audit diagnostics produced by
+\code{make_splits()}, \code{fit_resample()}, and \code{audit_leakage()}.
 }
 \section{Slots}{
 
@@ -53,3 +54,10 @@ S4 Classes for bioLeak Pipeline
 \item{\code{trail}}{List capturing audit trail information}
 }}
 
+\seealso{
+[make_splits()], [fit_resample()], [audit_leakage()]
+
+[fit_resample()]
+
+[audit_leakage()], [audit_report()]
+}

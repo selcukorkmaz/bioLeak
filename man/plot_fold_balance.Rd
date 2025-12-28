@@ -7,8 +7,18 @@
 plot_fold_balance(fit)
 }
 \arguments{
-\item{fit}{LeakFit}
+\item{fit}{LeakFit.}
+}
+\value{
+A list containing the fold summary and plot metadata.
 }
 \description{
-Plot fold balance of positives/negatives per fold
+Displays a bar chart of class counts per fold and overlays the positive
+proportion to diagnose stratification issues.
+}
+\examples{
+\dontrun{
+# fit <- fit_resample(...)
+plot_fold_balance(fit)
+}
 }

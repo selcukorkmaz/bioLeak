@@ -20,3 +20,9 @@ Invisibly returns the summary data frame.
 Provides a concise summary of resampled model performance,
 including learners, folds, and mean ± SD of metrics.
 }
+\examples{
+\dontrun{
+# fit <- fit_resample(...)
+summary(fit)
+}
+}

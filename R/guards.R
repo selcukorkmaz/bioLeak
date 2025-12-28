@@ -34,24 +34,17 @@
   paste0("h", sprintf("%08X", as.integer(stats::runif(1, 0, .Machine$integer.max))))
 }
 
-#' Guarded preprocessing: fit on training, apply to new data (leakage-safe)
+#' Ensure consistent categorical levels for guarded preprocessing
 #'
-#' @param X matrix/data.frame of predictors (training)
-#' @param y optional outcome vector (used by some FS methods)
-#' @param steps named list configuring stages:
-#' \itemize{
-#'   \item \code{impute = list(method = "median"|"knn"|"mice"|"none", k = 5,
-#'         winsor = TRUE, winsor_k = 5)}
-#'   \item \code{normalize = list(method = "zscore"|"robust"|"none")}
-#'   \item \code{filter = list(var_thresh = 0, iqr_thresh = 0,
-#'         min_keep = NULL)}  # adaptive to keep at least this many
-#'   \item \code{fs = list(method = "none"|"ttest"|"lasso"|"pca",
-#'         pca_comp = 50)}
-#'   \item \code{parallel = FALSE}
-#' }
-#' @param task "binomial" or "gaussian" (affects FS)
-#' @return S3 object of class "GuardFit" with fields:
-#'   \code{transform}, \code{state}, \code{p_out}, \code{steps}
+#' Converts character/logical columns to factors and aligns factor levels with
+#' a training-time \code{levels_map}. Adds a dummy level when a column has only
+#' one observed level so that downstream one-hot encoding retains a column.
+#'
+#' @param df data.frame to normalize factor levels.
+#' @param levels_map optional named list of factor levels learned from training data.
+#' @param dummy_prefix prefix used when adding a dummy level to single-level factors.
+#' @return List with elements \code{data} (data.frame) and \code{levels} (named list of levels).
+#' @keywords internal
 #' @export
 .guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__") {
   stopifnot(is.data.frame(df))
@@ -99,13 +92,30 @@
 }
 
 #' @title Fit leakage-safe preprocessing pipeline
-#' @description Builds and fits a guarded preprocessing pipeline on training data, then
-#' constructs a transformer for consistent application to new data.
-#' @inheritParams .guard_ensure_levels
+#' @description Builds and fits a guarded preprocessing pipeline on training data,
+#' then constructs a transformer for consistent application to new data.
+#' @details
+#' The pipeline applies, in order:
+#' \itemize{
+#'   \item Winsorization (optional) to limit outliers.
+#'   \item Imputation learned on training data only.
+#'   \item Normalization (z-score or robust).
+#'   \item Variance/IQR filtering.
+#'   \item Feature selection (optional; t-test, lasso, PCA).
+#' }
+#' All statistics are estimated on the training data and re-used for new data.
+#' @param X matrix/data.frame of predictors (training).
 #' @param y Optional outcome for supervised feature selection.
 #' @param steps List of configuration options (see Details).
 #' @param task "binomial" or "gaussian".
 #' @return An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.
+#' @seealso [predict_guard()]
+#' @examples
+#' x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
+#' fit <- .guard_fit(x, y = c(1, 2, 3),
+#'                   steps = list(impute = list(method = "median")),
+#'                   task = "gaussian")
+#' fit$transform(x)
 #' @export
 .guard_fit <- function(X, y = NULL, steps = list(), task = c("binomial","gaussian")) {
   task <- match.arg(task)
@@ -616,8 +626,16 @@ print.summary.GuardFit <- function(x, ...) {
 # Convenience -------------------------------------------------------------
 
 #' Apply a fitted GuardFit transformer to new data
-#' @param fit GuardFit object returned by .guard_fit()
-#' @param newdata matrix/data.frame to transform
+#'
+#' @param fit GuardFit object returned by [.guard_fit()].
+#' @param newdata matrix/data.frame to transform.
+#' @return A data.frame of transformed predictors.
+#' @examples
+#' x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
+#' fit <- .guard_fit(x, y = c(1, 2, 3),
+#'                   steps = list(impute = list(method = "median")),
+#'                   task = "gaussian")
+#' predict_guard(fit, x)
 #' @export
 predict_guard <- function(fit, newdata) {
   stopifnot(inherits(fit, "GuardFit"))

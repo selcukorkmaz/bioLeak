@@ -16,6 +16,12 @@
   M / nrm
 }
 
+.row_center <- function(M) {
+  M <- as.matrix(M)
+  mu <- rowMeans(M, na.rm = TRUE)
+  sweep(M, 1, mu, "-")
+}
+
 # Safe χ² with Cramér's V
 .chisq_assoc <- function(tab) {
   if (any(dim(tab) < 2) || any(tab == 0)) {
@@ -52,8 +58,8 @@
     }
     return(NA_real_)
   }
-  if (metric == "cindex" && requireNamespace("survival", quietly = TRUE)) {
-    return(survival::concordance.index(pred, truth)$c.index)
+  if (metric == "cindex") {
+    return(.cindex_pairwise(pred, truth))
   }
   NA_real_
 }
@@ -80,7 +86,28 @@
 #' @param sim_threshold numeric in (0,1), similarity threshold for duplicates (default 0.995)
 #' @param nn_k integer, if RANN available and n large, #nearest neighbors per row to check (default 50)
 #' @param max_pairs cap on the number of duplicate pairs returned (default 5000)
+#' @param learner optional learner name to audit when multiple learners are present
 #' @return LeakAudit
+#' @details
+#' Duplicate detection uses the selected \code{sim_method}:
+#' cosine similarity on L2-normalized rows, or Pearson similarity by row-centering
+#' before normalization. Use \code{feature_space = "rank"} to compare rank profiles.
+#' @examples
+#' \dontrun{
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:20, each = 2),
+#'   outcome = rbinom(40, 1, 0.5),
+#'   x1 = rnorm(40),
+#'   x2 = rnorm(40)
+#' )
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 5)
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glmnet", metrics = "auc")
+#' audit <- audit_leakage(fit, metric = "auc", B = 50, X_ref = df[, c("x1", "x2")])
+#' summary(audit)
+#' }
 #' @export
 audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "rmse", "cindex"),
@@ -101,7 +128,8 @@ audit_leakage <- function(fit,
                           sim_method = c("cosine", "pearson"),
                           sim_threshold = 0.995,
                           nn_k = 50,
-                          max_pairs = 5000) {
+                          max_pairs = 5000,
+                          learner = NULL) {
 
   metric <- match.arg(metric)
   feature_space <- match.arg(feature_space)
@@ -130,7 +158,56 @@ audit_leakage <- function(fit,
   outcome_col <- fit@splits@info$outcome
   if (is.null(outcome_col)) outcome_col <- fit@outcome
 
-  pred_list <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
+  pred_list_raw <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
+  pred_df <- if (length(pred_list_raw)) do.call(rbind, pred_list_raw) else NULL
+  if (is.null(pred_df) || !nrow(pred_df)) {
+    stop("No predictions available in LeakFit object.")
+  }
+
+  has_learner <- "learner" %in% names(pred_df)
+  if (has_learner) {
+    pred_df$learner <- as.character(pred_df$learner)
+    learner_vals <- unique(pred_df$learner)
+    if (is.null(learner)) {
+      if (length(learner_vals) == 1L) {
+        learner <- learner_vals[[1]]
+      } else {
+        stop("Multiple learners found in predictions; specify `learner` to audit a single model.")
+      }
+    } else {
+      if (length(learner) != 1L) stop("learner must be a single value.")
+      if (!learner %in% learner_vals) {
+        stop(sprintf("Learner '%s' not found in predictions. Available: %s",
+                     learner, paste(learner_vals, collapse = ", ")))
+      }
+    }
+    pred_df <- pred_df[pred_df$learner == learner, , drop = FALSE]
+    if (!nrow(pred_df)) {
+      stop(sprintf("No predictions available for learner '%s'.", learner))
+    }
+  } else {
+    if (!is.null(learner)) {
+      warning("`learner` ignored: predictions do not include learner IDs.")
+    } else if (!is.null(fit@metrics) && length(unique(fit@metrics$learner)) > 1L) {
+      warning("Multiple learners were fit but predictions lack learner IDs; audit may mix learners. Refit with updated bioLeak.")
+    }
+  }
+  if (!is.null(learner)) {
+    trail$learner <- learner
+  }
+
+  if ("fold" %in% names(pred_df)) {
+    pred_list <- lapply(seq_along(folds), function(i) {
+      pred_df[pred_df$fold == i, , drop = FALSE]
+    })
+  } else if (has_learner) {
+    pred_list <- lapply(pred_list_raw, function(df) {
+      if ("learner" %in% names(df)) df[df$learner == learner, , drop = FALSE] else df
+    })
+  } else {
+    pred_list <- pred_list_raw
+  }
+
   all_pred <- do.call(rbind, pred_list)
 
   metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred)
@@ -263,7 +340,7 @@ audit_leakage <- function(fit,
     if (is.numeric(x)) round(x, 6) else x)
 
   # --- Batch / study association with folds ---------------------------------
-  ids_all <- sort(unique(do.call(c, lapply(fit@predictions, `[[`, "id"))))
+  ids_all <- sort(unique(all_pred$id))
   fold_id <- rep(NA_integer_, length(ids_all))
   names(fold_id) <- as.character(ids_all)
 
@@ -321,25 +398,28 @@ audit_leakage <- function(fit,
       X <- t(apply(X, 1, function(row) rank(row, ties.method = "average", na.last = "keep")))
       X[is.na(X)] <- 0
     }
-    # standardize to enable cosine via Euclidean NN
+    if (sim_method == "pearson") {
+      X <- .row_center(X)
+    }
+    # standardize to enable similarity via Euclidean NN
     Xn <- .row_l2_normalize(X)
 
     n <- nrow(Xn)
     candidate_pairs <- NULL
 
     if (n > 3000 && requireNamespace("RANN", quietly = TRUE)) {
-      # approximate k-NN search; cosine ~ 1 - 0.5*||u - v||^2 for unit vectors
+      # approximate k-NN search; cosine/pearson ~ 1 - 0.5*||u - v||^2 for unit vectors
       nn <- RANN::nn2(Xn, k = min(nn_k + 1, n))  # includes self
       idx <- rep(seq_len(n), times = ncol(nn$nn.idx))
       jdx <- as.vector(nn$nn.idx)
       mask <- (idx != jdx)
       idx <- idx[mask]
       jdx <- jdx[mask]
-      # compute cosine for candidate pairs
-      cosv <- rowSums(Xn[idx, , drop = FALSE] * Xn[jdx, , drop = FALSE])
-      keep <- which(cosv >= sim_threshold)
+      # compute similarity for candidate pairs
+      simv <- rowSums(Xn[idx, , drop = FALSE] * Xn[jdx, , drop = FALSE])
+      keep <- which(simv >= sim_threshold)
       if (length(keep)) {
-        candidate_pairs <- data.frame(i = idx[keep], j = jdx[keep], cos_sim = cosv[keep])
+        candidate_pairs <- data.frame(i = idx[keep], j = jdx[keep], sim = simv[keep])
       }
     } else {
       # exact; cap output
@@ -347,12 +427,17 @@ audit_leakage <- function(fit,
       S[upper.tri(S, TRUE)] <- 0
       which_dup <- which(S >= sim_threshold, arr.ind = TRUE)
       if (nrow(which_dup) > 0)
-        candidate_pairs <- data.frame(i = which_dup[, 1], j = which_dup[, 2], cos_sim = S[which_dup])
+        candidate_pairs <- data.frame(i = which_dup[, 1], j = which_dup[, 2], sim = S[which_dup])
     }
 
     if (!is.null(candidate_pairs)) {
+      if (sim_method == "cosine") {
+        candidate_pairs$cos_sim <- candidate_pairs$sim
+      } else if (sim_method == "pearson") {
+        candidate_pairs$pearson <- candidate_pairs$sim
+      }
       # sort and cap
-      ord <- order(candidate_pairs$cos_sim, decreasing = TRUE)
+      ord <- order(candidate_pairs$sim, decreasing = TRUE)
       candidate_pairs <- candidate_pairs[ord, , drop = FALSE]
       if (nrow(candidate_pairs) > max_pairs)
         candidate_pairs <- candidate_pairs[seq_len(max_pairs), , drop = FALSE]
@@ -387,6 +472,201 @@ audit_leakage <- function(fit,
         include_z = include_z
       ))
 }
+
+#' Audit leakage per learner
+#'
+#' Runs [audit_leakage()] separately for each learner recorded in the fit and
+#' returns a named list of `LeakAudit` objects.
+#'
+#' @inheritParams audit_leakage
+#' @param learners optional character vector of learner names to audit; defaults
+#'   to all learners found in predictions.
+#' @param parallel_learners logical, if TRUE run audits per learner in parallel
+#'   using \code{parallel::mclapply} (not supported on Windows).
+#' @param mc.cores integer, number of cores for learner-level parallelism.
+#' @return Named list of LeakAudit objects.
+#' @examples
+#' \dontrun{
+#' splits <- make_splits(mtcars, outcome = "am",
+#'                       mode = "subject_grouped", group = "cyl", v = 3)
+#' fit <- fit_resample(mtcars, outcome = "am", splits = splits,
+#'                     learner = c("glmnet", "ranger"), metrics = "auc")
+#' audits <- audit_leakage_by_learner(fit, metric = "auc", B = 20)
+#' audits
+#' }
+#' @export
+audit_leakage_by_learner <- function(fit,
+                                     metric = c("auc", "pr_auc", "rmse", "cindex"),
+                                     learners = NULL,
+                                     parallel_learners = FALSE,
+                                     mc.cores = NULL,
+                                     ...) {
+  metric <- match.arg(metric)
+  dots <- list(...)
+  if ("learner" %in% names(dots)) {
+    stop("Use `learners` to select models; do not pass `learner` to audit_leakage_by_learner().")
+  }
+
+  pred_list <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
+  pred_df <- if (length(pred_list)) do.call(rbind, pred_list) else NULL
+  if (is.null(pred_df) || !nrow(pred_df)) {
+    stop("No predictions available in LeakFit object.")
+  }
+
+  has_learner <- "learner" %in% names(pred_df)
+  if (is.null(learners)) {
+    if (has_learner) {
+      learners <- unique(as.character(pred_df$learner))
+    } else if (!is.null(fit@metrics) && "learner" %in% names(fit@metrics)) {
+      learners <- unique(as.character(fit@metrics$learner))
+    } else {
+      learners <- character(0)
+    }
+  }
+
+  if (!length(learners)) {
+    stop("No learner names found to audit.")
+  }
+
+  if (has_learner) {
+    available <- unique(as.character(pred_df$learner))
+    missing <- setdiff(learners, available)
+    if (length(missing)) {
+      stop(sprintf("Learner(s) not found in predictions: %s", paste(missing, collapse = ", ")))
+    }
+  } else if (length(learners) > 1L) {
+    stop("Predictions do not include learner IDs; cannot audit per learner. Refit with updated bioLeak.")
+  } else {
+    warning("Predictions do not include learner IDs; returning a single audit without learner filtering.")
+  }
+
+  if (isTRUE(parallel_learners)) {
+    if (.Platform$OS.type == "windows") {
+      warning("parallel_learners uses mclapply which is not supported on Windows; using sequential execution.")
+      parallel_learners <- FALSE
+    }
+  }
+  if (is.null(mc.cores)) {
+    detected <- parallel::detectCores()
+    if (is.na(detected) || detected < 1L) detected <- 1L
+    mc.cores <- min(length(learners), detected)
+  }
+  mc.cores <- max(1L, as.integer(mc.cores))
+
+  runner <- function(ln) {
+    audit_leakage(fit, metric = metric, learner = if (has_learner) ln else NULL, ...)
+  }
+  audits <- if (isTRUE(parallel_learners)) {
+    parallel::mclapply(learners, runner, mc.cores = mc.cores)
+  } else {
+    lapply(learners, runner)
+  }
+  names(audits) <- learners
+  class(audits) <- c("LeakAuditList", class(audits))
+  audits
+}
+
+#' @export
+print.LeakAuditList <- function(x, digits = 3, ...) {
+  n <- length(x)
+  cat(sprintf("LeakAuditList with %d learner%s\n", n, ifelse(n == 1L, "", "s")))
+  if (!n) return(invisible(x))
+
+  learners <- names(x)
+  if (is.null(learners) || any(!nzchar(learners))) {
+    learners <- paste0("learner_", seq_len(n))
+  }
+
+  summary_rows <- lapply(seq_along(x), function(i) {
+    aud <- x[[i]]
+    pg <- if (inherits(aud, "LeakAudit")) aud@permutation_gap else NULL
+    metric_obs <- NA_real_
+    perm_mean <- NA_real_
+    gap <- NA_real_
+    p_value <- NA_real_
+    z_val <- NA_real_
+    n_perm <- NA_real_
+    if (!is.null(pg) && nrow(pg) > 0) {
+      metric_obs <- pg$metric_obs[1]
+      perm_mean <- pg$perm_mean[1]
+      gap <- pg$gap[1]
+      p_value <- pg$p_value[1]
+      if ("z" %in% names(pg)) z_val <- pg$z[1]
+      if ("n_perm" %in% names(pg)) n_perm <- pg$n_perm[1]
+    }
+
+    batch_df <- if (inherits(aud, "LeakAudit")) aud@batch_assoc else NULL
+    batch_p_min <- NA_real_
+    batch_col_min_p <- NA_character_
+    batch_v_max <- NA_real_
+    batch_col_max_v <- NA_character_
+    if (!is.null(batch_df) && nrow(batch_df) > 0) {
+      pvals <- batch_df$pval
+      if (any(is.finite(pvals))) {
+        idx <- which.min(pvals)
+        batch_p_min <- pvals[idx]
+        batch_col_min_p <- as.character(batch_df$batch_col[idx])
+      }
+      vvals <- batch_df$cramer_v
+      if (any(is.finite(vvals))) {
+        idx <- which.max(vvals)
+        batch_v_max <- vvals[idx]
+        batch_col_max_v <- as.character(batch_df$batch_col[idx])
+      }
+    }
+
+    dup_df <- if (inherits(aud, "LeakAudit")) aud@duplicates else NULL
+    dup_pairs <- NA_real_
+    dup_max_sim <- NA_real_
+    if (!is.null(dup_df)) {
+      if (nrow(dup_df) > 0) {
+        dup_pairs <- nrow(dup_df)
+        if ("sim" %in% names(dup_df)) {
+          dup_max_sim <- max(dup_df$sim, na.rm = TRUE)
+        } else if ("cos_sim" %in% names(dup_df)) {
+          dup_max_sim <- max(dup_df$cos_sim, na.rm = TRUE)
+        } else if ("pearson" %in% names(dup_df)) {
+          dup_max_sim <- max(dup_df$pearson, na.rm = TRUE)
+        }
+      } else if (ncol(dup_df) > 0) {
+        dup_pairs <- 0
+      }
+    }
+    dup_threshold <- if (inherits(aud, "LeakAudit") &&
+                         !is.null(aud@info$duplicate_threshold)) {
+      aud@info$duplicate_threshold
+    } else {
+      NA_real_
+    }
+
+    data.frame(
+      learner = learners[[i]],
+      metric_obs = metric_obs,
+      perm_mean = perm_mean,
+      gap = gap,
+      p_value = p_value,
+      z = z_val,
+      n_perm = n_perm,
+      batch_p_min = batch_p_min,
+      batch_col_min_p = batch_col_min_p,
+      batch_v_max = batch_v_max,
+      batch_col_max_v = batch_col_max_v,
+      dup_pairs = dup_pairs,
+      dup_threshold = dup_threshold,
+      dup_max_sim = dup_max_sim,
+      stringsAsFactors = FALSE
+    )
+  })
+
+  summary_df <- do.call(rbind, summary_rows)
+  if (nrow(summary_df)) {
+    numeric_cols <- vapply(summary_df, is.numeric, logical(1))
+    summary_df[numeric_cols] <- lapply(summary_df[numeric_cols], function(v) round(v, digits))
+    print(summary_df, row.names = FALSE)
+  }
+  invisible(x)
+}
+
 .coerce_truth_like <- function(template, values) {
   if (is.factor(template)) {
     factor(values, levels = levels(template))
@@ -398,4 +678,3 @@ audit_leakage <- function(fit,
     values
   }
 }
-

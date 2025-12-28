@@ -1,8 +1,12 @@
 #' S4 Classes for bioLeak Pipeline
 #'
+#' These classes capture splits, model fits, and audit diagnostics produced by
+#' \code{make_splits()}, \code{fit_resample()}, and \code{audit_leakage()}.
+#'
 #' @slot mode Splitting mode (e.g., "grouped_cv", "batch_blocked")
 #' @slot indices List of resampling indices (train/test)
 #' @slot info Metadata associated with split or fit
+#' @seealso [make_splits()], [fit_resample()], [audit_leakage()]
 #' @rdname LeakClasses
 #' @exportClass LeakSplits
 setClass("LeakSplits",
@@ -22,6 +26,7 @@ setClass("LeakSplits",
 #' @slot task Modeling task name
 #' @slot feature_names Feature names included in the model
 #' @slot info Additional metadata about the fit
+#' @seealso [fit_resample()]
 #' @exportClass LeakFit
 setClass("LeakFit",
          slots = c(
@@ -45,6 +50,7 @@ setClass("LeakFit",
 #' @slot batch_assoc Data frame of batch associations
 #' @slot duplicates Data frame detailing duplicate records
 #' @slot trail List capturing audit trail information
+#' @seealso [audit_leakage()], [audit_report()]
 #' @exportClass LeakAudit
 setClass("LeakAudit",
          slots = c(

@@ -50,6 +50,15 @@ information leakage. All imputation parameters are learned *only* from training 
 and then applied to the test data. Includes Median Absolute Deviation (MAD)–based
 Winsorization for robust outlier handling, automatic factor level preservation,
 and diagnostic summaries.
+For kNN and missForest, imputation is fit on the training set and then
+train-derived fill values are applied to test rows to avoid leakage.
+}
+\examples{
+train <- data.frame(x = c(1, 2, NA, 4), y = c(NA, 1, 1, 0))
+test <- data.frame(x = c(NA, 5), y = c(1, NA))
+imp <- impute_guarded(train, test, method = "median", winsor = FALSE)
+imp$train
+imp$test
 }
 \references{
 Rousseeuw & Croux (1993), *Alternative to the Median Absolute Deviation.*

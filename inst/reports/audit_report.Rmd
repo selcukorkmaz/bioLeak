@@ -1,0 +1,77 @@
+---
+title: "bioLeak audit report"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+params:
+  audit: NULL
+---
+
+```{r setup, include=FALSE}
+stopifnot(inherits(params$audit, "LeakAudit"))
+aud <- params$audit
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+## Overview
+
+```{r overview}
+summary(aud)
+```
+
+## Permutation gap
+
+```{r perm-gap}
+pg <- aud@permutation_gap
+if (!is.null(pg) && nrow(pg) > 0) {
+  knitr::kable(pg)
+} else {
+  cat("No permutation gap results available.")
+}
+```
+
+```{r perm-plot}
+if (length(aud@perm_values) > 0 && any(is.finite(aud@perm_values))) {
+  plot_perm_distribution(aud)
+} else {
+  cat("No permutation distribution available.")
+}
+```
+
+## Batch association
+
+```{r batch-assoc}
+ba <- aud@batch_assoc
+if (!is.null(ba) && nrow(ba) > 0) {
+  knitr::kable(ba)
+} else {
+  cat("No batch or study association results available.")
+}
+```
+
+## Duplicate detection
+
+```{r duplicates}
+dd <- aud@duplicates
+if (!is.null(dd) && nrow(dd) > 0) {
+  knitr::kable(utils::head(dd, 50))
+} else {
+  cat("No duplicates detected or no duplicate check performed.")
+}
+```
+
+## Provenance
+
+```{r trail}
+trail <- aud@trail
+if (!is.null(trail)) {
+  knitr::kable(data.frame(
+    field = names(trail),
+    value = vapply(trail, function(x) {
+      if (length(x) == 1L) as.character(x) else "<list>"
+    }, character(1)),
+    stringsAsFactors = FALSE
+  ))
+}
+```

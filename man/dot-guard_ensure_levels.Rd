@@ -2,33 +2,23 @@
 % Please edit documentation in R/guards.R
 \name{.guard_ensure_levels}
 \alias{.guard_ensure_levels}
-\title{Guarded preprocessing: fit on training, apply to new data (leakage-safe)}
+\title{Ensure consistent categorical levels for guarded preprocessing}
 \usage{
 .guard_ensure_levels(df, levels_map = NULL, dummy_prefix = "__dummy__")
 }
 \arguments{
-\item{X}{matrix/data.frame of predictors (training)}
+\item{df}{data.frame to normalize factor levels.}
 
-\item{y}{optional outcome vector (used by some FS methods)}
+\item{levels_map}{optional named list of factor levels learned from training data.}
 
-\item{steps}{named list configuring stages:
-\itemize{
-  \item \code{impute = list(method = "median"|"knn"|"mice"|"none", k = 5,
-        winsor = TRUE, winsor_k = 5)}
-  \item \code{normalize = list(method = "zscore"|"robust"|"none")}
-  \item \code{filter = list(var_thresh = 0, iqr_thresh = 0,
-        min_keep = NULL)}  # adaptive to keep at least this many
-  \item \code{fs = list(method = "none"|"ttest"|"lasso"|"pca",
-        pca_comp = 50)}
-  \item \code{parallel = FALSE}
-}}
-
-\item{task}{"binomial" or "gaussian" (affects FS)}
+\item{dummy_prefix}{prefix used when adding a dummy level to single-level factors.}
 }
 \value{
-S3 object of class "GuardFit" with fields:
-  \code{transform}, \code{state}, \code{p_out}, \code{steps}
+List with elements \code{data} (data.frame) and \code{levels} (named list of levels).
 }
 \description{
-Guarded preprocessing: fit on training, apply to new data (leakage-safe)
+Converts character/logical columns to factors and aligns factor levels with
+a training-time \code{levels_map}. Adds a dummy level when a column has only
+one observed level so that downstream one-hot encoding retains a column.
 }
+\keyword{internal}

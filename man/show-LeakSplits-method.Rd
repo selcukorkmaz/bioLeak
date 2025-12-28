@@ -7,5 +7,18 @@
 \S4method{show}{LeakSplits}(object)
 }
 \description{
-Display summary for LeakSplits objects
+Prints fold counts, sizes, and hash metadata for quick inspection.
+}
+\examples{
+\dontrun{
+df <- data.frame(
+  subject = rep(1:10, each = 2),
+  outcome = rbinom(20, 1, 0.5),
+  x1 = rnorm(20),
+  x2 = rnorm(20)
+)
+splits <- make_splits(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject", v = 5)
+show(splits)
+}
 }

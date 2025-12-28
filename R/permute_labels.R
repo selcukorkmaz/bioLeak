@@ -1,13 +1,15 @@
 # Restricted permutation engines ------------------------------------------------
 
-#' Permutation label factory
+#' Quantile break cache for permutation stratification
 #'
-#' Constructs permutation closures used by \code{audit_leakage()}.
-#' When \code{perm_stratify = "auto"}, numeric outcomes with at least 20
-#' observations will be binned by quantiles for stratification, while factor
-#' outcomes always stratify by their levels.
+#' Internal environment used to cache quantile breakpoints for numeric
+#' outcomes during restricted permutation testing. This avoids recomputing
+#' quantiles across repeated calls in \code{audit_leakage()}.
+#'
+#' @format An environment used to cache quantile breakpoints.
+#' @keywords internal
+#' @docType data
 # Cached quantile breaks for numeric stratification ------------------------
-
 .quantile_break_cache <- new.env(parent = emptyenv())
 
 .get_cached_quantile_breaks <- function(vals, probs) {
@@ -79,6 +81,25 @@
   .permute_within_group(y, study)
 }
 
+#' Restricted permutation label factory
+#'
+#' Builds a closure that generates permuted outcome vectors per fold while
+#' respecting grouping/batch/study/time constraints used in
+#' \code{audit_leakage()}. Numeric outcomes can be stratified by quantiles to
+#' preserve outcome structure under permutation.
+#'
+#' @param cd data.frame of sample metadata.
+#' @param outcome outcome column name.
+#' @param mode resampling mode (subject_grouped, batch_blocked, study_loocv, time_series).
+#' @param folds list of train/test index lists from \code{LeakSplits}.
+#' @param perm_stratify logical or "auto"; if TRUE, permute within strata.
+#' @param time_block time-series block permutation method.
+#' @param block_len block length for time-series permutations.
+#' @param seed integer seed.
+#' @param group_col,batch_col,study_col optional metadata columns.
+#' @param verbose logical; print progress messages.
+#' @return A function that returns a list of permuted outcome vectors, one per fold.
+#' @keywords internal
 # Factory returning closure that produces permuted training labels per fold
 .permute_labels_factory <- function(cd, outcome, mode, folds, perm_stratify,
                                     time_block, block_len, seed,

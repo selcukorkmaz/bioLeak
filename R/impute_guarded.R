@@ -6,6 +6,8 @@
 #' and then applied to the test data. Includes Median Absolute Deviation (MAD)–based
 #' Winsorization for robust outlier handling, automatic factor level preservation,
 #' and diagnostic summaries.
+#' For kNN and missForest, imputation is fit on the training set and then
+#' train-derived fill values are applied to test rows to avoid leakage.
 #'
 #' @param train data frame (training set)
 #' @param test data frame (test set)
@@ -23,6 +25,12 @@
 #' [VIM::kNN()], [mice::mice()], [missForest::missForest()]
 #' @references
 #' Rousseeuw & Croux (1993), *Alternative to the Median Absolute Deviation.*
+#' @examples
+#' train <- data.frame(x = c(1, 2, NA, 4), y = c(NA, 1, 1, 0))
+#' test <- data.frame(x = c(NA, 5), y = c(1, NA))
+#' imp <- impute_guarded(train, test, method = "median", winsor = FALSE)
+#' imp$train
+#' imp$test
 #' @export
 impute_guarded <- function(train,
                            test,
@@ -95,6 +103,43 @@ impute_guarded <- function(train,
     message(sprintf("Applied MAD-based Winsorization (±%.1f MADs) to numeric variables.", winsor_thresh))
   }
 
+  train_impute_values <- function(train_imp) {
+    vals <- lapply(names(train_imp), function(col) {
+      x <- train_imp[[col]]
+      if (is.numeric(x)) {
+        if (all(is.na(x))) return(NA_real_)
+        return(stats::median(x, na.rm = TRUE))
+      }
+      non_missing <- x[!is.na(x)]
+      if (!length(non_missing)) return(NA)
+      tab <- sort(table(non_missing), decreasing = TRUE)
+      val <- names(tab)[1L]
+      if (is.factor(x)) {
+        return(factor(val, levels = levels(x)))
+      }
+      if (is.logical(x)) {
+        return(as.logical(val))
+      }
+      if (is.character(x)) {
+        return(val)
+      }
+      type.convert(val, as.is = TRUE)
+    })
+    names(vals) <- names(train_imp)
+    vals
+  }
+
+  apply_impute_values <- function(df, impute_values) {
+    for (col in names(impute_values)) {
+      if (!col %in% names(df)) next
+      val <- impute_values[[col]]
+      if (length(val) == 1 && all(is.na(val))) next
+      idx <- is.na(df[[col]])
+      if (any(idx)) df[[col]][idx] <- val
+    }
+    df
+  }
+
   # ---------- Imputation ----------
   impute_values <- list()
   train_imp <- test_imp <- model <- NULL
@@ -160,11 +205,9 @@ impute_guarded <- function(train,
       stop("Install 'VIM' for kNN imputation.")
     args <- list(data = train, k = k, imp_var = FALSE)
     train_imp <- suppressWarnings(do.call(VIM::kNN, args))
-    model <- list(method = "knn", k = k)
-    test_comb <- rbind(train, test)
-    args$data <- test_comb
-    test_imp_full <- suppressWarnings(do.call(VIM::kNN, args))
-    test_imp <- tail(test_imp_full, n = nrow(test))
+    impute_values <- train_impute_values(train_imp)
+    model <- list(method = "knn", k = k, impute_values = impute_values)
+    test_imp <- apply_impute_values(test, impute_values)
   }
 
   # MICE
@@ -191,12 +234,10 @@ impute_guarded <- function(train,
     if (parallel) mf_args$parallelize <- "forests"
     imp_model <- do.call(missForest::missForest, mf_args)
     train_imp <- imp_model$ximp
+    impute_values <- train_impute_values(train_imp)
     model <- imp_model
-
-    comb <- rbind(train_imp, test)
-    mf_args$xmis <- comb  # comb verisini yeniden ver
-    test_imp_full <- suppressWarnings(do.call(missForest::missForest, mf_args))
-    test_imp <- tail(test_imp_full$ximp, n = nrow(test))
+    model$impute_values <- impute_values
+    test_imp <- apply_impute_values(test, impute_values)
   }
 
   if (!is.null(test_imp)) {

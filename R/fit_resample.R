@@ -9,12 +9,55 @@
 #' @param preprocess list(impute, normalize, filter=list(...), fs)
 #' @param learner character vector, e.g. "glmnet","ranger"
 #' @param learner_args list of additional arguments passed to learner(s)
+#' @param custom_learners named list of custom learner definitions. Each entry
+#'   must contain \code{fit} and \code{predict} functions. The \code{fit} function
+#'   should accept \code{x}, \code{y}, \code{task}, and \code{weights}, and return
+#'   a model object. The \code{predict} function should accept \code{object},
+#'   \code{newdata}, and \code{task}, and return numeric predictions.
 #' @param metrics named list of metric functions or vector of metric names
 #' @param class_weights optional named numeric vector of weights for binomial outcomes
 #' @param parallel logical, use future.apply for multicore execution
 #' @param refit logical, if TRUE retrain final model on full data
 #' @param seed integer, for reproducibility
 #' @return LeakFit object
+#' @details
+#' Preprocessing is fit on the training fold and applied to the test fold,
+#' preventing leakage from global imputation, scaling, or feature selection.
+#' Use \code{learner_args} to pass model-specific arguments, either as a named
+#' list keyed by learner or a single list applied to all learners. For custom
+#' learners, \code{learner_args[[name]]} may be a list with \code{fit} and
+#' \code{predict} sublists to pass distinct arguments to each stage.
+#' @examples
+#' \dontrun{
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:10, each = 2),
+#'   outcome = rbinom(20, 1, 0.5),
+#'   x1 = rnorm(20),
+#'   x2 = rnorm(20)
+#' )
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 5)
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glmnet", metrics = "auc")
+#' summary(fit)
+#'
+#' # Custom learner (logistic regression)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object, newdata = as.data.frame(newdata), type = "response"))
+#'     }
+#'   )
+#' )
+#' fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                      learner = "glm", custom_learners = custom,
+#'                      metrics = "accuracy")
+#' }
 #' @export
 fit_resample <- function(x, outcome, splits,
                          preprocess = list(
@@ -25,6 +68,7 @@ fit_resample <- function(x, outcome, splits,
                          ),
                          learner = c("glmnet", "ranger"),
                          learner_args = list(),
+                         custom_learners = list(),
                          metrics = c("auc", "pr_auc", "accuracy"),
                          class_weights = NULL,
                          parallel = FALSE,
@@ -32,7 +76,30 @@ fit_resample <- function(x, outcome, splits,
                          seed = 1) {
 
   set.seed(seed)
-  learner <- match.arg(learner, several.ok = TRUE)
+  if (is.null(custom_learners)) custom_learners <- list()
+  if (!is.list(custom_learners)) {
+    stop("custom_learners must be a named list of learner definitions.")
+  }
+  if (length(custom_learners) && is.null(names(custom_learners))) {
+    stop("custom_learners must be a named list.")
+  }
+  if (length(custom_learners)) {
+    dup_names <- intersect(names(custom_learners), c("glmnet", "ranger"))
+    if (length(dup_names)) {
+      stop(sprintf("custom_learners cannot override built-in learners: %s",
+                   paste(dup_names, collapse = ", ")))
+    }
+    bad <- vapply(custom_learners, function(def) {
+      !is.list(def) || !is.function(def$fit) || !is.function(def$predict)
+    }, logical(1))
+    if (any(bad)) {
+      stop("Each custom learner must be a list with `fit` and `predict` functions.")
+    }
+  }
+
+  builtin_learners <- c("glmnet", "ranger")
+  all_learners <- c(builtin_learners, names(custom_learners))
+  learner <- match.arg(learner, choices = all_learners, several.ok = TRUE)
   Xall <- .bio_get_x(x)
   yall <- .bio_get_y(x, outcome)
   Xall <- Xall[, setdiff(colnames(Xall), outcome), drop = FALSE]
@@ -127,8 +194,8 @@ fit_resample <- function(x, outcome, splits,
     }
     if (name == "rmse" && task == "gaussian")
       return(sqrt(mean((as.numeric(y) - pred)^2)))
-    if (name == "cindex" && requireNamespace("survival", quietly = TRUE))
-      return(survival::concordance.index(pred, y)$c.index)
+    if (name == "cindex" && task == "gaussian")
+      return(.cindex_pairwise(pred, y))
     NA_real_
   }
 
@@ -198,8 +265,36 @@ fit_resample <- function(x, outcome, splits,
     modifyList(defaults, extras)
   }
 
+  resolve_custom_args <- function(name) {
+    if (!length(learner_args)) return(list(fit = list(), predict = list()))
+    if (!is.null(names(learner_args)) && all(names(learner_args) %in% learner)) {
+      extras <- learner_args[[name]] %||% list()
+    } else {
+      extras <- learner_args
+    }
+    if (is.list(extras) && (("fit" %in% names(extras)) || ("predict" %in% names(extras)))) {
+      return(list(fit = extras$fit %||% list(),
+                  predict = extras$predict %||% list()))
+    }
+    list(fit = extras, predict = extras)
+  }
+
   # single learner wrapper ----------------------------------------------------
   train_one_learner <- function(learner_name, Xtrg, ytr, Xteg, yte, weights = NULL) {
+    if (learner_name %in% names(custom_learners)) {
+      def <- custom_learners[[learner_name]]
+      args <- resolve_custom_args(learner_name)
+      fit_args <- c(list(x = Xtrg, y = ytr, task = task, weights = weights), args$fit)
+      model <- do.call(def$fit, fit_args)
+      pred_args <- c(list(object = model, newdata = Xteg, task = task), args$predict)
+      pred <- do.call(def$predict, pred_args)
+      pred <- as.numeric(pred)
+      if (length(pred) != nrow(Xteg)) {
+        stop(sprintf("Custom learner '%s' returned %d predictions for %d rows.",
+                     learner_name, length(pred), nrow(Xteg)))
+      }
+      return(list(pred = pred, fit = model))
+    }
     if (learner_name == "glmnet") {
       if (!requireNamespace("glmnet", quietly = TRUE)) stop("Install 'glmnet'.")
       fam <- if (task == "binomial") "binomial" else "gaussian"
@@ -261,13 +356,17 @@ fit_resample <- function(x, outcome, splits,
       if (nlevels(droplevels(ytr)) < 2) {
         warning(sprintf("Fold %s skipped: only one class in training data", fold$fold))
         empty_metrics <- setNames(rep(NA_real_, length(metrics)), metric_labels)
-        empty_pred <- data.frame(id = integer(0),
-                                 truth = factor(character(0), levels = class_levels),
-                                 pred = numeric(0))
-        skipped <- lapply(learner, function(.) {
+        skipped <- lapply(learner, function(ln) {
           list(
             metrics = empty_metrics,
-            pred = empty_pred,
+            pred = data.frame(
+              id = integer(0),
+              truth = factor(character(0), levels = class_levels),
+              pred = numeric(0),
+              fold = integer(0),
+              learner = character(0),
+              stringsAsFactors = FALSE
+            ),
             guard = list(state = NULL),
             learner = NULL,
             feat_names = colnames(Xtr)
@@ -311,7 +410,14 @@ fit_resample <- function(x, outcome, splits,
       names(ms) <- metric_labels
       results[[ln]] <- list(
         metrics = ms,
-        pred = data.frame(id = ids[te], truth = yte, pred = model$pred),
+        pred = data.frame(
+          id = ids[te],
+          truth = yte,
+          pred = model$pred,
+          fold = fold$fold,
+          learner = ln,
+          stringsAsFactors = FALSE
+        ),
         guard = guard$state,
         learner = model$fit,
         feat_names = colnames(Xtrg)

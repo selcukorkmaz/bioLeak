@@ -24,7 +24,8 @@ audit_leakage(
   sim_method = c("cosine", "pearson"),
   sim_threshold = 0.995,
   nn_k = 50,
-  max_pairs = 5000
+  max_pairs = 5000,
+  learner = NULL
 )
 }
 \arguments{
@@ -67,10 +68,34 @@ audit_leakage(
 \item{nn_k}{integer, if RANN available and n large, #nearest neighbors per row to check (default 50)}
 
 \item{max_pairs}{cap on the number of duplicate pairs returned (default 5000)}
+
+\item{learner}{optional learner name to audit when multiple learners are present}
 }
 \value{
 LeakAudit
 }
 \description{
 Audit leakage and confounding
+}
+\details{
+Duplicate detection uses the selected \code{sim_method}:
+cosine similarity on L2-normalized rows, or Pearson similarity by row-centering
+before normalization. Use \code{feature_space = "rank"} to compare rank profiles.
+}
+\examples{
+\dontrun{
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:20, each = 2),
+  outcome = rbinom(40, 1, 0.5),
+  x1 = rnorm(40),
+  x2 = rnorm(40)
+)
+splits <- make_splits(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject", v = 5)
+fit <- fit_resample(df, outcome = "outcome", splits = splits,
+                    learner = "glmnet", metrics = "auc")
+audit <- audit_leakage(fit, metric = "auc", B = 50, X_ref = df[, c("x1", "x2")])
+summary(audit)
+}
 }

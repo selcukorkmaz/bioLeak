@@ -7,8 +7,18 @@
 plot_perm_distribution(audit)
 }
 \arguments{
-\item{audit}{LeakAudit}
+\item{audit}{LeakAudit.}
+}
+\value{
+A list containing the observed value, permuted mean, and permutation values.
 }
 \description{
-Plot permutation distribution for a LeakAudit object
+Visualizes the permutation metric distribution and marks the observed and
+permuted-mean values to help assess leakage signals.
+}
+\examples{
+\dontrun{
+# audit <- audit_leakage(fit, metric = "auc", B = 100)
+plot_perm_distribution(audit)
+}
 }

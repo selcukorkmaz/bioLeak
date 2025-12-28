@@ -15,13 +15,15 @@
 #' `parallel::mclapply()` for Linux/macOS systems.
 #' **Windows users** should set `parallel = FALSE` (or `mc.cores = 1`)
 #' because `mclapply` is not supported under Windows.
+#' \code{signal_strength} scales the linear predictor before converting to
+#' outcome probabilities; larger values yield stronger separation.
 #'
 #' @param n Integer. Number of samples.
 #' @param p Integer. Number of predictors.
 #' @param prevalence Numeric. Prevalence (probability of class 1).
 #' @param mode Character. Cross-validation mode:
 #'   `"subject_grouped"`, `"batch_blocked"`, `"study_loocv"`, `"time_series"`.
-#' @param learner Character. Base learner: `"glmnet"`, `"ranger"`, or `"xgboost"`.
+#' @param learner Character. Base learner: `"glmnet"` or `"ranger"`.
 #' @param leakage Character. Leakage type:
 #'   `"none"`, `"subject_overlap"`, `"batch_confounded"`, `"peek_norm"`, `"lookahead"`.
 #' @param rho Numeric. Autocorrelation coefficient (0 = independent).
@@ -57,7 +59,7 @@
 simulate_leakage_suite <- function(
     n = 500, p = 20, prevalence = 0.5,
     mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
-    learner = c("glmnet", "ranger", "xgboost"),
+    learner = c("glmnet", "ranger"),
     leakage = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),
     rho = 0, K = 5, repeats = 1, horizon = 0,
     B = 1000, seeds = 1:10, parallel = FALSE, signal_strength = 1,
@@ -117,7 +119,7 @@ simulate_leakage_suite <- function(
 }
 
 
-.simulate_dataset <- function(n, p, prevalence, mode, leakage, rho) {
+.simulate_dataset <- function(n, p, prevalence, mode, leakage, rho, signal_strength = 1) {
   X <- matrix(rnorm(n * p), n, p)
   colnames(X) <- sprintf("x%02d", seq_len(p))
   subject <- sample(seq_len(max(5, n %/% 5)), n, replace = TRUE)
@@ -132,7 +134,7 @@ simulate_leakage_suite <- function(
     }
   }
   linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
-  linpred <- scale(linpred)
+  linpred <- scale(linpred) * signal_strength
   thr <- stats::qnorm(prevalence)
   y_prob <- stats::pnorm(linpred - thr)
   y <- rbinom(n, 1, y_prob)

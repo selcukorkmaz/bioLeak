@@ -20,6 +20,12 @@ Invisibly returns the input object.
 Provides a console summary of the leakage audit results,
 including permutation gap, batch association, and duplicates.
 }
+\examples{
+\dontrun{
+# audit <- audit_leakage(fit, metric = "auc", B = 50)
+summary(audit)
+}
+}
 \seealso{
-[plot.LeakAudit()], [bioLeak()], [make_splits()]
+[plot_perm_distribution()], [plot_fold_balance()], [plot_overlap_checks()]
 }

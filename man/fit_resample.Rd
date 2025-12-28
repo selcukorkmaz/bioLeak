@@ -12,6 +12,7 @@ fit_resample(
     "zscore"), filter = list(var_thresh = 0, iqr_thresh = 0), fs = list(method = "none")),
   learner = c("glmnet", "ranger"),
   learner_args = list(),
+  custom_learners = list(),
   metrics = c("auc", "pr_auc", "accuracy"),
   class_weights = NULL,
   parallel = FALSE,
@@ -32,6 +33,12 @@ fit_resample(
 
 \item{learner_args}{list of additional arguments passed to learner(s)}
 
+\item{custom_learners}{named list of custom learner definitions. Each entry
+must contain \code{fit} and \code{predict} functions. The \code{fit} function
+should accept \code{x}, \code{y}, \code{task}, and \code{weights}, and return
+a model object. The \code{predict} function should accept \code{object},
+\code{newdata}, and \code{task}, and return numeric predictions.}
+
 \item{metrics}{named list of metric functions or vector of metric names}
 
 \item{class_weights}{optional named numeric vector of weights for binomial outcomes}
@@ -48,4 +55,44 @@ LeakFit object
 \description{
 Performs cross-validated model training and evaluation using
 leakage-protected preprocessing (.guard_fit) and user-specified learners.
+}
+\details{
+Preprocessing is fit on the training fold and applied to the test fold,
+preventing leakage from global imputation, scaling, or feature selection.
+Use \code{learner_args} to pass model-specific arguments, either as a named
+list keyed by learner or a single list applied to all learners. For custom
+learners, \code{learner_args[[name]]} may be a list with \code{fit} and
+\code{predict} sublists to pass distinct arguments to each stage.
+}
+\examples{
+\dontrun{
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:10, each = 2),
+  outcome = rbinom(20, 1, 0.5),
+  x1 = rnorm(20),
+  x2 = rnorm(20)
+)
+splits <- make_splits(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject", v = 5)
+fit <- fit_resample(df, outcome = "outcome", splits = splits,
+                    learner = "glmnet", metrics = "auc")
+summary(fit)
+
+# Custom learner (logistic regression)
+custom <- list(
+  glm = list(
+    fit = function(x, y, task, weights, ...) {
+      stats::glm(y ~ ., data = as.data.frame(x),
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object, newdata = as.data.frame(newdata), type = "response"))
+    }
+  )
+)
+fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
+                     learner = "glm", custom_learners = custom,
+                     metrics = "accuracy")
+}
 }

@@ -3,17 +3,16 @@
 \docType{data}
 \name{.quantile_break_cache}
 \alias{.quantile_break_cache}
-\title{Permutation label factory}
+\title{Quantile break cache for permutation stratification}
 \format{
-An object of class \code{environment} of length 0.
+An environment used to cache quantile breakpoints.
 }
 \usage{
 .quantile_break_cache
 }
 \description{
-Constructs permutation closures used by \code{audit_leakage()}.
-When \code{perm_stratify = "auto"}, numeric outcomes with at least 20
-observations will be binned by quantiles for stratification, while factor
-outcomes always stratify by their levels.
+Internal environment used to cache quantile breakpoints for numeric
+outcomes during restricted permutation testing. This avoids recomputing
+quantiles across repeated calls in \code{audit_leakage()}.
 }
-\keyword{datasets}
+\keyword{internal}

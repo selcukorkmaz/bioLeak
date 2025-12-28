@@ -1,7 +1,17 @@
 # Diagnostic plotting helpers --------------------------------------------------
 
 #' Plot permutation distribution for a LeakAudit object
-#' @param audit LeakAudit
+#'
+#' Visualizes the permutation metric distribution and marks the observed and
+#' permuted-mean values to help assess leakage signals.
+#'
+#' @param audit LeakAudit.
+#' @return A list containing the observed value, permuted mean, and permutation values.
+#' @examples
+#' \dontrun{
+#' # audit <- audit_leakage(fit, metric = "auc", B = 100)
+#' plot_perm_distribution(audit)
+#' }
 #' @export
 plot_perm_distribution <- function(audit) {
   stopifnot(inherits(audit, "LeakAudit"))
@@ -28,7 +38,17 @@ plot_perm_distribution <- function(audit) {
 }
 
 #' Plot fold balance of positives/negatives per fold
-#' @param fit LeakFit
+#'
+#' Displays a bar chart of class counts per fold and overlays the positive
+#' proportion to diagnose stratification issues.
+#'
+#' @param fit LeakFit.
+#' @return A list containing the fold summary and plot metadata.
+#' @examples
+#' \dontrun{
+#' # fit <- fit_resample(...)
+#' plot_fold_balance(fit)
+#' }
 #' @export
 plot_fold_balance <- function(fit) {
   stopifnot(inherits(fit, "LeakFit"))
@@ -98,8 +118,18 @@ plot_fold_balance <- function(fit) {
 }
 
 #' Plot overlap diagnostics between train/test groups
-#' @param fit LeakFit
-#' @param column metadata column name (e.g., subject, batch)
+#'
+#' Compares unique group counts per fold and highlights overlaps between train
+#' and test groups (e.g., subject or batch IDs).
+#'
+#' @param fit LeakFit.
+#' @param column metadata column name (e.g., subject, batch).
+#' @return A list containing overlap counts and the requested column.
+#' @examples
+#' \dontrun{
+#' # fit <- fit_resample(...)
+#' plot_overlap_checks(fit, column = "subject")
+#' }
 #' @export
 plot_overlap_checks <- function(fit, column = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
@@ -133,7 +163,18 @@ plot_overlap_checks <- function(fit, column = NULL) {
 }
 
 #' Plot ACF of test predictions for time-series leakage checks
-#' @param fit LeakFit
+#'
+#' Uses the autocorrelation function of out-of-fold predictions to detect
+#' temporal dependence that may indicate leakage.
+#'
+#' @param fit LeakFit.
+#' @param lag.max maximum lag to show.
+#' @return A list with the autocorrelation results and \code{lag.max}.
+#' @examples
+#' \dontrun{
+#' # fit <- fit_resample(...)
+#' plot_time_acf(fit, lag.max = 20)
+#' }
 #' @export
 plot_time_acf <- function(fit, lag.max = 20) {
   stopifnot(inherits(fit, "LeakFit"))
