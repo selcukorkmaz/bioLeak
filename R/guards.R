@@ -317,14 +317,22 @@
   orig_colnames <- colnames(X)
 
   # 0) Mixed-type handling: one-hot encode non-numeric columns -----------------
-  prep <- .guard_ensure_levels(X)
-  X <- prep$data
   if (!ncol(X)) stop("Input X has no columns after preprocessing.")
-  encoding_levels <- prep$levels
-  mf <- stats::model.frame(~ . , data = as.data.frame(X), na.action = stats::na.pass)
-  mm <- stats::model.matrix(~ . - 1, data = mf)  # satır sayısı korunur
-  X <- as.data.frame(mm, check.names = FALSE)
-  p_after_encode <- ncol(X)
+  all_numeric <- all(vapply(X, is.numeric, logical(1)))
+  if (all_numeric) {
+    encoding_levels <- list()
+    X <- as.data.frame(X, check.names = FALSE)
+    p_after_encode <- ncol(X)
+  } else {
+    prep <- .guard_ensure_levels(X)
+    X <- prep$data
+    if (!ncol(X)) stop("Input X has no columns after preprocessing.")
+    encoding_levels <- prep$levels
+    mf <- stats::model.frame(~ . , data = as.data.frame(X), na.action = stats::na.pass)
+    mm <- stats::model.matrix(~ . - 1, data = mf)  # satır sayısı korunur
+    X <- as.data.frame(mm, check.names = FALSE)
+    p_after_encode <- ncol(X)
+  }
 
   # Replace non-finite with NA to unify missingness treatment
   for (j in seq_len(ncol(X))) {
@@ -332,7 +340,7 @@
   }
 
   state <- list()
-  state$encoding <- list(levels = encoding_levels)
+  state$encoding <- list(levels = encoding_levels, has_factors = !all_numeric)
   audit <- list()
 
   # 1) Robust Winsorization (train-only) --------------------------------------
@@ -604,12 +612,29 @@
     stopifnot(is.data.frame(Xnew))
 
     # Handle mixed types with the same level structure learned during training
-    prep_new <- .guard_ensure_levels(Xnew, state$encoding$levels)
-    Xnew <- prep_new$data
-    if (!ncol(Xnew)) stop("Input X has no columns after preprocessing.")
-    mf <- stats::model.frame(~ ., data = as.data.frame(Xnew), na.action = stats::na.pass)
-    Xnew <- stats::model.matrix(~ . - 1, data = mf)
-    Xnew <- as.data.frame(Xnew, check.names = FALSE)
+    has_factors <- isTRUE(state$encoding$has_factors) || length(state$encoding$levels) > 0
+    if (has_factors) {
+      prep_new <- .guard_ensure_levels(Xnew, state$encoding$levels)
+      Xnew <- prep_new$data
+      if (!ncol(Xnew)) stop("Input X has no columns after preprocessing.")
+      mf <- stats::model.frame(~ ., data = as.data.frame(Xnew), na.action = stats::na.pass)
+      Xnew <- stats::model.matrix(~ . - 1, data = mf)
+      Xnew <- as.data.frame(Xnew, check.names = FALSE)
+    } else {
+      for (nm in names(Xnew)) {
+        if (is.character(Xnew[[nm]])) {
+          nz <- Xnew[[nm]][!is.na(Xnew[[nm]])]
+          if (length(nz) && all(grepl("^\\s*-?\\d+(\\.\\d+)?\\s*$", nz))) {
+            Xnew[[nm]] <- as.numeric(Xnew[[nm]])
+          }
+        }
+      }
+      if (!all(vapply(Xnew, is.numeric, logical(1)))) {
+        stop("Non-numeric columns detected in new data; guarded fit was trained on numeric predictors only.")
+      }
+      if (!ncol(Xnew)) stop("Input X has no columns after preprocessing.")
+      Xnew <- as.data.frame(Xnew, check.names = FALSE)
+    }
 
     # Replace non-finite
     for (j in seq_len(ncol(Xnew))) {

@@ -76,10 +76,21 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!is.null(object@batch_assoc) && nrow(object@batch_assoc) > 0) {
     ba <- object@batch_assoc
     cat("Batch / Study Association:\n")
-    cat(sprintf("  χ² = %s (df = %s), p = %s\n\n",
-                formatC(ba$stat, digits = digits, format = "f"),
-                formatC(ba$df, digits = digits, format = "f"),
-                formatC(ba$pval, digits = digits, format = "f")))
+    if ("batch_col" %in% names(ba)) {
+      for (i in seq_len(nrow(ba))) {
+        cat(sprintf("  %s: χ² = %s (df = %s), p = %s\n",
+                    ba$batch_col[i],
+                    formatC(ba$stat[i], digits = digits, format = "f"),
+                    formatC(ba$df[i], digits = digits, format = "f"),
+                    formatC(ba$pval[i], digits = digits, format = "f")))
+      }
+      cat("\n")
+    } else {
+      cat(sprintf("  χ² = %s (df = %s), p = %s\n\n",
+                  formatC(ba$stat, digits = digits, format = "f"),
+                  formatC(ba$df, digits = digits, format = "f"),
+                  formatC(ba$pval, digits = digits, format = "f")))
+    }
   } else {
     cat("Batch / Study Association: none detected.\n\n")
   }

@@ -97,11 +97,12 @@ df_time <- df
 df_time$leak_future <- c(as.numeric(df_time$outcome == "case")[-1], 0)
 predictors <- c("x1", "x2", "x3")
 
-knitr::kable(utils::head(df, 6),
-             caption = "Example data (first 6 rows).")
-knitr::kable(as.data.frame(table(df$outcome)),
-             col.names = c("outcome", "n"),
-             caption = "Outcome class counts.")
+
+# Example data (first 6 rows)
+head(df)
+
+# Outcome class counts
+as.data.frame(table(df$outcome))
 ```
 
 The table preview shows the metadata columns (`subject`, `batch`, `study`, `time`),
@@ -291,8 +292,9 @@ scaled_summary <- data.frame(
 )
 scaled_summary$mean <- round(scaled_summary$mean, 3)
 scaled_summary$sd <- round(scaled_summary$sd, 3)
-knitr::kable(scaled_summary,
-             caption = "Leaky global scaling: means ~0 and SDs ~1 computed on all samples.")
+
+# Leaky global scaling: means ~0 and SDs ~1 computed on all samples
+scaled_summary
 ```
 
 The summary shows that scaling used the full dataset, so test-fold statistics
@@ -325,10 +327,12 @@ cat("GuardFit object:\n")
 guard
 cat("\nGuardFit summary:\n")
 summary(guard)
-knitr::kable(utils::head(train_x_guarded, 5),
-             caption = "Guarded training data (first 5 rows).")
-knitr::kable(utils::head(test_x_guarded, 5),
-             caption = "Guarded test data (first 5 rows).")
+
+# Guarded training data (first 6 rows)
+head(train_x_guarded)
+
+# Guarded test data (first 6 rows)
+head(test_x_guarded)
 ```
 
 The `GuardFit` object records the preprocessing steps and the number of
@@ -347,9 +351,11 @@ raw_levels <- data.frame(
 )
 
 level_state <- .guard_ensure_levels(raw_levels)
-knitr::kable(level_state$data,
-             caption = "Aligned factor data with consistent levels.")
-cat("Levels map:\n")
+
+# Aligned factor data with consistent levels
+level_state$data
+
+# Levels map
 level_state$levels
 ```
 
@@ -372,10 +378,14 @@ train_leaky <- as.data.frame(Map(function(col, m) { col[is.na(col)] <- m; col },
 test_leaky <- as.data.frame(Map(function(col, m) { col[is.na(col)] <- m; col },
                                 test, all_median))
 
-knitr::kable(data.frame(feature = names(all_median), median = all_median),
-             caption = "Leaky medians computed on train + test.")
-knitr::kable(train_leaky, caption = "Leaky-imputed training data.")
-knitr::kable(test_leaky, caption = "Leaky-imputed test data.")
+# Leaky medians computed on train + test
+data.frame(feature = names(all_median), median = all_median)
+
+# Leaky-imputed training data
+train_leaky
+
+# Leaky-imputed test data
+test_leaky
 ```
 
 The medians above were computed using both train and test data, so the test set
@@ -392,8 +402,11 @@ imp <- impute_guarded(
   winsor = FALSE
 )
 
-knitr::kable(imp$train, caption = "Guarded-imputed training data.")
-knitr::kable(imp$test, caption = "Guarded-imputed test data.")
+# Guarded-imputed training data
+imp$train
+
+# Guarded-imputed test data
+imp$test
 ```
 
 Here the imputation statistics are computed from the training set only. The
@@ -405,20 +418,20 @@ between training and evaluation data.
 `fit_resample()` combines leakage-aware splits with guarded preprocessing and
 model fitting. It supports:
 - built-in learners (`glmnet`, `ranger`)
-- custom learners via `custom_learners`
-- `parsnip` model specifications
+- `parsnip` model specifications (recommended)
+- custom learners via `custom_learners` (advanced)
 - multiple metrics, class weights, and a positive class override
 
 Assumptions and misuse to avoid:
 - outcome must be binary (classification) or numeric (regression)
 - `positive_class` must be a single value that exists in the outcome levels
-- custom learners must return one prediction per test row
 - if you supply a matrix without metadata, you must remove leakage columns
   yourself (group, batch, study, time)
 
-Use `learner_args` to pass model-specific arguments; for custom learners you can
-supply separate `fit` and `predict` argument lists. Set `parallel = TRUE` to use
-future.apply for fold-level parallelism when available. When `learner` is a
+Use `learner_args` to pass model-specific arguments. For custom learners
+(advanced), you can supply separate `fit` and `predict` argument lists. Set
+`parallel = TRUE` to use future.apply for fold-level parallelism when available.
+When `learner` is a
 parsnip specification, `learner_args` and `custom_learners` are ignored.
 
 Metrics used in this vignette:
@@ -429,31 +442,16 @@ Metrics used in this vignette:
 
 Always report the mean and variability across folds, not a single fold value.
 
-**Custom learner (base R logistic regression)**
+**Parsnip model specification (recommended)**
 
-```{r custom-learners}
-custom_learners <- list(
-  glm = list(
-    fit = function(x, y, task, weights, ...) {
-      df_fit <- data.frame(y = y, x, check.names = FALSE)
-      stats::glm(y ~ ., data = df_fit,
-                 family = stats::binomial(), weights = weights)
-    },
-    predict = function(object, newdata, task, ...) {
-      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
-                                type = "response"))
-    }
-  )
-)
-
-cat("Custom learner names:\n")
-names(custom_learners)
-cat("Custom learner components (fit/predict):\n")
-lapply(custom_learners, names)
+```{r parsnip-spec}
+spec <- parsnip::logistic_reg() |>
+  parsnip::set_engine("glm")
 ```
 
-This output confirms that each custom learner provides both a `fit` and
-`predict` function. These are the minimal interfaces `fit_resample()` expects.
+This spec uses base R `glm` under the hood and does not require extra model
+packages. Use it in the examples below; custom learners are covered in the
+Advanced section.
 
 **Leaky example: leaky features and row-wise splits**
 
@@ -462,8 +460,7 @@ fit_leaky <- fit_resample(
   df_leaky,
   outcome = "outcome",
   splits = leaky_splits,
-  learner = "glm",
-  custom_learners = custom_learners,
+  learner = spec,
   metrics = c("auc", "accuracy"),
   preprocess = list(
     impute = list(method = "median"),
@@ -478,8 +475,9 @@ summary(fit_leaky)
 metrics_leaky <- as.data.frame(fit_leaky@metric_summary)
 num_cols <- vapply(metrics_leaky, is.numeric, logical(1))
 metrics_leaky[num_cols] <- lapply(metrics_leaky[num_cols], round, digits = 3)
-knitr::kable(metrics_leaky,
-             caption = "Leaky fit: mean and SD of metrics across folds.")
+
+# Leaky fit: mean and SD of metrics across folds
+metrics_leaky
 ```
 
 The summary reports cross-validated performance. AUC ranges from 0.5 (random)
@@ -494,8 +492,7 @@ fit_safe <- fit_resample(
   df,
   outcome = "outcome",
   splits = safe_splits,
-  learner = "glm",
-  custom_learners = custom_learners,
+  learner = spec,
   metrics = c("auc", "accuracy"),
   preprocess = list(
     impute = list(method = "median"),
@@ -513,10 +510,12 @@ summary(fit_safe)
 metrics_safe <- as.data.frame(fit_safe@metric_summary)
 num_cols <- vapply(metrics_safe, is.numeric, logical(1))
 metrics_safe[num_cols] <- lapply(metrics_safe[num_cols], round, digits = 3)
-knitr::kable(metrics_safe,
-             caption = "Leakage-safe fit: mean and SD of metrics across folds.")
-knitr::kable(utils::head(fit_safe@metrics, 5),
-             caption = "Per-fold metrics (first 5 rows).")
+
+# Leakage-safe fit: mean and SD of metrics across folds
+metrics_safe
+
+# Per-fold metrics (first 6 rows)
+head(fit_safe@metrics)
 ```
 
 `fit_resample()` returns a `LeakFit` object. Use `summary(fit_safe)` for a
@@ -527,29 +526,9 @@ in `fit_safe@info$final_model` and `fit_safe@info$final_preprocess`.
 The mean +/- SD table is the primary performance summary to report, while the
 per-fold metrics reveal variability and potential instability across folds.
 
-**Parsnip model specification (optional)**
-
-```{r fit-parsnip}
-if (requireNamespace("parsnip", quietly = TRUE)) {
-  spec <- parsnip::logistic_reg() |>
-    parsnip::set_engine("glm")
-  fit_parsnip <- fit_resample(
-    df,
-    outcome = "outcome",
-    splits = safe_splits,
-    learner = spec,
-    metrics = "auc"
-  )
-  cat("Parsnip logistic regression summary:\n")
-  summary(fit_parsnip)
-} else {
-  cat("Parsnip not installed; skipping parsnip example.\n")
-}
-```
-
-The output mirrors the base learner summary but is produced through a
-`parsnip` model specification. Use this pattern to swap in alternative models
-without writing custom wrappers.
+The examples above use a parsnip model specification. To swap in other models,
+replace `spec` with another parsnip spec (see the gradient boosting example
+below).
 
 **Passing learner-specific arguments (optional)**
 
@@ -601,8 +580,7 @@ if (requireNamespace("SummarizedExperiment", quietly = TRUE)) {
     se,
     outcome = "outcome",
     splits = se_splits,
-    learner = "glm",
-    custom_learners = custom_learners,
+    learner = spec,
     metrics = "auc"
   )
   cat("SummarizedExperiment fit summary:\n")
@@ -662,6 +640,37 @@ The summary reports cross-validated AUC for a non-linear gradient boosting
 model. Use the mean +/- SD table for reporting, and compare it to linear models
 to assess whether non-linear signal improves predictive performance without
 introducing leakage.
+
+### Advanced: Custom learners
+
+Use custom learners when a model is not available as a parsnip spec or when you
+need a lightweight wrapper around base R. Each custom learner must provide
+`fit` and `predict`, and `predict` must return one prediction per test row.
+
+```{r custom-learners}
+custom_learners <- list(
+  glm = list(
+    fit = function(x, y, task, weights, ...) {
+      df_fit <- data.frame(y = y, x, check.names = FALSE)
+      stats::glm(y ~ ., data = df_fit,
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+                                type = "response"))
+    }
+  )
+)
+
+cat("Custom learner names:\n")
+names(custom_learners)
+cat("Custom learner components (fit/predict):\n")
+lapply(custom_learners, names)
+```
+
+This output confirms that each custom learner provides both a `fit` and
+`predict` function. Use it with `fit_resample()` like this:
+`fit_resample(..., learner = "glm", custom_learners = custom_learners)`.
 
 ### Visual diagnostics
 
@@ -749,24 +758,24 @@ audit <- audit_leakage(
 cat("Leakage audit summary:\n")
 summary(audit)
 if (!is.null(audit@permutation_gap) && nrow(audit@permutation_gap) > 0) {
-  knitr::kable(audit@permutation_gap,
-               caption = "Permutation significance results.")
+  # Permutation significance results
+  audit@permutation_gap
 }
 if (!is.null(audit@batch_assoc) && nrow(audit@batch_assoc) > 0) {
-  knitr::kable(audit@batch_assoc,
-               caption = "Batch/study association with folds (Cramer's V).")
+  # Batch/study association with folds (Cramer's V)
+  audit@batch_assoc
 } else {
   cat("No batch or study associations detected.\n")
 }
 if (!is.null(audit@target_assoc) && nrow(audit@target_assoc) > 0) {
-  knitr::kable(utils::head(audit@target_assoc, 5),
-               caption = "Top features by target association score.")
+  # Top features by target association score
+  head(audit@target_assoc)
 } else {
   cat("No target leakage scan results available.\n")
 }
 if (!is.null(audit@duplicates) && nrow(audit@duplicates) > 0) {
-  knitr::kable(utils::head(audit@duplicates, 5),
-               caption = "Top duplicate/near-duplicate pairs by similarity.")
+  # Top duplicate/near-duplicate pairs by similarity
+  head(audit@duplicates)
 } else {
   cat("No near-duplicates detected.\n")
 }
@@ -802,34 +811,31 @@ null distribution to indicate a statistically distinguishable signal.
 **Audit per learner**
 
 ```{r audit-by-learner}
-custom_multi <- list(
-  glm = custom_learners$glm,
-  glm_int = list(
-    fit = function(x, y, task, weights, ...) {
-      df_fit <- data.frame(y = y, x, check.names = FALSE)
-      stats::glm(y ~ (.)^2, data = df_fit,
-                 family = stats::binomial(), weights = weights)
-    },
-    predict = function(object, newdata, task, ...) {
-      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
-                                type = "response"))
-    }
+if (requireNamespace("ranger", quietly = TRUE)) {
+  spec_rf <- parsnip::rand_forest(
+    mode = "classification",
+    trees = 500
+  ) |>
+    parsnip::set_engine("ranger")
+
+  fit_multi <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = safe_splits,
+    learner = list(glm = spec, rf = spec_rf),
+    metrics = "auc"
   )
-)
 
-fit_multi <- fit_resample(
-  df,
-  outcome = "outcome",
-  splits = safe_splits,
-  learner = c("glm", "glm_int"),
-  custom_learners = custom_multi,
-  metrics = "auc"
-)
-
-audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 100)
-cat("Per-learner audit summary:\n")
-audits
+  audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 100)
+  cat("Per-learner audit summary:\n")
+  audits
+} else {
+  cat("ranger not installed; skipping per-learner audit example.\n")
+}
 ```
+
+This example uses `ranger` for the random forest spec; if it is not installed,
+the chunk is skipped.
 
 Use `parallel_learners = TRUE` to audit each learner concurrently when
 `future.apply` is available.
@@ -844,7 +850,7 @@ confounding.
 `audit_report()` accepts either a `LeakAudit` or a `LeakFit`. When given a
 `LeakFit`, it runs `audit_leakage()` first and forwards additional arguments.
 
-```{r audit-report}
+```{r audit-report, eval = FALSE}
 if (requireNamespace("rmarkdown", quietly = TRUE) && rmarkdown::pandoc_available()) {
   report_path <- audit_report(audit, output_dir = ".")
   cat("HTML report written to:\n", report_path, "\n")
@@ -881,8 +887,7 @@ fit_time_leaky <- fit_resample(
   df_time,
   outcome = "outcome",
   splits = time_splits,
-  learner = "glm",
-  custom_learners = custom_learners,
+  learner = spec,
   metrics = "auc"
 )
 
@@ -904,8 +909,7 @@ fit_time_safe <- fit_resample(
   df_time_safe,
   outcome = "outcome",
   splits = time_splits,
-  learner = "glm",
-  custom_learners = custom_learners,
+  learner = spec,
   metrics = "auc"
 )
 
@@ -923,8 +927,8 @@ audit_time <- audit_leakage(
 cat("Time-series leakage audit summary:\n")
 summary(audit_time)
 if (!is.null(audit_time@permutation_gap) && nrow(audit_time@permutation_gap) > 0) {
-  knitr::kable(audit_time@permutation_gap,
-               caption = "Time-series permutation significance results.")
+  # Time-series permutation significance results
+  audit_time@permutation_gap
 }
 
 if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -984,8 +988,9 @@ if (requireNamespace("glmnet", quietly = TRUE)) {
     parallel = FALSE,
     signal_strength = 1
   )
-  knitr::kable(utils::head(sim, 5),
-               caption = "Simulation results (first 5 rows).")
+  
+  # Simulation results (first 6 rows)
+  head(sim)
 } else {
   cat("glmnet not installed; skipping simulation suite example.\n")
 }

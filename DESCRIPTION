@@ -23,6 +23,7 @@ Imports:
     BiocGenerics,
     graphics,
     grDevices,
+    hardhat,
     parsnip
 Suggests:
     BiocParallel,

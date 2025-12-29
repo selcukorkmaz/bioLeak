@@ -355,9 +355,14 @@ fit_resample <- function(x, outcome, splits,
     X <- as.data.frame(X)
     X <- X[, !names(X) %in% c("y", "outcome"), drop = FALSE]
 
-    mf <- stats::model.frame(~ ., data = X, na.action = stats::na.pass)
-    mm <- stats::model.matrix(~ . - 1, data = mf)
-    mm <- as.matrix(mm)
+    is_num <- vapply(X, is.numeric, logical(1))
+    if (all(is_num)) {
+      mm <- as.matrix(X)
+    } else {
+      mf <- stats::model.frame(~ ., data = X, na.action = stats::na.pass)
+      mm <- stats::model.matrix(~ . - 1, data = mf)
+      mm <- as.matrix(mm)
+    }
 
     if (!is.null(ref_cols)) {
       missing_cols <- setdiff(ref_cols, colnames(mm))
@@ -435,6 +440,12 @@ fit_resample <- function(x, outcome, splits,
     if (inherits(learner_obj, "model_spec")) {
       if (!requireNamespace("parsnip", quietly = TRUE)) {
         stop("Package 'parsnip' is required when learner is a model_spec.")
+      }
+      if (!is.null(weights) && !inherits(weights, "hardhat_case_weights")) {
+        if (!requireNamespace("hardhat", quietly = TRUE)) {
+          stop("Package 'hardhat' is required for case weights with parsnip learners.")
+        }
+        weights <- hardhat::frequency_weights(weights)
       }
       y_for_fit <- if (task == "binomial") factor(ytr, levels = class_levels) else as.numeric(ytr)
       fit <- if (is.null(weights)) {
@@ -738,7 +749,8 @@ fit_resample <- function(x, outcome, splits,
   # summarize metrics ---------------------------------------------------------
   metric_summary <- aggregate(. ~ learner, data = met_df[, -1, drop = FALSE],
                               FUN = function(x) c(mean = mean(x, na.rm = TRUE),
-                                                  sd = sd(x, na.rm = TRUE)))
+                                                  sd = sd(x, na.rm = TRUE)),
+                              na.action = stats::na.pass)
 
   # optional refit ------------------------------------------------------------
   final_model <- NULL

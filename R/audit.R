@@ -24,7 +24,17 @@
 
 # Safe χ² with Cramér's V
 .chisq_assoc <- function(tab) {
-  if (any(dim(tab) < 2) || any(tab == 0)) {
+  if (is.null(tab) || length(tab) == 0) {
+    return(list(stat = NA_real_, df = NA_integer_, pval = NA_real_, cramer_v = NA_real_))
+  }
+  if (!is.null(dim(tab))) {
+    row_sums <- rowSums(tab)
+    col_sums <- colSums(tab)
+    if (any(row_sums == 0) || any(col_sums == 0)) {
+      tab <- tab[row_sums > 0, col_sums > 0, drop = FALSE]
+    }
+  }
+  if (any(dim(tab) < 2) || sum(tab) == 0) {
     return(list(stat = NA_real_, df = NA_integer_, pval = NA_real_, cramer_v = NA_real_))
   }
   cs <- suppressWarnings(stats::chisq.test(tab))

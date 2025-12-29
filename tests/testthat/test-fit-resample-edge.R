@@ -38,6 +38,20 @@ test_that("fit_resample validates class weights and positive class", {
                "single value")
 })
 
+test_that("fit_resample supports class weights with parsnip learners", {
+  skip_if_not_installed("parsnip")
+  df <- make_class_df(12)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 3, seed = 1)
+  spec <- parsnip::logistic_reg() |> parsnip::set_engine("glm")
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = spec,
+                            class_weights = c("0" = 1, "1" = 1),
+                            metrics = "auc", refit = FALSE)
+  expect_true(nrow(fit@metrics) > 0)
+})
+
 test_that("fit_resample drops invalid metrics with warnings", {
   df <- make_class_df(10)
   splits <- make_splits_quiet(df, outcome = "outcome",
@@ -51,6 +65,22 @@ test_that("fit_resample drops invalid metrics with warnings", {
                               metrics = c("auc", "rmse"), refit = FALSE)
   }, "Dropping metrics")
   expect_true(nrow(fit@metrics) > 0)
+})
+
+test_that("fit_resample summarizes metrics with all-NA columns", {
+  df <- make_class_df(10)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 2, seed = 1)
+  custom <- make_custom_learners()
+  na_metric <- function(y, pred) NA_real_
+
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = custom,
+                            metrics = list(auc = "auc", na_metric = na_metric),
+                            refit = FALSE)
+  expect_true(nrow(fit@metric_summary) > 0)
+  expect_true(any(grepl("^na_metric\\.", colnames(fit@metric_summary))))
 })
 
 test_that("fit_resample handles gaussian tasks and ignores classification options", {
