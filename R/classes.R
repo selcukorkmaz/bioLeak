@@ -4,7 +4,7 @@
 #' \code{make_splits()}, \code{fit_resample()}, and \code{audit_leakage()}.
 #'
 #' @slot mode Splitting mode (e.g., "grouped_cv", "batch_blocked")
-#' @slot indices List of resampling indices (train/test)
+#' @slot indices List of resampling descriptors (train/test indices when available)
 #' @slot info Metadata associated with split or fit
 #' @seealso [make_splits()], [fit_resample()], [audit_leakage()]
 #' @rdname LeakClasses
@@ -48,6 +48,7 @@ setClass("LeakFit",
 #' @slot permutation_gap Data frame summarising permutation gaps
 #' @slot perm_values Numeric vector of permutation-based scores
 #' @slot batch_assoc Data frame of batch associations
+#' @slot target_assoc Data frame of feature-wise outcome associations
 #' @slot duplicates Data frame detailing duplicate records
 #' @slot trail List capturing audit trail information
 #' @seealso [audit_leakage()], [audit_report()]
@@ -58,6 +59,7 @@ setClass("LeakAudit",
            permutation_gap = "data.frame",
            perm_values = "numeric",
            batch_assoc = "data.frame",
+           target_assoc = "data.frame",
            duplicates = "data.frame",
            trail = "list",
            info = "list"))

@@ -18,7 +18,7 @@ Invisibly returns the input object.
 }
 \description{
 Provides a console summary of the leakage audit results,
-including permutation gap, batch association, and duplicates.
+including permutation gap, batch association, target scan, and duplicates.
 }
 \examples{
 \dontrun{

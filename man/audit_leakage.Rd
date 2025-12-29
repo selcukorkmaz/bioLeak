@@ -20,6 +20,8 @@ audit_leakage(
   batch_cols = NULL,
   coldata = NULL,
   X_ref = NULL,
+  target_scan = TRUE,
+  target_threshold = 0.9,
   feature_space = c("raw", "rank"),
   sim_method = c("cosine", "pearson"),
   sim_threshold = 0.995,
@@ -57,7 +59,12 @@ audit_leakage(
 
 \item{coldata}{optional data.frame of sample-level metadata (rows align to original samples)}
 
-\item{X_ref}{optional numeric matrix/data.frame (samples x features) used for duplicate detection}
+\item{X_ref}{optional numeric matrix/data.frame (samples x features) used for duplicate detection
+and target leakage scan}
+
+\item{target_scan}{logical, compute feature-wise outcome associations to flag proxy columns}
+
+\item{target_threshold}{numeric in (0,1), score threshold for flagging proxy features}
 
 \item{feature_space}{"raw" or "rank" (rank-normalize rows before similarity)}
 
@@ -81,6 +88,8 @@ Audit leakage and confounding
 Duplicate detection uses the selected \code{sim_method}:
 cosine similarity on L2-normalized rows, or Pearson similarity by row-centering
 before normalization. Use \code{feature_space = "rank"} to compare rank profiles.
+Target leakage scan computes feature-wise associations with the outcome and
+flags proxy columns based on the scaled association score.
 }
 \examples{
 \dontrun{

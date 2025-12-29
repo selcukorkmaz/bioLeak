@@ -28,7 +28,7 @@ plot_perm_distribution <- function(audit) {
   obs <- audit@permutation_gap$metric_obs
   perm_mean <- mean(perm, na.rm = TRUE)
 
-  hist_obj <- stats::hist(perm, breaks = "FD", plot = FALSE)
+  hist_obj <- graphics::hist(perm, breaks = "FD", plot = FALSE)
   df <- data.frame(mid = hist_obj$mids, count = hist_obj$counts)
   bin_width <- if (length(hist_obj$breaks) > 1L) diff(hist_obj$breaks)[1] else 1
   line_df <- data.frame(

@@ -92,6 +92,8 @@ audit_report(audit, output_dir = ".")
 | `time_series`     | Rolling origin folds with optional horizon |
 
 Splits are stored in a `LeakSplits` object with metadata, seed, and hash.
+For large datasets, use `compact = TRUE` to store fold assignments instead of
+explicit train/test indices.
 
 ### 2) Guarded preprocessing and fitting
 

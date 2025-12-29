@@ -15,7 +15,7 @@ These classes capture splits, model fits, and audit diagnostics produced by
 \describe{
 \item{\code{mode}}{Splitting mode (e.g., "grouped_cv", "batch_blocked")}
 
-\item{\code{indices}}{List of resampling indices (train/test)}
+\item{\code{indices}}{List of resampling descriptors (train/test indices when available)}
 
 \item{\code{info}}{Metadata associated with split or fit}
 
@@ -48,6 +48,8 @@ These classes capture splits, model fits, and audit diagnostics produced by
 \item{\code{perm_values}}{Numeric vector of permutation-based scores}
 
 \item{\code{batch_assoc}}{Data frame of batch associations}
+
+\item{\code{target_assoc}}{Data frame of feature-wise outcome associations}
 
 \item{\code{duplicates}}{Data frame detailing duplicate records}
 

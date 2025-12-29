@@ -91,7 +91,9 @@
 #' @param cd data.frame of sample metadata.
 #' @param outcome outcome column name.
 #' @param mode resampling mode (subject_grouped, batch_blocked, study_loocv, time_series).
-#' @param folds list of train/test index lists from \code{LeakSplits}.
+#' @param folds list of fold descriptors from \code{LeakSplits}. When compact
+#'   splits are used, fold assignments are read from the
+#'   \code{fold_assignments} attribute.
 #' @param perm_stratify logical or "auto"; if TRUE, permute within strata.
 #' @param time_block time-series block permutation method.
 #' @param block_len block length for time-series permutations.
@@ -111,6 +113,21 @@
   y_all <- cd[[outcome]]
   if (all(is.na(y_all))) {
     stop("Outcome column contains only NA values.")
+  }
+
+  fold_assignments <- attr(folds, "fold_assignments")
+  resolve_test_idx <- function(fold) {
+    if (!is.null(fold$test)) return(fold$test)
+    if (is.null(fold_assignments) || !length(fold_assignments)) {
+      stop("Fold assignments required to resolve test indices for compact splits.")
+    }
+    r <- fold$repeat_id
+    if (is.null(r) || !is.finite(r)) r <- 1L
+    assign_vec <- fold_assignments[[r]]
+    if (is.null(assign_vec)) {
+      stop(sprintf("Missing fold assignments for repeat %s.", r))
+    }
+    which(assign_vec == fold$fold)
   }
 
   MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION <- 20L
@@ -167,7 +184,7 @@
         message(sprintf("[permute_labels] Permuting fold %d/%d using mode '%s'.",
                         i, length(folds), mode))
       }
-      te_idx <- folds[[i]]$test
+      te_idx <- resolve_test_idx(folds[[i]])
       if (isTRUE(verbose) && !is.null(strata_vec)) {
         strata_fold <- stats::na.omit(strata_vec[te_idx])
         if (length(unique(strata_fold)) < 2L) {

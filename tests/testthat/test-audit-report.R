@@ -44,3 +44,19 @@ test_that("audit_report renders an HTML report", {
                            quiet = TRUE, open = FALSE)
   expect_true(file.exists(out_file))
 })
+
+test_that("audit_report validates inputs and dependencies", {
+  expect_error(audit_report(list()), "LeakAudit or LeakFit")
+
+  if (!requireNamespace("rmarkdown", quietly = TRUE)) {
+    df <- make_class_df(10)
+    splits <- make_splits_quiet(df, outcome = "outcome",
+                                mode = "subject_grouped", group = "subject",
+                                v = 2, seed = 1)
+    custom <- make_custom_learners()
+    fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                              learner = "glm", custom_learners = custom,
+                              metrics = "auc", refit = FALSE, seed = 1)
+    expect_error(audit_report(fit), "Install 'rmarkdown'")
+  }
+})

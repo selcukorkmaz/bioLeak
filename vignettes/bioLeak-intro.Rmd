@@ -1,82 +1,442 @@
 ---
-title: "bioLeak overview"
-output: rmarkdown::html_vignette
+title: "bioLeak: Leakage-Aware Biomedical Modeling"
+author: "Selçuk Korkmaz"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: flatly
+    highlight: tango
 vignette: >
-  %\VignetteIndexEntry{bioLeak overview}
+  %\VignetteIndexEntry{bioLeak: Leakage-Aware Biomedical Modeling}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE,
+  eval = TRUE
+)
 ```
 
-bioLeak provides leakage-aware splitting, guarded preprocessing, and audit
-diagnostics for biomedical modeling workflows. It is designed for omics and
-clinical data where leakage can arise from grouped samples, batches, studies,
-or time ordering.
+## Why bioLeak
 
-## Workflow overview
+bioLeak is a leakage-aware modeling toolkit for biomedical and machine-learning
+analyses. Its purpose is to prevent and diagnose information leakage across
+resampling workflows where training and evaluation data are not truly
+independent because samples share subjects, batches, studies, or time.
 
-Typical usage follows this flow:
+Standard workflows are often insufficient. Random, row-wise cross-validation
+assumes samples are independent. Global preprocessing (imputation, scaling,
+feature selection) done before resampling lets test-fold information shape the
+training process. These choices inflate performance and can lead to incorrect
+biomarker discovery, misleading clinical signals, or models that fail in
+deployment.
 
-1. Create leakage-safe splits with `make_splits()`.
-2. Fit models with fold-specific preprocessing using `fit_resample()`.
-3. Audit leakage with `audit_leakage()` and export a report with
-   `audit_report()`.
+Data leakage means any direct or indirect use of evaluation data in training or
+feature engineering. In biomedical data, leakage commonly appears as:
+- repeated measurements from the same patient split across folds
+- batch or study effects that align with the outcome
+- duplicates or near-duplicates across train and test
+- time-series lookahead or random splits that use future information
+- preprocessing that uses all samples instead of training-only statistics
 
-Inputs can be `data.frame`, `matrix`, or `SummarizedExperiment` objects.
+bioLeak addresses these issues with leakage-aware splitting, guarded
+preprocessing that is fit only on training data, and audit diagnostics that
+surface overlaps, confounding, and duplicates.
 
-## Splitting
+## Guided workflow
 
-```{r splits, eval=FALSE}
+The sections below walk through a leakage-aware workflow from data setup to
+audits. Each step includes a leaky failure mode and a corrected alternative.
+
+### Example data
+
+```{r example-data}
 library(bioLeak)
-set.seed(1)
+
+set.seed(123)
+n <- 160
+subject <- rep(seq_len(40), each = 4)
+batch <- sample(paste0("B", 1:6), n, replace = TRUE)
+study <- sample(paste0("S", 1:4), n, replace = TRUE)
+time <- seq_len(n)
+
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+x3 <- rnorm(n)
+linpred <- 0.7 * x1 - 0.4 * x2 + 0.2 * x3 + rnorm(n, sd = 0.5)
+p <- stats::plogis(linpred)
+outcome <- factor(ifelse(runif(n) < p, "case", "control"),
+                  levels = c("control", "case"))
+
 df <- data.frame(
-  subject = rep(1:10, each = 10),
-  batch = sample(letters[1:5], 100, replace = TRUE),
-  outcome = rbinom(100, 1, 0.5),
-  x1 = rnorm(100),
-  x2 = rnorm(100)
+  subject = subject,
+  batch = batch,
+  study = study,
+  time = time,
+  outcome = outcome,
+  x1 = x1,
+  x2 = x2,
+  x3 = x3
 )
 
-splits <- make_splits(
+df_leaky <- within(df, {
+  leak_subject <- ave(as.numeric(outcome == "case"), subject, FUN = mean)
+  leak_batch <- ave(as.numeric(outcome == "case"), batch, FUN = mean)
+  leak_global <- mean(as.numeric(outcome == "case"))
+})
+
+df_time <- df
+df_time$leak_future <- c(as.numeric(df_time$outcome == "case")[-1], 0)
+predictors <- c("x1", "x2", "x3")
+
+knitr::kable(utils::head(df, 6),
+             caption = "Example data (first 6 rows).")
+knitr::kable(as.data.frame(table(df$outcome)),
+             col.names = c("outcome", "n"),
+             caption = "Outcome class counts.")
+```
+
+The table preview shows the metadata columns (`subject`, `batch`, `study`, `time`),
+the binary `outcome`, and three numeric predictors. The class count table
+is the baseline prevalence for the `case` vs `control` labels; this is the
+reference distribution we try to preserve with stratified splits.
+
+### Create leakage-aware splits with `make_splits()`
+
+`make_splits()` is the foundation. It returns a `LeakSplits` object with
+explicit train/test indices and metadata. It assumes that the grouping columns
+you provide are complete and that samples sharing a group must not cross folds.
+Misuse to avoid:
+- leaving `group = NULL` when subjects repeat
+- using the wrong grouping column (for example batch instead of subject)
+- using time-series CV with unsorted or missing time values
+- relying on stratification when the outcome is missing or has only one class
+
+**Leaky example: row-wise CV when subjects repeat**
+
+```{r leaky-splits}
+leaky_splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "subject_grouped",
+  group = NULL,
+  v = 5,
+  repeats = 1,
+  stratify = TRUE
+)
+
+cat("Leaky splits summary (sample-wise CV):\n")
+leaky_splits
+```
+
+The printed `LeakSplits` summary reports the split mode, number of folds, and
+fold-level train/test sizes. Because `group = NULL`, each sample is treated as
+its own group, so repeated subjects can cross folds and create leakage.
+
+**Leakage-safe alternative: group by subject**
+
+```{r safe-splits}
+safe_splits <- make_splits(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
   group = "subject",
-  v = 3
+  v = 5,
+  repeats = 1,
+  stratify = TRUE,
+  seed = 10
 )
+
+cat("Leakage-safe splits summary (subject-grouped CV):\n")
+safe_splits
 ```
 
-Other modes include `batch_blocked`, `study_loocv`, and `time_series` with
-an optional prediction horizon.
+Here, each subject is confined to a single fold. The fold counts should be
+similar in size because `stratify = TRUE` balances the outcome across folds.
+Use these fold sizes when reporting how many subjects/samples were held out.
 
-## Guarded preprocessing and fitting
+**Other leakage-aware modes**
 
-```{r fit, eval=FALSE}
-fit <- fit_resample(
+```{r splits-other-modes}
+batch_splits <- make_splits(
   df,
   outcome = "outcome",
-  splits = splits,
-  learner = "glmnet",
-  metrics = "auc",
-  preprocess = list(
-    impute = list(method = "median"),
-    normalize = list(method = "zscore"),
-    filter = list(var_thresh = 0)
-  )
+  mode = "batch_blocked",
+  batch = "batch",
+  v = 4,
+  stratify = TRUE
 )
-summary(fit)
+
+cat("Batch-blocked splits summary:\n")
+batch_splits
+
+study_splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "study_loocv",
+  study = "study"
+)
+
+cat("Study leave-one-out splits summary:\n")
+study_splits
+
+time_splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "time_series",
+  time = "time",
+  v = 4,
+  horizon = 2
+)
+
+cat("Time-series splits summary:\n")
+time_splits
+
+nested_splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "subject_grouped",
+  group = "subject",
+  v = 3,
+  nested = TRUE
+)
+
+cat("Nested CV splits summary:\n")
+nested_splits
 ```
 
-You can also plug in custom learners via `custom_learners`:
+Each summary shows the number of folds and fold sizes for that split strategy.
+Use the batch and study summaries to verify that entire batches/studies are
+held out, and use the time-series summary to check that early folds have
+smaller training sizes due to the horizon constraint.
 
-```{r custom-learner, eval=FALSE}
-custom <- list(
+Assumptions and intent by mode:
+- `subject_grouped`: keeps all samples from a subject together
+- `batch_blocked`: keeps entire batches or centers together
+- `study_loocv`: holds out each study in turn for external validation
+- `time_series`: rolling-origin splits with optional `horizon` to prevent lookahead
+
+Use `repeats` for repeated CV, `stratify = TRUE` to balance outcomes, and
+`nested = TRUE` to attach inner folds. For large datasets, `progress = TRUE`
+reports progress, and explicit indices can be memory intensive.
+
+#### Scalability
+
+**Handling Large Datasets (Compact Mode)**
+
+For large datasets (e.g., $N > 50,000$) with many repeats, storing explicit
+integer indices for every fold can consume gigabytes of memory. Use `compact = TRUE`
+to store a lightweight vector of fold assignments instead. `fit_resample()` will
+automatically reconstruct the indices on the fly.
+
+```{r compact-splits}
+# Efficient storage for large N
+big_splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "subject_grouped",
+  group = "subject",
+  v = 5,
+  compact = TRUE  # <--- Saves memory
+)
+
+cat("Compact-mode splits summary:\n")
+big_splits
+cat(sprintf("Compact storage enabled: %s\n", big_splits@info$compact))
+```
+
+The summary is identical to a regular split, but the underlying storage is a
+compact fold-assignment vector. Use the `compact` flag to confirm the memory-
+saving mode is active.
+
+### Guarded preprocessing and imputation
+
+`bioLeak` uses guarded preprocessing to prevent leakage from global imputation,
+scaling, and feature selection. The low-level API is:
+- `.guard_fit()` to fit preprocessing on training data only
+- `predict_guard()` to apply the trained guard to new data
+- `.guard_ensure_levels()` to align factor levels across train/test
+- `impute_guarded()` as a convenience wrapper for leakage-safe imputation
+
+`.guard_fit()` fits a pipeline that can winsorize, impute, normalize, filter,
+and select features. Assumptions and misuse to avoid:
+- `fs = "ttest"` requires a binary outcome with enough samples per class
+- `fs = "lasso"` requires `glmnet`
+- `impute = "mice"` is not supported for guarded prediction
+- `impute = "none"` with missing values will trigger a median fallback and
+  missingness indicators to avoid errors
+
+Supported preprocessing options include imputation (`median`, `knn`,
+`missForest`, `none`), normalization (`zscore`, `robust`, `none`), filtering by
+variance or IQR, and feature selection (`ttest`, `lasso`, `pca`). In
+`impute_guarded()`, `winsor` and `winsor_thresh` control MAD-based clipping.
+
+**Leaky example: global scaling before CV**
+
+```{r leaky-scaling}
+df_leaky_scaled <- df
+df_leaky_scaled[predictors] <- scale(df_leaky_scaled[predictors])
+scaled_summary <- data.frame(
+  feature = predictors,
+  mean = colMeans(df_leaky_scaled[predictors]),
+  sd = apply(df_leaky_scaled[predictors], 2, stats::sd)
+)
+scaled_summary$mean <- round(scaled_summary$mean, 3)
+scaled_summary$sd <- round(scaled_summary$sd, 3)
+knitr::kable(scaled_summary,
+             caption = "Leaky global scaling: means ~0 and SDs ~1 computed on all samples.")
+```
+
+The summary shows that scaling used the full dataset, so test-fold statistics
+influenced the training transformation. This violates the train/test separation
+and can bias performance estimates.
+
+**Leakage-safe alternative: fit preprocessing on training only**
+
+```{r guarded-preprocess}
+fold1 <- safe_splits@indices[[1]]
+train_x <- df[fold1$train, predictors]
+test_x <- df[fold1$test, predictors]
+
+guard <- .guard_fit(
+  X = train_x,
+  y = df$outcome[fold1$train],
+  steps = list(
+    impute = list(method = "median", winsor = TRUE),
+    normalize = list(method = "zscore"),
+    filter = list(var_thresh = 0, iqr_thresh = 0),
+    fs = list(method = "none")
+  ),
+  task = "binomial"
+)
+
+train_x_guarded <- predict_guard(guard, train_x)
+test_x_guarded <- predict_guard(guard, test_x)
+
+cat("GuardFit object:\n")
+guard
+cat("\nGuardFit summary:\n")
+summary(guard)
+knitr::kable(utils::head(train_x_guarded, 5),
+             caption = "Guarded training data (first 5 rows).")
+knitr::kable(utils::head(test_x_guarded, 5),
+             caption = "Guarded test data (first 5 rows).")
+```
+
+The `GuardFit` object records the preprocessing steps and the number of
+features retained after filtering. The summary reports how many features were
+removed and the preprocessing audit trail. The guarded train/test previews show
+that missing values were imputed and (if requested) scaled using training-only
+statistics; the test data never influences these values.
+
+**Factor level guard (advanced)**
+
+```{r guard-ensure-levels}
+raw_levels <- data.frame(
+  site = c("A", "B", "B"),
+  status = c("yes", "no", "yes"),
+  stringsAsFactors = FALSE
+)
+
+level_state <- .guard_ensure_levels(raw_levels)
+knitr::kable(level_state$data,
+             caption = "Aligned factor data with consistent levels.")
+cat("Levels map:\n")
+level_state$levels
+```
+
+The returned `data` keeps factor levels consistent across folds, while the
+`levels` list records the training-time levels (including any dummy levels added
+to preserve one-hot columns). Use these when transforming new data to avoid
+misaligned model matrices.
+
+**Leaky example: imputation using train and test together**
+
+```{r leaky-impute}
+train <- data.frame(a = c(1, 2, NA, 4), b = c(NA, 1, 1, 0))
+test <- data.frame(a = c(NA, 5), b = c(1, NA))
+
+all_median <- vapply(rbind(train, test),
+                     function(col) median(col, na.rm = TRUE),
+                     numeric(1))
+train_leaky <- as.data.frame(Map(function(col, m) { col[is.na(col)] <- m; col },
+                                 train, all_median))
+test_leaky <- as.data.frame(Map(function(col, m) { col[is.na(col)] <- m; col },
+                                test, all_median))
+
+knitr::kable(data.frame(feature = names(all_median), median = all_median),
+             caption = "Leaky medians computed on train + test.")
+knitr::kable(train_leaky, caption = "Leaky-imputed training data.")
+knitr::kable(test_leaky, caption = "Leaky-imputed test data.")
+```
+
+The medians above were computed using both train and test data, so the test set
+influences the imputation values. This is a classic leakage pathway because
+test information directly alters the training features.
+
+**Leakage-safe alternative: `impute_guarded()`**
+
+```{r safe-impute}
+imp <- impute_guarded(
+  train = train,
+  test = test,
+  method = "median",
+  winsor = FALSE
+)
+
+knitr::kable(imp$train, caption = "Guarded-imputed training data.")
+knitr::kable(imp$test, caption = "Guarded-imputed test data.")
+```
+
+Here the imputation statistics are computed from the training set only. The
+test set is transformed using those fixed values, preserving a clean separation
+between training and evaluation data.
+
+### Fit and resample with `fit_resample()`
+
+`fit_resample()` combines leakage-aware splits with guarded preprocessing and
+model fitting. It supports:
+- built-in learners (`glmnet`, `ranger`)
+- custom learners via `custom_learners`
+- `parsnip` model specifications
+- multiple metrics, class weights, and a positive class override
+
+Assumptions and misuse to avoid:
+- outcome must be binary (classification) or numeric (regression)
+- `positive_class` must be a single value that exists in the outcome levels
+- custom learners must return one prediction per test row
+- if you supply a matrix without metadata, you must remove leakage columns
+  yourself (group, batch, study, time)
+
+Use `learner_args` to pass model-specific arguments; for custom learners you can
+supply separate `fit` and `predict` argument lists. Set `parallel = TRUE` to use
+future.apply for fold-level parallelism when available. When `learner` is a
+parsnip specification, `learner_args` and `custom_learners` are ignored.
+
+Metrics used in this vignette:
+- **AUC**: area under the ROC curve (0.5 = random, 1.0 = perfect; higher is better)
+- **PR AUC**: area under the precision-recall curve (0 to 1; higher is better)
+- **Accuracy**: fraction of correct predictions (0 to 1; higher is better)
+- **RMSE**: root mean squared error (0 to infinity; lower is better)
+
+Always report the mean and variability across folds, not a single fold value.
+
+**Custom learner (base R logistic regression)**
+
+```{r custom-learners}
+custom_learners <- list(
   glm = list(
     fit = function(x, y, task, weights, ...) {
-      stats::glm(y ~ ., data = as.data.frame(x),
+      df_fit <- data.frame(y = y, x, check.names = FALSE)
+      stats::glm(y ~ ., data = df_fit,
                  family = stats::binomial(), weights = weights)
     },
     predict = function(object, newdata, task, ...) {
@@ -86,51 +446,566 @@ custom <- list(
   )
 )
 
-fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
-                     learner = "glm", custom_learners = custom,
-                     metrics = "accuracy")
-
-summary(fit2)
+cat("Custom learner names:\n")
+names(custom_learners)
+cat("Custom learner components (fit/predict):\n")
+lapply(custom_learners, names)
 ```
 
-## Auditing and report
+This output confirms that each custom learner provides both a `fit` and
+`predict` function. These are the minimal interfaces `fit_resample()` expects.
 
-```{r audit, eval=FALSE}
-audit <- audit_leakage(fit, metric = "auc", B = 100)
-summary(audit)
-audit_report(audit, output_dir = ".")
-```
+**Leaky example: leaky features and row-wise splits**
 
-To check duplicates, provide a reference feature matrix and a similarity
-method:
-
-```{r duplicates, eval=FALSE}
-audit <- audit_leakage(
-  fit,
-  metric = "auc",
-  B = 100,
-  X_ref = df[, c("x1", "x2")],
-  sim_method = "pearson",
-  sim_threshold = 0.99
+```{r fit-leaky}
+fit_leaky <- fit_resample(
+  df_leaky,
+  outcome = "outcome",
+  splits = leaky_splits,
+  learner = "glm",
+  custom_learners = custom_learners,
+  metrics = c("auc", "accuracy"),
+  preprocess = list(
+    impute = list(method = "median"),
+    normalize = list(method = "zscore"),
+    filter = list(var_thresh = 0),
+    fs = list(method = "none")
+  )
 )
+
+cat("Leaky fit summary:\n")
+summary(fit_leaky)
+metrics_leaky <- as.data.frame(fit_leaky@metric_summary)
+num_cols <- vapply(metrics_leaky, is.numeric, logical(1))
+metrics_leaky[num_cols] <- lapply(metrics_leaky[num_cols], round, digits = 3)
+knitr::kable(metrics_leaky,
+             caption = "Leaky fit: mean and SD of metrics across folds.")
 ```
 
-For multiple learners, run audits per learner:
+The summary reports cross-validated performance. AUC ranges from 0.5 (random)
+to 1.0 (perfect), while accuracy is the fraction of correct predictions.
+Because the splits are leaky, these metrics can be artificially high and should
+not be used for reporting.
 
-```{r per-learner, eval=FALSE}
-audits <- audit_leakage_by_learner(fit, metric = "auc", B = 50)
+**Leakage-safe alternative: grouped splits and clean predictors**
+
+```{r fit-safe}
+fit_safe <- fit_resample(
+  df,
+  outcome = "outcome",
+  splits = safe_splits,
+  learner = "glm",
+  custom_learners = custom_learners,
+  metrics = c("auc", "accuracy"),
+  preprocess = list(
+    impute = list(method = "median"),
+    normalize = list(method = "zscore"),
+    filter = list(var_thresh = 0),
+    fs = list(method = "none")
+  ),
+  positive_class = "case",
+  class_weights = c(control = 1, case = 1),
+  refit = TRUE
+)
+
+cat("Leakage-safe fit summary:\n")
+summary(fit_safe)
+metrics_safe <- as.data.frame(fit_safe@metric_summary)
+num_cols <- vapply(metrics_safe, is.numeric, logical(1))
+metrics_safe[num_cols] <- lapply(metrics_safe[num_cols], round, digits = 3)
+knitr::kable(metrics_safe,
+             caption = "Leakage-safe fit: mean and SD of metrics across folds.")
+knitr::kable(utils::head(fit_safe@metrics, 5),
+             caption = "Per-fold metrics (first 5 rows).")
+```
+
+`fit_resample()` returns a `LeakFit` object. Use `summary(fit_safe)` for a
+compact report and inspect `fit_safe@metrics` and `fit_safe@predictions` for
+details. When `refit = TRUE`, the final model and preprocessing state are stored
+in `fit_safe@info$final_model` and `fit_safe@info$final_preprocess`.
+
+The mean +/- SD table is the primary performance summary to report, while the
+per-fold metrics reveal variability and potential instability across folds.
+
+**Parsnip model specification (optional)**
+
+```{r fit-parsnip}
+if (requireNamespace("parsnip", quietly = TRUE)) {
+  spec <- parsnip::logistic_reg() |>
+    parsnip::set_engine("glm")
+  fit_parsnip <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = safe_splits,
+    learner = spec,
+    metrics = "auc"
+  )
+  cat("Parsnip logistic regression summary:\n")
+  summary(fit_parsnip)
+} else {
+  cat("Parsnip not installed; skipping parsnip example.\n")
+}
+```
+
+The output mirrors the base learner summary but is produced through a
+`parsnip` model specification. Use this pattern to swap in alternative models
+without writing custom wrappers.
+
+**Passing learner-specific arguments (optional)**
+
+```{r learner-args}
+if (requireNamespace("glmnet", quietly = TRUE)) {
+  fit_glmnet <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = safe_splits,
+    learner = "glmnet",
+    metrics = "auc",
+    learner_args = list(glmnet = list(alpha = 0.5)),
+    preprocess = list(
+      impute = list(method = "median"),
+      normalize = list(method = "zscore"),
+      filter = list(var_thresh = 0),
+      fs = list(method = "none")
+    )
+  )
+  cat("GLMNET summary with learner-specific arguments:\n")
+  summary(fit_glmnet)
+} else {
+  cat("glmnet not installed; skipping learner_args example.\n")
+}
+```
+
+This summary reflects the same guarded preprocessing but a different model
+configuration (here, `alpha = 0.5`). Use the mean +/- SD metrics to compare
+learner settings under identical splits.
+
+**SummarizedExperiment inputs (optional)**
+
+```{r se-example}
+if (requireNamespace("SummarizedExperiment", quietly = TRUE)) {
+  se <- SummarizedExperiment::SummarizedExperiment(
+    assays = list(counts = t(as.matrix(df[, predictors]))),
+    colData = df[, c("subject", "batch", "study", "time", "outcome"), drop = FALSE]
+  )
+
+  se_splits <- make_splits(
+    se,
+    outcome = "outcome",
+    mode = "subject_grouped",
+    group = "subject",
+    v = 3
+  )
+
+  se_fit <- fit_resample(
+    se,
+    outcome = "outcome",
+    splits = se_splits,
+    learner = "glm",
+    custom_learners = custom_learners,
+    metrics = "auc"
+  )
+  cat("SummarizedExperiment fit summary:\n")
+  summary(se_fit)
+} else {
+  cat("SummarizedExperiment not installed; skipping SE example.\n")
+}
+```
+
+The summary is identical in structure to the data.frame case because
+`fit_resample()` extracts predictors and metadata from the `SummarizedExperiment`.
+
+### Advanced: Using Gradient Boosting with Parsnip
+
+`bioLeak` natively supports `tidymodels` specifications. You can pass a `parsnip`
+model specification directly to `fit_resample()`. This allows you to use
+state-of-the-art algorithms like XGBoost, LightGBM, or SVMs while ensuring all
+preprocessing remains guarded.
+
+```{r fit-xgboost}
+if (requireNamespace("parsnip", quietly = TRUE) &&
+    requireNamespace("xgboost", quietly = TRUE)) {
+
+  # 1. Define the model spec (no wrappers needed!)
+  xgb_spec <- parsnip::boost_tree(
+    mode = "classification",
+    trees = 500,
+    tree_depth = 6,
+    learn_rate = 0.01
+  ) |>
+    parsnip::set_engine("xgboost")
+
+  # 2. Fit with guards
+  # Note: bioLeak automatically handles the training/test splits and guards
+  fit_xgb <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = safe_splits,
+    learner = xgb_spec,   # Pass the spec directly
+    metrics = "auc",
+    preprocess = list(
+      impute = list(method = "median"),
+      # XGBoost handles interactions, but we still guard global stats
+      normalize = list(method = "none"),
+      filter = list(var_thresh = 0)
+    )
+  )
+
+  cat("XGBoost parsnip fit summary:\n")
+  summary(fit_xgb)
+} else {
+  cat("parsnip or xgboost not installed; skipping gradient boosting example.\n")
+}
+```
+
+The summary reports cross-validated AUC for a non-linear gradient boosting
+model. Use the mean +/- SD table for reporting, and compare it to linear models
+to assess whether non-linear signal improves predictive performance without
+introducing leakage.
+
+### Visual diagnostics
+
+`bioLeak` includes plotting helpers for quick checks:
+- `plot_fold_balance()` shows class balance per fold
+- `plot_overlap_checks()` highlights train/test overlap for a metadata column
+- `plot_time_acf()` checks autocorrelation in time-series predictions
+
+Misuse to avoid:
+- plotting without predictions (fits with no successful folds)
+- using `plot_overlap_checks()` when the column is not in split metadata
+- using `plot_time_acf()` for non-temporal data
+
+For classification, `plot_fold_balance()` uses the positive class recorded in
+`fit@info$positive_class` or the second factor level if not set.
+
+```{r plot-fold-balance}
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_fold_balance(fit_safe)
+} else {
+  cat("ggplot2 not installed; skipping fold balance plot.\n")
+}
+```
+
+The bar chart shows the number of positives and negatives in each fold, while
+the dashed line shows the positive-class proportion. Large swings in the line
+indicate poor stratification and can make fold-level metrics unstable.
+
+```{r plot-overlap}
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_overlap_checks(fit_leaky, column = "subject")
+  plot_overlap_checks(fit_safe, column = "subject")
+} else {
+  cat("ggplot2 not installed; skipping overlap plots.\n")
+}
+```
+
+The overlap plot compares the number of unique subjects in train vs test for
+each fold. Any non-zero overlap means subject leakage. Use this plot to confirm
+that subject IDs never appear in both sets simultaneously.
+
+### Audit leakage with `audit_leakage()`
+
+`audit_leakage()` combines four diagnostics in one object:
+- permutation gap: tests whether model signal is non-random
+- batch or study association with folds (chi-square and Cramers V)
+- target leakage scan: feature-wise outcome association to flag proxy columns
+- duplicate and near-duplicate detection using feature similarity
+
+Assumptions and misuse to avoid:
+- `coldata` must align with the original sample order
+- `X_ref` must match the rows used in training (same order)
+- `plot_perm_distribution()` requires `return_perm = TRUE`
+- `target_threshold` should be set high enough to flag only strong proxies
+
+**Interpretation Note:** The **Permutation Significance Test** determines if your model's
+performance is statistically distinguishable from random guessing. A large gap means your
+model found a signal. To determine if that signal is *real* or *leaked*, check the
+**Batch Association** (confounding), **Target Leakage Scan** (proxy features),
+and **Duplicate Detection** (memorization) tables.
+
+Use `feature_space = "rank"` to compare samples by rank profiles, and
+`sim_method` (`cosine` or `pearson`) to control similarity. For large `n`, `nn_k`
+and `max_pairs` limit duplicate searches. Use `ci_method = "bootstrap"` with
+`boot_B` if you want a confidence interval for the permutation gap.
+
+**Leakage-aware audit**
+
+```{r audit-leakage}
+X_ref <- df[, predictors]
+X_ref[c(1, 5), ] <- X_ref[1, ]
+
+audit <- audit_leakage(
+  fit_safe,
+  metric = "auc",
+  B = 200,
+  perm_stratify = TRUE,
+  batch_cols = c("batch", "study"),
+  X_ref = X_ref,
+  sim_method = "cosine",
+  sim_threshold = 0.995,
+  return_perm = TRUE
+)
+
+cat("Leakage audit summary:\n")
+summary(audit)
+if (!is.null(audit@permutation_gap) && nrow(audit@permutation_gap) > 0) {
+  knitr::kable(audit@permutation_gap,
+               caption = "Permutation significance results.")
+}
+if (!is.null(audit@batch_assoc) && nrow(audit@batch_assoc) > 0) {
+  knitr::kable(audit@batch_assoc,
+               caption = "Batch/study association with folds (Cramer's V).")
+} else {
+  cat("No batch or study associations detected.\n")
+}
+if (!is.null(audit@target_assoc) && nrow(audit@target_assoc) > 0) {
+  knitr::kable(utils::head(audit@target_assoc, 5),
+               caption = "Top features by target association score.")
+} else {
+  cat("No target leakage scan results available.\n")
+}
+if (!is.null(audit@duplicates) && nrow(audit@duplicates) > 0) {
+  knitr::kable(utils::head(audit@duplicates, 5),
+               caption = "Top duplicate/near-duplicate pairs by similarity.")
+} else {
+  cat("No near-duplicates detected.\n")
+}
+```
+
+The permutation table reports the observed metric, the mean under random label
+permutation, the gap (difference), and a permutation p-value. Larger gaps (for
+metrics where higher is better) indicate stronger non-random signal. The batch
+association table reports chi-square statistics and Cramer's V (0 to 1), where
+larger V values indicate stronger confounding between folds and batch/study
+labels. The target scan table lists features with the strongest outcome
+associations; for numeric features the score is |AUC - 0.5| * 2 (classification)
+or |correlation| (regression), and for categorical features it is Cramer's V or
+eta-squared. Scores closer to 1 indicate stronger outcome association and can
+signal proxy leakage. The duplicate table lists pairs of samples with near-
+identical profiles (similarity near 1), which can indicate memorization leakage.
+Only the top rows are shown for the target scan and duplicate tables to keep the
+output compact. Use the batch/target/duplicate tables to diagnose leakage, not
+the permutation gap alone.
+
+```{r plot-perm}
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_perm_distribution(audit)
+} else {
+  cat("ggplot2 not installed; skipping permutation plot.\n")
+}
+```
+
+The histogram shows the null distribution of the metric under label
+permutation. The observed metric (vertical line) should lie well outside the
+null distribution to indicate a statistically distinguishable signal.
+
+**Audit per learner**
+
+```{r audit-by-learner}
+custom_multi <- list(
+  glm = custom_learners$glm,
+  glm_int = list(
+    fit = function(x, y, task, weights, ...) {
+      df_fit <- data.frame(y = y, x, check.names = FALSE)
+      stats::glm(y ~ (.)^2, data = df_fit,
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+                                type = "response"))
+    }
+  )
+)
+
+fit_multi <- fit_resample(
+  df,
+  outcome = "outcome",
+  splits = safe_splits,
+  learner = c("glm", "glm_int"),
+  custom_learners = custom_multi,
+  metrics = "auc"
+)
+
+audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 100)
+cat("Per-learner audit summary:\n")
 audits
 ```
 
-## Simulation suite
+Use `parallel_learners = TRUE` to audit each learner concurrently when
+`future.apply` is available.
 
-The simulation helper can be used to validate leakage detection pipelines:
+The printed table summarizes each learner's observed metric, permutation gap,
+and the strongest batch/duplicate signals. Use it to compare models on the same
+leakage diagnostics, and report the model with both strong signal and minimal
+confounding.
 
-```{r sim, eval=FALSE}
-res <- simulate_leakage_suite(
-  n = 300, p = 10, mode = "subject_grouped",
-  learner = "ranger", leakage = "subject_overlap",
-  seeds = 1:3, parallel = FALSE
-)
-head(res)
+**HTML audit report**
+
+`audit_report()` accepts either a `LeakAudit` or a `LeakFit`. When given a
+`LeakFit`, it runs `audit_leakage()` first and forwards additional arguments.
+
+```{r audit-report}
+if (requireNamespace("rmarkdown", quietly = TRUE) && rmarkdown::pandoc_available()) {
+  report_path <- audit_report(audit, output_dir = ".")
+  cat("HTML report written to:\n", report_path, "\n")
+} else {
+  cat("rmarkdown or pandoc not available; skipping audit report rendering.\n")
+}
 ```
+
+The report path points to a standalone HTML file containing the same audit
+tables and plots, suitable for sharing or archiving alongside results.
+
+### Time-series leakage checks
+
+Time-series data require special handling. Random splits can leak information
+from the future into the past. Use `mode = "time_series"` with a prediction
+`horizon`, and audit with block permutations.
+
+**Leaky example: lookahead feature**
+
+```{r time-series-fit}
+time_splits <- make_splits(
+  df_time,
+  outcome = "outcome",
+  mode = "time_series",
+  time = "time",
+  v = 4,
+  horizon = 1
+)
+
+cat("Time-series splits summary:\n")
+time_splits
+
+fit_time_leaky <- fit_resample(
+  df_time,
+  outcome = "outcome",
+  splits = time_splits,
+  learner = "glm",
+  custom_learners = custom_learners,
+  metrics = "auc"
+)
+
+cat("Time-series leaky fit summary:\n")
+summary(fit_time_leaky)
+```
+
+The summary reports time-series cross-validated AUC. Because this example
+includes a lookahead feature, the metrics can be inflated and should be treated
+as a cautionary benchmark rather than a valid estimate.
+
+**Leakage-safe alternative: remove lookahead and audit with blocks**
+
+```{r time-series-safe}
+df_time_safe <- df_time
+df_time_safe$leak_future <- NULL
+
+fit_time_safe <- fit_resample(
+  df_time_safe,
+  outcome = "outcome",
+  splits = time_splits,
+  learner = "glm",
+  custom_learners = custom_learners,
+  metrics = "auc"
+)
+
+cat("Time-series safe fit summary:\n")
+summary(fit_time_safe)
+
+audit_time <- audit_leakage(
+  fit_time_safe,
+  metric = "auc",
+  B = 200,
+  time_block = "stationary",
+  block_len = 10
+)
+
+cat("Time-series leakage audit summary:\n")
+summary(audit_time)
+if (!is.null(audit_time@permutation_gap) && nrow(audit_time@permutation_gap) > 0) {
+  knitr::kable(audit_time@permutation_gap,
+               caption = "Time-series permutation significance results.")
+}
+
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_time_acf(fit_time_safe, lag.max = 20)
+} else {
+  cat("ggplot2 not installed; skipping ACF plot.\n")
+}
+```
+
+The safe fit summary provides the leakage-resistant performance estimate. The
+time-series audit uses block permutations to respect temporal dependence; a
+large gap indicates non-random signal, not necessarily leakage.
+
+The ACF plot shows autocorrelation of out-of-fold predictions by lag. Large,
+systematic autocorrelation can signal temporal leakage or model misspecification
+in time-series settings.
+
+## Parallel Processing
+
+`bioLeak` uses the `future` framework for parallelism. This works on Windows,
+macOS, and Linux. To speed up simulations or audits, simply set a plan:
+
+```{r parallel-setup, eval=FALSE}
+library(future)
+
+# Use multiple cores (works on all OS)
+plan(multisession, workers = 4)
+
+# Run a heavy simulation
+sim <- simulate_leakage_suite(..., parallel = TRUE)
+
+# Return to sequential processing
+plan(sequential)
+```
+
+This chunk only configures the parallel plan, so it does not produce a result
+object. Use it as a template before running compute-heavy functions.
+
+### Simulation suite
+
+`simulate_leakage_suite()` runs Monte Carlo simulations that inject specific
+leakage mechanisms and then evaluates detection with the audit pipeline. It is
+useful for validating your leakage checks before applying them to real data.
+Available leakage types include `none`, `subject_overlap`, `batch_confounded`,
+`peek_norm`, and `lookahead`. Use `signal_strength` to control difficulty.
+
+```{r simulate-suite}
+if (requireNamespace("glmnet", quietly = TRUE)) {
+  sim <- simulate_leakage_suite(
+    n = 200,
+    p = 10,
+    mode = "subject_grouped",
+    learner = "glmnet",
+    leakage = "subject_overlap",
+    seeds = 1:3,
+    B = 200,
+    parallel = FALSE,
+    signal_strength = 1
+  )
+  knitr::kable(utils::head(sim, 5),
+               caption = "Simulation results (first 5 rows).")
+} else {
+  cat("glmnet not installed; skipping simulation suite example.\n")
+}
+```
+
+Each row corresponds to one simulation seed. `metric_obs` is the observed
+performance (AUC for classification), `gap` is the permutation gap, and
+`p_value` is the permutation-based significance. Use `metric_obs` for effect
+size, and `gap/p_value` to assess whether the signal is distinguishable from
+random in the simulated leakage scenario.
+
+### Objects and summaries
+
+bioLeak uses S4 classes to capture provenance and diagnostics:
+- `LeakSplits`: returned by `make_splits()`, printed with `show()`
+- `LeakFit`: returned by `fit_resample()`, summarized with `summary()`
+- `LeakAudit`: returned by `audit_leakage()`, summarized with `summary()`
+- `LeakAuditList`: returned by `audit_leakage_by_learner()`, printed directly
+- `GuardFit`: returned by `.guard_fit()`, printed and summarized
+
+These objects store hashes and metadata that help reproduce and audit the
+workflow. Inspect their slots (`@metrics`, `@predictions`, `@permutation_gap`,
+`@duplicates`) to drill into specific leakage signals.

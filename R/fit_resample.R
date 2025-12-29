@@ -196,7 +196,42 @@ fit_resample <- function(x, outcome, splits,
   if (length(drop_cols)) {
     Xall <- Xall[, setdiff(colnames(Xall), drop_cols), drop = FALSE]
   }
-  ids  <- seq_len(nrow(Xall))
+  sample_ids <- NULL
+  if (inherits(splits, "LeakSplits") && !is.null(splits@info$coldata)) {
+    cd <- splits@info$coldata
+    rn_cd <- rownames(cd)
+    if (!is.null(rn_cd) && !anyNA(rn_cd) && all(nzchar(rn_cd)) && !anyDuplicated(rn_cd)) {
+      sample_ids <- rn_cd
+    } else if ("row_id" %in% names(cd)) {
+      rid <- as.character(cd[["row_id"]])
+      if (length(rid) == nrow(cd) && !anyNA(rid) && !anyDuplicated(rid) && all(nzchar(rid))) {
+        sample_ids <- rid
+      }
+    }
+  }
+  if (is.null(sample_ids)) {
+    rn <- rownames(Xall)
+    if (!is.null(rn) && !anyNA(rn) && all(nzchar(rn)) && !anyDuplicated(rn)) {
+      sample_ids <- rn
+    }
+  }
+  if (is.null(sample_ids) || length(sample_ids) != nrow(Xall)) {
+    sample_ids <- as.character(seq_len(nrow(Xall)))
+  }
+  ids <- sample_ids
+  compact <- isTRUE(splits@info$compact)
+  fold_assignments <- splits@info$fold_assignments
+  split_mode <- splits@mode
+  split_time <- splits@info$time
+  split_horizon <- splits@info$horizon %||% 0
+  split_coldata <- splits@info$coldata
+  time_vec <- NULL
+  if (compact && identical(split_mode, "time_series")) {
+    if (is.null(split_coldata) || is.null(split_time) || !split_time %in% names(split_coldata)) {
+      stop("time_series compact splits require time column in coldata.")
+    }
+    time_vec <- split_coldata[[split_time]]
+  }
   task <- if (.bio_is_binomial(yall)) "binomial"
   else if (.bio_is_regression(yall)) "gaussian"
   else if (is.factor(yall) && nlevels(yall) == 2) "binomial"
@@ -490,11 +525,44 @@ fit_resample <- function(x, outcome, splits,
     stop("Unsupported learner.")
   }
 
+  resolve_fold_indices <- function(fold) {
+    if (!isTRUE(compact) || !is.null(fold$train)) return(fold)
+    if (is.null(fold_assignments) || !length(fold_assignments)) {
+      stop("Compact splits require fold assignments to compute indices.")
+    }
+    r <- fold$repeat_id
+    if (is.null(r) || !is.finite(r)) r <- 1L
+    assign_vec <- fold_assignments[[r]]
+    if (is.null(assign_vec)) {
+      stop(sprintf("Missing fold assignments for repeat %s.", r))
+    }
+    test <- which(assign_vec == fold$fold)
+    if (identical(split_mode, "time_series")) {
+      if (is.null(time_vec) || !length(time_vec)) {
+        stop("time_series compact splits require time column values.")
+      }
+      if (!length(test)) {
+        train <- integer(0)
+      } else {
+        tmin <- min(time_vec[test])
+        if (split_horizon == 0) {
+          train <- which(time_vec < tmin)
+        } else {
+          train <- which(time_vec <= (tmin - split_horizon))
+        }
+      }
+    } else {
+      train <- setdiff(seq_len(nrow(Xall)), test)
+    }
+    list(train = train, test = test, fold = fold$fold, repeat_id = fold$repeat_id)
+  }
+
   # fold-level function -------------------------------------------------------
   do_fold <- function(fold) {
-    set.seed(seed + fold$fold)
-    tr <- fold$train
-    te <- fold$test
+    fold_full <- resolve_fold_indices(fold)
+    set.seed(seed + fold_full$fold)
+    tr <- fold_full$train
+    te <- fold_full$test
 
     Xtr <- Xall[tr, , drop = FALSE]
     Xte <- Xall[te, , drop = FALSE]
@@ -567,7 +635,7 @@ fit_resample <- function(x, outcome, splits,
           id = ids[te],
           truth = yte,
           pred = model$pred,
-          fold = fold$fold,
+              fold = fold_full$fold,
           learner = ln,
           stringsAsFactors = FALSE
         ),
@@ -624,7 +692,7 @@ fit_resample <- function(x, outcome, splits,
   for (fold_idx in seq_along(out)) {
     fold_res <- out[[fold_idx]]
     if (is.null(fold_res)) next
-    fold_info <- folds[[fold_idx]]
+    fold_info <- resolve_fold_indices(folds[[fold_idx]])
     for (ln in names(fold_res)) {
       res <- fold_res[[ln]]
       if (is.null(res)) next
@@ -703,6 +771,7 @@ fit_resample <- function(x, outcome, splits,
                   metrics_used = metric_labels,
                   class_weights = class_weights,
                   positive_class = if (task == "binomial") class_levels[2] else NULL,
+                  sample_ids = ids,
                   fold_seeds = setNames(seed + seq_along(folds),
                                         paste0("fold", seq_along(folds))),
                   refit = refit,

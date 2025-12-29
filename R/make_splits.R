@@ -30,6 +30,9 @@
 #'   training set only contains samples with time < min(test_time) when horizon = 0,
 #'   and time <= min(test_time) - horizon otherwise.
 #' @param progress logical, print progress for large jobs.
+#' @param compact logical; store fold assignments instead of explicit train/test
+#'   indices to reduce memory usage for large datasets. Not supported when
+#'   \code{nested = TRUE}.
 #'
 #' @return LeakSplits S4 object
 #' @examples
@@ -47,13 +50,18 @@ make_splits <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
                         group = NULL, batch = NULL, study = NULL, time = NULL,
                         v = 5, repeats = 1, stratify = FALSE, nested = FALSE,
-                        seed = 1, horizon = 0, progress = TRUE) {
+                        seed = 1, horizon = 0, progress = TRUE, compact = FALSE) {
 
   mode <- match.arg(mode)
   stopifnot(is.numeric(v), v >= 2 || mode == "study_loocv")
   stopifnot(is.numeric(repeats), repeats >= 1)
   stopifnot(is.numeric(horizon), horizon >= 0)
   set.seed(seed)
+
+  if (isTRUE(compact) && isTRUE(nested)) {
+    warning("compact=TRUE is not supported with nested=TRUE; using compact=FALSE.", call. = FALSE)
+    compact <- FALSE
+  }
 
   # ---- Extract metadata ----
   X <- .bio_get_x(x)
@@ -105,6 +113,9 @@ make_splits <- function(x, outcome = NULL,
 
   indices <- list()
   inner_indices <- NULL
+  summary_rows <- list()
+  repeats_eff <- if (mode %in% c("study_loocv", "time_series")) 1 else repeats
+  fold_assignments <- if (isTRUE(compact)) vector("list", repeats_eff) else NULL
 
   # ---- Subject-grouped ----
   if (mode == "subject_grouped") {
@@ -124,6 +135,9 @@ make_splits <- function(x, outcome = NULL,
 
     for (r in seq_len(repeats)) {
       set.seed(seed + 1000 * r)
+      if (isTRUE(compact)) {
+        fold_assign <- rep(NA_integer_, n)
+      }
       if (isTRUE(stratify) && exists("g_lab")) {
         gfold <- integer(length(lev)); names(gfold) <- lev
         for (cl in levels(g_lab)) {
@@ -140,8 +154,21 @@ make_splits <- function(x, outcome = NULL,
         test <- which(gid %in% test_g)
         train <- setdiff(seq_len(n), test)
         if (length(test) == 0L || length(train) == 0L) next
-        indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = k, repeat_id = r)
+        if (isTRUE(compact)) {
+          fold_assign[test] <- k
+          indices[[length(indices) + 1L]] <- list(fold = k, repeat_id = r)
+        } else {
+          indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = k, repeat_id = r)
+        }
+        summary_rows[[length(summary_rows) + 1L]] <- data.frame(
+          fold = k,
+          repeat_id = r,
+          train_n = length(train),
+          test_n = length(test),
+          stringsAsFactors = FALSE
+        )
       }
+      if (isTRUE(compact)) fold_assignments[[r]] <- fold_assign
       .msg("subject_grouped: repeat %d/%d done.", r, repeats)
     }
   }
@@ -165,6 +192,9 @@ make_splits <- function(x, outcome = NULL,
 
     for (r in seq_len(repeats)) {
       set.seed(seed + 1000 * r)
+      if (isTRUE(compact)) {
+        fold_assign <- rep(NA_integer_, n)
+      }
       # if (isTRUE(stratify) && exists("b_lab")) {
       #   bfold <- integer(length(blevels)); names(bfold) <- blevels
       #   for (cl in levels(b_lab)) {
@@ -204,9 +234,22 @@ make_splits <- function(x, outcome = NULL,
         test <- which(bid %in% test_b)
         train <- setdiff(seq_len(n), test)
         if (length(train) == 0L || length(test) == 0L) next
-        indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = k, repeat_id = r)
+        if (isTRUE(compact)) {
+          fold_assign[test] <- k
+          indices[[length(indices) + 1L]] <- list(fold = k, repeat_id = r)
+        } else {
+          indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = k, repeat_id = r)
+        }
+        summary_rows[[length(summary_rows) + 1L]] <- data.frame(
+          fold = k,
+          repeat_id = r,
+          train_n = length(train),
+          test_n = length(test),
+          stringsAsFactors = FALSE
+        )
       }
 
+      if (isTRUE(compact)) fold_assignments[[r]] <- fold_assign
       .msg("batch_blocked: repeat %d/%d done.", r, repeats)
     }
   }
@@ -215,17 +258,37 @@ make_splits <- function(x, outcome = NULL,
   # ---- Study LOOCV ----
   if (mode == "study_loocv") {
     sid <- .as_factor(cd[[study]])
+    if (isTRUE(compact)) {
+      fold_assign <- rep(NA_integer_, n)
+    }
     for (s in levels(sid)) {
       test <- which(sid == s)
       train <- setdiff(seq_len(n), test)
       if (length(train) == 0L || length(test) == 0L) next
-      indices[[length(indices) + 1L]] <- list(
-        train = train,
-        test = test,
-        fold = as.integer(which(levels(sid) == s)),
-        repeat_id = as.integer(1)
+      fold_id <- as.integer(which(levels(sid) == s))
+      if (isTRUE(compact)) {
+        fold_assign[test] <- fold_id
+        indices[[length(indices) + 1L]] <- list(
+          fold = fold_id,
+          repeat_id = as.integer(1)
+        )
+      } else {
+        indices[[length(indices) + 1L]] <- list(
+          train = train,
+          test = test,
+          fold = fold_id,
+          repeat_id = as.integer(1)
+        )
+      }
+      summary_rows[[length(summary_rows) + 1L]] <- data.frame(
+        fold = fold_id,
+        repeat_id = 1,
+        train_n = length(train),
+        test_n = length(test),
+        stringsAsFactors = FALSE
       )
     }
+    if (isTRUE(compact)) fold_assignments[[1]] <- fold_assign
   }
 
   # ---- Time-series ----
@@ -237,6 +300,9 @@ make_splits <- function(x, outcome = NULL,
     Xidx <- seq_len(n)[ord]
 
     fold_size <- max(1L, floor(n / v))
+    if (isTRUE(compact)) {
+      fold_assign <- rep(NA_integer_, n)
+    }
     for (k in seq_len(v)) {
       test <- Xidx[max(1, (k - 1) * fold_size + 1):min(n, k * fold_size)]
       tmin <- min(tt[test])
@@ -247,8 +313,21 @@ make_splits <- function(x, outcome = NULL,
       }
       if (length(train) < 1L) next
       if (length(test) < 3L) next
-      indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = as.integer(k), repeat_id = as.integer(1))
+      if (isTRUE(compact)) {
+        fold_assign[test] <- k
+        indices[[length(indices) + 1L]] <- list(fold = as.integer(k), repeat_id = as.integer(1))
+      } else {
+        indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = as.integer(k), repeat_id = as.integer(1))
+      }
+      summary_rows[[length(summary_rows) + 1L]] <- data.frame(
+        fold = as.integer(k),
+        repeat_id = 1,
+        train_n = length(train),
+        test_n = length(test),
+        stringsAsFactors = FALSE
+      )
     }
+    if (isTRUE(compact)) fold_assignments[[1]] <- fold_assign
   }
 
   # ---- Nested ----
@@ -277,13 +356,17 @@ make_splits <- function(x, outcome = NULL,
     warning("Duplicate fold/repeat combinations detected; check v and repeats settings.")
   }
 
-  split_summary <- data.frame(
-    fold      = vapply(indices, `[[`, integer(1), "fold"),
-    repeat_id = vapply(indices, `[[`, integer(1), "repeat_id"),
-    train_n   = vapply(indices, function(z) length(z$train), integer(1)),
-    test_n    = vapply(indices, function(z) length(z$test), integer(1)),
-    stringsAsFactors = FALSE
-  )
+  split_summary <- if (isTRUE(compact)) {
+    do.call(rbind, summary_rows)
+  } else {
+    data.frame(
+      fold      = vapply(indices, `[[`, integer(1), "fold"),
+      repeat_id = vapply(indices, `[[`, integer(1), "repeat_id"),
+      train_n   = vapply(indices, function(z) length(z$train), integer(1)),
+      test_n    = vapply(indices, function(z) length(z$test), integer(1)),
+      stringsAsFactors = FALSE
+    )
+  }
 
   indices_hash <- .bio_hash_indices(indices)
   hash_val <- tryCatch({
@@ -303,6 +386,7 @@ make_splits <- function(x, outcome = NULL,
     group = group, batch = batch, study = study, time = time,
     stratify = stratify, nested = nested, horizon = horizon,
     summary = split_summary, hash = hash_val, inner = inner_indices,
+    compact = compact, fold_assignments = fold_assignments,
     coldata = cd
   )
 

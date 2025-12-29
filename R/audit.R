@@ -1,4 +1,4 @@
-# audit_leakage(): permutation gap, batch association, duplicate detection, trail ----
+# audit_leakage(): permutation gap, batch association, target scan, duplicates, trail ----
 
 .cosine_sim_block <- function(A, B = NULL) {
   if (is.null(B)) B <- A
@@ -32,6 +32,220 @@
   v <- sqrt(unname(cs$statistic) / (n * (min(dim(tab)) - 1)))
   list(stat = unname(cs$statistic), df = unname(cs$parameter),
        pval = unname(cs$p.value), cramer_v = as.numeric(v))
+}
+
+.chisq_assoc_soft <- function(tab) {
+  if (any(dim(tab) < 2) || sum(tab) == 0) {
+    return(list(stat = NA_real_, df = NA_integer_, pval = NA_real_, cramer_v = NA_real_))
+  }
+  cs <- suppressWarnings(stats::chisq.test(tab))
+  n <- sum(tab)
+  v <- sqrt(unname(cs$statistic) / (n * (min(dim(tab)) - 1)))
+  list(stat = unname(cs$statistic), df = unname(cs$parameter),
+       pval = unname(cs$p.value), cramer_v = as.numeric(v))
+}
+
+.auc_rank <- function(x, y01) {
+  x <- as.numeric(x)
+  y01 <- as.numeric(y01)
+  ok <- is.finite(x) & !is.na(y01)
+  x <- x[ok]
+  y01 <- y01[ok]
+  if (!length(x)) return(NA_real_)
+  n_pos <- sum(y01 == 1)
+  n_neg <- sum(y01 == 0)
+  if (n_pos == 0 || n_neg == 0) return(NA_real_)
+  r <- rank(x, ties.method = "average")
+  (sum(r[y01 == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+}
+
+.cor_pval <- function(r, n) {
+  if (!is.finite(r) || is.na(r) || n < 3L) return(NA_real_)
+  if (abs(r) >= 1) return(0)
+  tval <- r * sqrt((n - 2) / (1 - r^2))
+  2 * stats::pt(-abs(tval), df = n - 2)
+}
+
+.align_by_ids <- function(X, ids_chr, sample_ids = NULL, warn = TRUE) {
+  if (is.null(X) || (!is.data.frame(X) && !is.matrix(X))) return(NULL)
+  rn <- rownames(X)
+  if (!is.null(rn) && all(ids_chr %in% rn)) {
+    return(X[ids_chr, , drop = FALSE])
+  }
+  if (!is.null(sample_ids) && length(sample_ids) == nrow(X)) {
+    idx <- match(ids_chr, as.character(sample_ids))
+    if (all(!is.na(idx))) return(X[idx, , drop = FALSE])
+  }
+  ids_int <- suppressWarnings(as.integer(ids_chr))
+  if (all(!is.na(ids_int)) && max(ids_int, na.rm = TRUE) <= nrow(X)) {
+    return(X[ids_int, , drop = FALSE])
+  }
+  if (nrow(X) == length(ids_chr)) {
+    if (warn) {
+      warning("X_ref rownames do not match prediction ids; assuming row order aligns to predictions.",
+              call. = FALSE)
+    }
+    return(X)
+  }
+  if (warn) warning("X_ref not aligned to predictions; target leakage scan skipped.", call. = FALSE)
+  NULL
+}
+
+.target_assoc_scan <- function(X, y, task, positive_class = NULL, threshold = 0.9) {
+  if (is.null(X) || is.null(y)) return(data.frame())
+  if (!is.data.frame(X) && !is.matrix(X)) return(data.frame())
+  is_df <- is.data.frame(X)
+  if (is_df) {
+    n_rows <- nrow(X)
+    n_cols <- ncol(X)
+    col_names <- colnames(X)
+    get_col <- function(j) X[[j]]
+  } else {
+    X_mat <- as.matrix(X)
+    n_rows <- nrow(X_mat)
+    n_cols <- ncol(X_mat)
+    col_names <- colnames(X_mat)
+    get_col <- function(j) X_mat[, j]
+  }
+  if (!n_rows || !n_cols) return(data.frame())
+  if (length(y) != n_rows) {
+    warning("X_ref rows do not match outcome length; target leakage scan skipped.", call. = FALSE)
+    return(data.frame())
+  }
+
+  if (is.null(col_names)) {
+    col_names <- paste0("feature_", seq_len(n_cols))
+  }
+
+  y01 <- NULL
+  y_num <- NULL
+  if (task == "binomial") {
+    y01 <- y
+    if (is.factor(y01)) {
+      y01 <- droplevels(y01)
+      if (!is.null(positive_class)) {
+        pos_chr <- as.character(positive_class)
+        if (pos_chr %in% levels(y01) && !identical(levels(y01)[2], pos_chr)) {
+          y01 <- factor(y01, levels = c(setdiff(levels(y01), pos_chr), pos_chr))
+        }
+      }
+      y01 <- as.numeric(y01) - 1
+    } else if (is.logical(y01)) {
+      y01 <- as.numeric(y01)
+    } else {
+      y01 <- as.numeric(y01)
+      uniq <- sort(unique(y01[is.finite(y01)]))
+      if (length(uniq) == 2 && !all(uniq %in% c(0, 1))) {
+        y01 <- as.numeric(factor(y01, levels = uniq)) - 1
+      }
+    }
+  } else {
+    y_num <- as.numeric(y)
+  }
+
+  results <- lapply(seq_len(n_cols), function(j) {
+    x <- get_col(j)
+    if (inherits(x, c("Date", "POSIXct", "POSIXt"))) {
+      x <- as.numeric(x)
+    }
+    is_cat <- is.factor(x) || is.character(x)
+
+    if (is_cat) {
+      x_fac <- as.factor(x)
+      if (task == "binomial") {
+        ok <- !is.na(x_fac) & !is.na(y01)
+        x_ok <- droplevels(x_fac[ok])
+        y_ok <- y01[ok]
+        if (length(x_ok) < 2L || length(unique(x_ok)) < 2L || length(unique(y_ok)) < 2L) {
+          return(NULL)
+        }
+        tab <- table(x_ok, y_ok)
+        assoc <- .chisq_assoc_soft(tab)
+        data.frame(
+          feature = col_names[j],
+          type = "categorical",
+          metric = "cramer_v",
+          value = assoc$cramer_v,
+          score = assoc$cramer_v,
+          p_value = assoc$pval,
+          n = length(y_ok),
+          n_levels = nlevels(x_ok),
+          stringsAsFactors = FALSE
+        )
+      } else {
+        ok <- !is.na(x_fac) & is.finite(y_num)
+        x_ok <- droplevels(x_fac[ok])
+        y_ok <- y_num[ok]
+        if (length(y_ok) < 3L || nlevels(x_ok) < 2L) return(NULL)
+        fit <- try(stats::lm(y_ok ~ x_ok), silent = TRUE)
+        if (inherits(fit, "try-error")) return(NULL)
+        an <- stats::anova(fit)
+        ss_total <- sum(an$`Sum Sq`, na.rm = TRUE)
+        eta_sq <- if (is.finite(ss_total) && ss_total > 0) an$`Sum Sq`[1] / ss_total else NA_real_
+        p_val <- an$`Pr(>F)`[1]
+        data.frame(
+          feature = col_names[j],
+          type = "categorical",
+          metric = "eta_sq",
+          value = eta_sq,
+          score = eta_sq,
+          p_value = p_val,
+          n = length(y_ok),
+          n_levels = nlevels(x_ok),
+          stringsAsFactors = FALSE
+        )
+      }
+    } else {
+      x_num <- as.numeric(x)
+      if (task == "binomial") {
+        ok <- is.finite(x_num) & !is.na(y01)
+        x_ok <- x_num[ok]
+        y_ok <- y01[ok]
+        if (length(x_ok) < 3L || length(unique(y_ok)) < 2L) return(NULL)
+        if (stats::sd(x_ok) == 0) return(NULL)
+        auc <- .auc_rank(x_ok, y_ok)
+        score <- if (is.na(auc)) NA_real_ else abs(auc - 0.5) * 2
+        data.frame(
+          feature = col_names[j],
+          type = "numeric",
+          metric = "auc",
+          value = auc,
+          score = score,
+          p_value = NA_real_,
+          n = length(y_ok),
+          n_levels = NA_integer_,
+          stringsAsFactors = FALSE
+        )
+      } else {
+        ok <- is.finite(x_num) & is.finite(y_num)
+        x_ok <- x_num[ok]
+        y_ok <- y_num[ok]
+        if (length(x_ok) < 3L) return(NULL)
+        if (stats::sd(x_ok) == 0 || stats::sd(y_ok) == 0) return(NULL)
+        r <- stats::cor(x_ok, y_ok)
+        p_val <- .cor_pval(r, length(x_ok))
+        data.frame(
+          feature = col_names[j],
+          type = "numeric",
+          metric = "cor",
+          value = r,
+          score = abs(r),
+          p_value = p_val,
+          n = length(y_ok),
+          n_levels = NA_integer_,
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  })
+
+  results <- results[!vapply(results, is.null, logical(1))]
+  if (!length(results)) return(data.frame())
+  out <- do.call(rbind, results)
+  out$flag <- !is.na(out$score) & out$score >= threshold
+  out <- out[order(out$score, decreasing = TRUE, na.last = TRUE), , drop = FALSE]
+  rownames(out) <- NULL
+  out
 }
 
 # Compute metric from predictions
@@ -84,6 +298,9 @@
 #' @param batch_cols character vector of metadata columns to test association with folds
 #' @param coldata optional data.frame of sample-level metadata (rows align to original samples)
 #' @param X_ref optional numeric matrix/data.frame (samples x features) used for duplicate detection
+#'   and target leakage scan
+#' @param target_scan logical, compute feature-wise outcome associations to flag proxy columns
+#' @param target_threshold numeric in (0,1), score threshold for flagging proxy features
 #' @param feature_space "raw" or "rank" (rank-normalize rows before similarity)
 #' @param sim_method "cosine" or "pearson"
 #' @param sim_threshold numeric in (0,1), similarity threshold for duplicates (default 0.995)
@@ -95,6 +312,8 @@
 #' Duplicate detection uses the selected \code{sim_method}:
 #' cosine similarity on L2-normalized rows, or Pearson similarity by row-centering
 #' before normalization. Use \code{feature_space = "rank"} to compare rank profiles.
+#' Target leakage scan computes feature-wise associations with the outcome and
+#' flags proxy columns based on the scaled association score.
 #' @examples
 #' \dontrun{
 #' set.seed(1)
@@ -127,6 +346,8 @@ audit_leakage <- function(fit,
                           batch_cols = NULL,
                           coldata = NULL,
                           X_ref = NULL,
+                          target_scan = TRUE,
+                          target_threshold = 0.9,
                           feature_space = c("raw", "rank"),
                           sim_method = c("cosine", "pearson"),
                           sim_threshold = 0.995,
@@ -139,6 +360,11 @@ audit_leakage <- function(fit,
   sim_method    <- match.arg(sim_method)
   time_block <- match.arg(time_block)
   ci_method <- match.arg(ci_method)
+
+  if (!is.numeric(target_threshold) || length(target_threshold) != 1L ||
+      !is.finite(target_threshold) || target_threshold <= 0 || target_threshold >= 1) {
+    stop("target_threshold must be a single numeric value in (0,1).")
+  }
 
   set.seed(seed)
 
@@ -155,6 +381,21 @@ audit_leakage <- function(fit,
   # --- Reconstruct main metric from CV predictions --------------------------
   task <- fit@task
   folds <- fit@splits@indices
+  compact <- isTRUE(fit@splits@info$compact)
+  fold_assignments <- fit@splits@info$fold_assignments
+  resolve_test_idx <- function(fold) {
+    if (!isTRUE(compact) && !is.null(fold$test)) return(fold$test)
+    if (is.null(fold_assignments) || !length(fold_assignments)) {
+      stop("Compact splits require fold assignments to resolve test indices.")
+    }
+    r <- fold$repeat_id
+    if (is.null(r) || !is.finite(r)) r <- 1L
+    assign_vec <- fold_assignments[[r]]
+    if (is.null(assign_vec)) {
+      stop(sprintf("Missing fold assignments for repeat %s.", r))
+    }
+    which(assign_vec == fold$fold)
+  }
   if (is.null(coldata) && !is.null(fit@splits@info$coldata)) {
     coldata <- fit@splits@info$coldata
   }
@@ -227,7 +468,7 @@ audit_leakage <- function(fit,
   }
 
   # Weights per fold for IF aggregation
-  weights <- vapply(folds, function(f) length(f$test), integer(1))
+  weights <- vapply(folds, function(f) length(resolve_test_idx(f)), integer(1))
   weights <- weights / sum(weights)
 
   se_obs <- NA_real_
@@ -245,9 +486,13 @@ audit_leakage <- function(fit,
   # --- Permutations ----------------------------------------------------------
   perm_source <- NULL
   if (!is.null(coldata) && !is.null(outcome_col) && outcome_col %in% names(coldata)) {
+    folds_perm <- folds
+    if (isTRUE(compact)) {
+      attr(folds_perm, "fold_assignments") <- fold_assignments
+    }
     perm_source <- .permute_labels_factory(
       cd = coldata, outcome = outcome_col, mode = fit@splits@mode,
-      folds = folds, perm_stratify = perm_stratify, time_block = time_block,
+      folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
       block_len = block_len, seed = seed,
       group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
       study_col = fit@splits@info$study
@@ -351,20 +596,55 @@ audit_leakage <- function(fit,
     if (is.numeric(x)) round(x, 6) else x)
 
   # --- Batch / study association with folds ---------------------------------
-  ids_all <- sort(unique(all_pred$id))
-  fold_id <- rep(NA_integer_, length(ids_all))
-  names(fold_id) <- as.character(ids_all)
+  ids_all <- unique(all_pred$id)
+  ids_all_chr <- as.character(ids_all)
+  fold_id <- rep(NA_integer_, length(ids_all_chr))
+  names(fold_id) <- ids_all_chr
 
-  for (i in seq_along(fit@splits@indices)) {
-    te_ids <- intersect(fit@splits@indices[[i]]$test, ids_all)
-    fold_id[as.character(te_ids)] <- i
+  sample_ids <- fit@info$sample_ids %||% NULL
+  if (is.null(sample_ids) || !length(sample_ids)) {
+    if (!is.null(fit@splits@info$coldata)) {
+      cd_lookup <- fit@splits@info$coldata
+      rn_cd <- rownames(cd_lookup)
+      if (!is.null(rn_cd) && !anyNA(rn_cd) && all(nzchar(rn_cd)) && !anyDuplicated(rn_cd)) {
+        sample_ids <- rn_cd
+      } else if ("row_id" %in% names(cd_lookup)) {
+        rid <- as.character(cd_lookup[["row_id"]])
+        if (length(rid) == nrow(cd_lookup) && !anyNA(rid) &&
+            !anyDuplicated(rid) && all(nzchar(rid))) {
+          sample_ids <- rid
+        }
+      }
+    }
+  }
+  if (!is.null(sample_ids) && length(sample_ids)) {
+    sample_ids <- as.character(sample_ids)
+    max_idx <- max(vapply(fit@splits@indices, function(z) {
+      te_idx <- resolve_test_idx(z)
+      if (length(te_idx)) max(te_idx) else 0L
+    }, integer(1)), na.rm = TRUE)
+    if (length(sample_ids) < max_idx) {
+      warning("Sample ID mapping is shorter than split indices; fold mapping may be incomplete.",
+              call. = FALSE)
+    } else {
+      for (i in seq_along(fit@splits@indices)) {
+        te_idx <- resolve_test_idx(fit@splits@indices[[i]])
+        te_ids <- sample_ids[te_idx]
+        fold_id[as.character(te_ids)] <- i
+      }
+    }
+  } else if (is.numeric(ids_all)) {
+    for (i in seq_along(fit@splits@indices)) {
+      te_idx <- resolve_test_idx(fit@splits@indices[[i]])
+      te_ids <- intersect(te_idx, ids_all)
+      fold_id[as.character(te_ids)] <- i
+    }
   }
 
   if (is.null(coldata) && !is.null(fit@splits@info$coldata)) {
     coldata <- fit@splits@info$coldata
   }
   if (!is.null(coldata)) {
-    ids_all_chr <- as.character(ids_all)
     rn <- rownames(coldata)
     aligned <- FALSE
 
@@ -414,6 +694,32 @@ audit_leakage <- function(fit,
         batch_results <- batch_results[keep_idx]
         batch_df <- do.call(rbind, Map(function(nm, df) { df$batch_col <- nm; df }, names(batch_results), batch_results))
         batch_df <- batch_df[, c("batch_col", "stat", "df", "pval", "cramer_v")]
+      }
+    }
+  }
+
+  # --- Target leakage scan (feature-wise outcome association) ----------------
+  target_df <- data.frame()
+  if (isTRUE(target_scan)) {
+    y_outcome <- NULL
+    if (!is.null(coldata) && !is.null(outcome_col) && outcome_col %in% names(coldata)) {
+      y_outcome <- coldata[[outcome_col]]
+    }
+    if (is.null(y_outcome) || !length(y_outcome)) {
+      id_first <- !duplicated(as.character(all_pred$id))
+      truth_map <- all_pred$truth[id_first]
+      names(truth_map) <- as.character(all_pred$id[id_first])
+      y_outcome <- truth_map[ids_all_chr]
+    }
+    if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
+    if (!is.null(X_ref) && !is.null(y_outcome)) {
+      X_scan <- .align_by_ids(X_ref, ids_all_chr, sample_ids = sample_ids)
+      if (!is.null(X_scan)) {
+        target_df <- .target_assoc_scan(
+          X_scan, y_outcome, task,
+          positive_class = fit@info$positive_class,
+          threshold = target_threshold
+        )
       }
     }
   }
@@ -483,12 +789,15 @@ audit_leakage <- function(fit,
       permutation_gap = perm_df,
       perm_values = perm_values,
       batch_assoc = batch_df,
+      target_assoc = target_df,
       duplicates = dup_df,
       trail = trail,
       info = list(
         n_perm = B,
         perm_stratify = perm_stratify,
         parallel = parallel,
+        target_scan = target_scan,
+        target_threshold = target_threshold,
         sim_method = sim_method,
         feature_space = feature_space,
         duplicate_threshold = sim_threshold,

@@ -1,7 +1,7 @@
 #' Summarize a leakage audit
 #'
 #' Provides a console summary of the leakage audit results,
-#' including permutation gap, batch association, and duplicates.
+#' including permutation gap, batch association, target scan, and duplicates.
 #'
 #' @seealso [plot_perm_distribution()], [plot_fold_balance()], [plot_overlap_checks()]
 #'
@@ -67,7 +67,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat(sprintf("  Gap: %s (larger gap = stronger non-random signal)\n",
                 formatC(pg$gap, digits = digits, format = "f")))
     cat("  Note: This tests if the model signal is non-random. It does NOT diagnose information leakage.\n")
-    cat("  Use the Batch Association and Duplicate Detection sections to check for leakage.\n\n")
+    cat("  Use the Batch Association, Target Leakage Scan, and Duplicate Detection sections to check for leakage.\n\n")
   } else {
     cat("Permutation Significance Test: not available.\n\n")
   }
@@ -82,6 +82,29 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
                 formatC(ba$pval, digits = digits, format = "f")))
   } else {
     cat("Batch / Study Association: none detected.\n\n")
+  }
+
+  # --- Target leakage scan ---
+  if (!is.null(object@target_assoc) && nrow(object@target_assoc) > 0) {
+    ta <- object@target_assoc
+    threshold <- object@info$target_threshold %||% 0.9
+    flagged <- ta[!is.na(ta$score) & ta$score >= threshold, , drop = FALSE]
+    cat("Target Leakage Scan:\n")
+    cat(sprintf("  Features checked: %d | Flagged (score >= %s): %d\n",
+                nrow(ta),
+                formatC(threshold, digits = digits, format = "f"),
+                nrow(flagged)))
+    if (nrow(flagged) > 0) {
+      flagged <- flagged[order(flagged$score, decreasing = TRUE, na.last = TRUE), , drop = FALSE]
+      top <- utils::head(flagged, 5)
+      cols <- intersect(c("feature", "metric", "value", "score", "p_value"), names(top))
+      print(top[, cols, drop = FALSE], row.names = FALSE)
+    } else {
+      cat("  No strong proxy features detected.\n")
+    }
+    cat("\n")
+  } else {
+    cat("Target Leakage Scan: not available.\n\n")
   }
 
   # --- Duplicate detection ---

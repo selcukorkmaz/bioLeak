@@ -8,7 +8,7 @@ params:
   audit: NULL
 ---
 
-```{r setup, include=FALSE}
+```{r report-setup, include=FALSE}
 stopifnot(inherits(params$audit, "LeakAudit"))
 aud <- params$audit
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
@@ -23,8 +23,8 @@ summary(aud)
 ## Permutation significance test
 
 Note: This test assesses whether predictions are better than random. It does NOT diagnose
-information leakage. Use the Batch Association and Duplicate Detection sections to check
-for leakage.
+information leakage. Use the Batch Association, Target Leakage Scan, and Duplicate Detection
+sections to check for leakage.
 
 ```{r perm-significance}
 pg <- aud@permutation_gap
@@ -51,6 +51,21 @@ if (!is.null(ba) && nrow(ba) > 0) {
   knitr::kable(ba)
 } else {
   cat("No batch or study association results available.")
+}
+```
+
+## Target leakage scan
+
+```{r target-leakage}
+ta <- aud@target_assoc
+if (!is.null(ta) && nrow(ta) > 0) {
+  threshold <- if (!is.null(aud@info$target_threshold)) aud@info$target_threshold else 0.9
+  flagged <- ta[!is.na(ta$score) & ta$score >= threshold, , drop = FALSE]
+  show <- if (nrow(flagged) > 0) flagged else ta
+  show <- show[order(show$score, decreasing = TRUE, na.last = TRUE), , drop = FALSE]
+  knitr::kable(utils::head(show, 50))
+} else {
+  cat("No target leakage scan results available.")
 }
 ```
 

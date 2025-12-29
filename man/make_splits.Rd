@@ -18,7 +18,8 @@ make_splits(
   nested = FALSE,
   seed = 1,
   horizon = 0,
-  progress = TRUE
+  progress = TRUE,
+  compact = FALSE
 )
 }
 \arguments{
@@ -57,6 +58,10 @@ training set only contains samples with time < min(test_time) when horizon = 0,
 and time <= min(test_time) - horizon otherwise.}
 
 \item{progress}{logical, print progress for large jobs.}
+
+\item{compact}{logical; store fold assignments instead of explicit train/test
+indices to reduce memory usage for large datasets. Not supported when
+\code{nested = TRUE}.}
 }
 \value{
 LeakSplits S4 object

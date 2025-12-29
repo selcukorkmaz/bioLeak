@@ -26,7 +26,9 @@
 
 \item{mode}{resampling mode (subject_grouped, batch_blocked, study_loocv, time_series).}
 
-\item{folds}{list of train/test index lists from \code{LeakSplits}.}
+\item{folds}{list of fold descriptors from \code{LeakSplits}. When compact
+splits are used, fold assignments are read from the
+\code{fold_assignments} attribute.}
 
 \item{perm_stratify}{logical or "auto"; if TRUE, permute within strata.}
 
