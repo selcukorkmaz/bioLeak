@@ -33,14 +33,14 @@ Inputs can be `data.frame`, `matrix`, or `SummarizedExperiment` objects.
 library(bioLeak)
 set.seed(1)
 df <- data.frame(
-  subject = rep(1:10, each = 2),
-  batch = sample(letters[1:2], 20, replace = TRUE),
-  outcome = rbinom(20, 1, 0.5),
-  x1 = rnorm(20),
-  x2 = rnorm(20)
+  subject = rep(1:10, each = 10),
+  batch = sample(letters[1:5], 100, replace = TRUE),
+  outcome = rbinom(100, 1, 0.5),
+  x1 = rnorm(100),
+  x2 = rnorm(100)
 )
 
-splits <- make_splits(
+ <- make_splits(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
@@ -85,9 +85,12 @@ custom <- list(
     }
   )
 )
+
 fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
                      learner = "glm", custom_learners = custom,
                      metrics = "accuracy")
+
+summary(fit2)
 ```
 
 ## Auditing and report

@@ -30,6 +30,8 @@
 #' @details
 #' Preprocessing is fit on the training fold and applied to the test fold,
 #' preventing leakage from global imputation, scaling, or feature selection.
+#' For data.frame or matrix inputs, columns used to define splits
+#' (outcome, group, batch, study, time) are excluded from the predictor matrix.
 #' Use \code{learner_args} to pass model-specific arguments, either as a named
 #' list keyed by learner or a single list applied to all learners. For custom
 #' learners, \code{learner_args[[name]]} may be a list with \code{fit} and
@@ -159,7 +161,22 @@ fit_resample <- function(x, outcome, splits,
   }
   Xall <- .bio_get_x(x)
   yall <- .bio_get_y(x, outcome)
-  Xall <- Xall[, setdiff(colnames(Xall), outcome), drop = FALSE]
+  drop_cols <- outcome
+  if (inherits(splits, "LeakSplits")) {
+    split_info <- splits@info
+    drop_cols <- unique(c(drop_cols,
+                          split_info$group,
+                          split_info$batch,
+                          split_info$study,
+                          split_info$time))
+  }
+  drop_cols <- drop_cols[!is.na(drop_cols) & nzchar(drop_cols)]
+  if (length(drop_cols) && !is.null(colnames(Xall))) {
+    drop_cols <- intersect(colnames(Xall), drop_cols)
+  }
+  if (length(drop_cols)) {
+    Xall <- Xall[, setdiff(colnames(Xall), drop_cols), drop = FALSE]
+  }
   ids  <- seq_len(nrow(Xall))
   task <- if (.bio_is_binomial(yall)) "binomial"
   else if (.bio_is_regression(yall)) "gaussian"
@@ -374,8 +391,10 @@ fit_resample <- function(x, outcome, splits,
       if (task == "binomial") {
         prob <- try(parsnip::predict(fit, new_data = Xteg, type = "prob"), silent = TRUE)
         if (inherits(prob, "try-error")) {
-          stop(sprintf("Parsnip learner '%s' must support probability predictions for binomial tasks.",
-                       learner_label))
+          # Extract the actual error text from parsnip/xgboost
+          err_msg <- attr(prob, "condition")$message
+          stop(sprintf("Parsnip learner '%s' failed to predict: %s",
+                       learner_label, err_msg))
         }
         prob_df <- as.data.frame(prob)
         pos_col <- paste0(".pred_", make.names(class_levels[2]))

@@ -68,6 +68,8 @@ leakage-protected preprocessing (.guard_fit) and user-specified learners.
 \details{
 Preprocessing is fit on the training fold and applied to the test fold,
 preventing leakage from global imputation, scaling, or feature selection.
+For data.frame or matrix inputs, columns used to define splits
+(outcome, group, batch, study, time) are excluded from the predictor matrix.
 Use \code{learner_args} to pass model-specific arguments, either as a named
 list keyed by learner or a single list applied to all learners. For custom
 learners, \code{learner_args[[name]]} may be a list with \code{fit} and

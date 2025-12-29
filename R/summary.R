@@ -159,7 +159,11 @@ summary.LeakFit <- function(object, digits = 3, ...) {
     cat("Cross-validated metrics (mean ± SD):\n")
     ms <- object@metric_summary
     metrics_fmt <- as.data.frame(ms)
-    print(round(metrics_fmt, digits))
+    num_cols <- vapply(metrics_fmt, is.numeric, logical(1))
+    if (any(num_cols)) {
+      metrics_fmt[num_cols] <- lapply(metrics_fmt[num_cols], round, digits = digits)
+    }
+    print(metrics_fmt)
     cat("\n")
   } else {
     cat("No metric summary available.\n\n")

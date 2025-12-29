@@ -101,6 +101,8 @@ Splits are stored in a `LeakSplits` object with metadata, seed, and hash.
   samples only, then applied to test samples.
 - Supports `glmnet` and `ranger` out of the box.
 - Supports custom learners via `custom_learners`.
+- For data.frame/matrix inputs, columns used for splitting (outcome, group,
+  batch, study, time) are excluded from predictors to avoid ID leakage.
 
 Custom learner example:
 
