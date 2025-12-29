@@ -2,12 +2,12 @@
 % Please edit documentation in R/impute_guarded.R
 \name{impute_guarded}
 \alias{impute_guarded}
-\title{Leakage-safe data imputation (robust, enhanced version)}
+\title{Leakage-safe data imputation via guarded preprocessing}
 \usage{
 impute_guarded(
   train,
   test,
-  method = c("median", "mean", "mode", "constant", "knn", "mice", "missForest"),
+  method = c("median", "knn", "missForest", "none"),
   constant_value = 0,
   k = 5,
   seed = 123,
@@ -23,35 +23,33 @@ impute_guarded(
 
 \item{test}{data frame (test set)}
 
-\item{method}{one of "mean", "median", "mode", "constant", "knn", "mice", or "missForest"}
+\item{method}{one of "median", "knn", "missForest", or "none"}
 
-\item{constant_value}{numeric or character value if method = "constant"}
+\item{constant_value}{unused; retained for backward compatibility}
 
 \item{k}{number of neighbors for kNN imputation (if method = "knn")}
 
 \item{seed}{random seed for reproducibility}
 
-\item{winsor}{logical; apply MAD-based Winsorization before imputation}
+\item{winsor}{logical; apply MAD-based winsorization before imputation}
 
 \item{winsor_thresh}{numeric; MAD cutoff (default = 3)}
 
-\item{parallel}{logical; enable parallel imputation for heavy models (default = FALSE)}
+\item{parallel}{logical; unused (kept for compatibility)}
 
-\item{return_outliers}{logical; return logical matrix of Winsorized outlier flags}
+\item{return_outliers}{logical; unused (outlier flags not returned)}
 
 \item{vars}{optional character vector; impute only selected variables}
 }
 \value{
-A LeakImpute object with imputed data, model, and diagnostic summary.
+A LeakImpute object with imputed data and guard state.
 }
 \description{
-Performs simple and advanced missing value imputation methods while preventing
-information leakage. All imputation parameters are learned *only* from training data
-and then applied to the test data. Includes Median Absolute Deviation (MAD)–based
-Winsorization for robust outlier handling, automatic factor level preservation,
-and diagnostic summaries.
-For kNN and missForest, imputation is fit on the training set and then
-train-derived fill values are applied to test rows to avoid leakage.
+Fits imputation parameters on the training data only, then applies the same
+guarded transformation to the test data. This function is a thin wrapper
+around the guarded preprocessing used by \code{fit_resample()}.
+Output is the transformed feature matrix used by the guarded pipeline
+(categorical variables are one-hot encoded).
 }
 \examples{
 train <- data.frame(x = c(1, 2, NA, 4), y = c(NA, 1, 1, 0))
@@ -60,9 +58,6 @@ imp <- impute_guarded(train, test, method = "median", winsor = FALSE)
 imp$train
 imp$test
 }
-\references{
-Rousseeuw & Croux (1993), *Alternative to the Median Absolute Deviation.*
-}
 \seealso{
-[VIM::kNN()], [mice::mice()], [missForest::missForest()]
+[fit_resample()], [predict_guard()]
 }

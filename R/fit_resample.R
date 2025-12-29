@@ -144,11 +144,30 @@ fit_resample <- function(x, outcome, splits,
     if (length(learner_args)) {
       warning("learner_args ignored when learner is a parsnip model_spec.")
     }
+    parsnip_label <- function(spec, fallback) {
+      model_class <- class(spec)
+      model_class <- model_class[model_class != "model_spec"]
+      model_class <- model_class[1]
+      label <- if (!is.null(model_class) && nzchar(model_class)) model_class else fallback
+      engine <- NULL
+      if (!is.null(spec$engine) && nzchar(spec$engine)) {
+        engine <- spec$engine
+      } else if (!is.null(spec$method) && !is.null(spec$method$engine) &&
+                 nzchar(spec$method$engine)) {
+        engine <- spec$method$engine
+      }
+      if (!is.null(engine)) label <- paste0(label, "/", engine)
+      label
+    }
     learner_names <- names(learner_specs)
     if (is.null(learner_names)) learner_names <- rep("", length(learner_specs))
     missing_names <- !nzchar(learner_names)
     if (any(missing_names)) {
-      learner_names[missing_names] <- paste0("spec_", seq_along(learner_specs))[missing_names]
+      fallback <- paste0("spec_", seq_along(learner_specs))
+      spec_labels <- vapply(seq_along(learner_specs), function(i) {
+        parsnip_label(learner_specs[[i]], fallback[[i]])
+      }, character(1))
+      learner_names[missing_names] <- spec_labels[missing_names]
     }
   } else {
     builtin_learners <- c("glmnet", "ranger")
@@ -389,7 +408,7 @@ fit_resample <- function(x, outcome, splits,
         parsnip::fit_xy(learner_obj, x = Xtrg, y = y_for_fit, case_weights = weights)
       }
       if (task == "binomial") {
-        prob <- try(parsnip::predict(fit, new_data = Xteg, type = "prob"), silent = TRUE)
+        prob <- try(stats::predict(fit, new_data = Xteg, type = "prob"), silent = TRUE)
         if (inherits(prob, "try-error")) {
           # Extract the actual error text from parsnip/xgboost
           err_msg <- attr(prob, "condition")$message
@@ -408,7 +427,7 @@ fit_resample <- function(x, outcome, splits,
         }
         pred <- as.numeric(prob_df[[pos_col]])
       } else {
-        pred_df <- parsnip::predict(fit, new_data = Xteg, type = "numeric")
+        pred_df <- stats::predict(fit, new_data = Xteg, type = "numeric")
         pred <- as.numeric(pred_df[[1]])
       }
       return(list(pred = pred, fit = fit))

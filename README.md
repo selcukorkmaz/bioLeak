@@ -183,11 +183,13 @@ audits
 
 ### 6) Standalone guarded imputation
 
-`impute_guarded()` performs leakage-safe imputation for train/test splits:
+`impute_guarded()` wraps the guarded preprocessing used by `fit_resample()` and
+returns the transformed feature matrices (categorical variables are one-hot
+encoded):
 
 ```r
 imp <- impute_guarded(train_df, test_df,
-                      method = "missForest",
+                      method = "median",
                       winsor = TRUE,
                       winsor_thresh = 3)
 train_clean <- imp$train

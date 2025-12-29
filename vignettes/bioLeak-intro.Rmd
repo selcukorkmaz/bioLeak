@@ -40,12 +40,12 @@ df <- data.frame(
   x2 = rnorm(100)
 )
 
- <- make_splits(
+splits <- make_splits(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
   group = "subject",
-  v = 5
+  v = 3
 )
 ```
 
