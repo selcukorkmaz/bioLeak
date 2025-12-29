@@ -53,7 +53,8 @@ using the same \code{mode} on the outer training set (with \code{v} folds, 1 rep
 \item{seed}{integer seed.}
 
 \item{horizon}{numeric (>=0), minimal time gap for time_series so that the
-training set only contains samples with time <= min(test_time) - horizon.}
+training set only contains samples with time < min(test_time) when horizon = 0,
+and time <= min(test_time) - horizon otherwise.}
 
 \item{progress}{logical, print progress for large jobs.}
 }
@@ -64,7 +65,9 @@ LeakSplits S4 object
 Generates leakage-safe cross-validation splits for common biomedical setups:
 subject-grouped, batch-blocked, study leave-one-out, and time-series
 rolling-origin. Supports repeats, optional stratification, nested inner CV,
-and an optional prediction horizon for time series.
+and an optional prediction horizon for time series. Note that splits store
+explicit indices, which can be memory-intensive for large \code{n} and many
+repeats.
 }
 \examples{
 set.seed(1)

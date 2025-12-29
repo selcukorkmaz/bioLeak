@@ -20,14 +20,18 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 summary(aud)
 ```
 
-## Permutation gap
+## Permutation significance test
 
-```{r perm-gap}
+Note: This test assesses whether predictions are better than random. It does NOT diagnose
+information leakage. Use the Batch Association and Duplicate Detection sections to check
+for leakage.
+
+```{r perm-significance}
 pg <- aud@permutation_gap
 if (!is.null(pg) && nrow(pg) > 0) {
   knitr::kable(pg)
 } else {
-  cat("No permutation gap results available.")
+  cat("No permutation significance results available.")
 }
 ```
 

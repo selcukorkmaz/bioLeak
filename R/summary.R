@@ -42,26 +42,34 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
   indices <- if (!is.null(splits)) splits@indices else NULL
   hash <- info$hash %||% "NA"
 
-  cat(sprintf("Task: %s | Outcome: %s | Splitting mode: %s\n",
-              task, outcome, mode))
+  pos_class <- fit@info$positive_class %||% NA_character_
+  pos_label <- ""
+  if (!is.null(pos_class) && isTRUE(task == "binomial") &&
+      !is.na(pos_class) && nzchar(as.character(pos_class))) {
+    pos_label <- paste0(" | Positive class: ", as.character(pos_class))
+  }
+  cat(sprintf("Task: %s | Outcome: %s | Splitting mode: %s%s\n",
+              task, outcome, mode, pos_label))
   cat(sprintf("Hash: %s | Folds: %d | Repeats: %d\n\n",
               substr(hash, 1, 12),
               length(indices),
               info$repeats %||% 1))
 
-  # --- Permutation gap ---
+  # --- Permutation significance test ---
   if (!is.null(object@permutation_gap) && nrow(object@permutation_gap) > 0) {
     pg <- object@permutation_gap
-    cat("Permutation Gap Test:\n")
+    cat("Permutation Significance Test:\n")
     cat(sprintf("  Observed metric: %s\n",
                 formatC(pg$metric_obs, digits = digits, format = "f")))
     cat(sprintf("  Permuted mean ± SD: %s ± %s\n",
                 formatC(pg$perm_mean, digits = digits, format = "f"),
                 formatC(pg$perm_sd, digits = digits, format = "f")))
-    cat(sprintf("  Gap: %s (larger gap → less leakage)\n\n",
+    cat(sprintf("  Gap: %s (larger gap = stronger non-random signal)\n",
                 formatC(pg$gap, digits = digits, format = "f")))
+    cat("  Note: This tests if the model signal is non-random. It does NOT diagnose information leakage.\n")
+    cat("  Use the Batch Association and Duplicate Detection sections to check for leakage.\n\n")
   } else {
-    cat("Permutation Gap Test: not available.\n\n")
+    cat("Permutation Significance Test: not available.\n\n")
   }
 
   # --- Batch association ---
@@ -100,11 +108,11 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!pg_available) {
     cat("  No permutation test results.\n")
   } else if (object@permutation_gap$gap < 0.01) {
-    cat(sprintf("  %s Strong evidence of leakage (tiny permutation gap).\n", warn_sym))
+    cat(sprintf("  %s Little non-random signal (gap near zero).\n", warn_sym))
   } else if (object@permutation_gap$gap < 0.05) {
-    cat(sprintf("  %s Mild leakage signal detected.\n", warn_sym))
+    cat(sprintf("  %s Modest non-random signal.\n", ok_sym))
   } else {
-    cat(sprintf("  %s No strong evidence of leakage.\n", ok_sym))
+    cat(sprintf("  %s Strong non-random signal.\n", ok_sym))
   }
 
   invisible(object)
@@ -137,6 +145,10 @@ summary.LeakFit <- function(object, digits = 3, ...) {
   info <- object@info
   cat(sprintf("Task: %s\n", object@task))
   cat(sprintf("Outcome: %s\n", object@outcome))
+  if (identical(object@task, "binomial") && !is.null(info$positive_class) &&
+      !is.na(info$positive_class) && nzchar(as.character(info$positive_class))) {
+    cat(sprintf("Positive class: %s\n", as.character(info$positive_class)))
+  }
   cat(sprintf("Learners: %s\n", paste(unique(object@metrics$learner), collapse = ", ")))
   cat(sprintf("Total folds: %d\n", length(object@splits@indices)))
   cat(sprintf("Refit performed: %s\n", if (isTRUE(info$refit)) "Yes" else "No"))

@@ -15,6 +15,7 @@ fit_resample(
   custom_learners = list(),
   metrics = c("auc", "pr_auc", "accuracy"),
   class_weights = NULL,
+  positive_class = NULL,
   parallel = FALSE,
   refit = TRUE,
   seed = 1
@@ -29,11 +30,15 @@ fit_resample(
 
 \item{preprocess}{list(impute, normalize, filter=list(...), fs)}
 
-\item{learner}{character vector, e.g. "glmnet","ranger"}
+\item{learner}{parsnip model_spec (or list of model_spec objects) describing
+the model(s) to fit. For legacy use, a character vector of learner names
+(e.g., "glmnet", "ranger") or custom learner IDs is still supported.}
 
-\item{learner_args}{list of additional arguments passed to learner(s)}
+\item{learner_args}{list of additional arguments passed to legacy learners
+(ignored when `learner` is a parsnip model_spec).}
 
-\item{custom_learners}{named list of custom learner definitions. Each entry
+\item{custom_learners}{named list of custom learner definitions used only
+with legacy character learners. Each entry
 must contain \code{fit} and \code{predict} functions. The \code{fit} function
 should accept \code{x}, \code{y}, \code{task}, and \code{weights}, and return
 a model object. The \code{predict} function should accept \code{object},
@@ -42,6 +47,10 @@ a model object. The \code{predict} function should accept \code{object},
 \item{metrics}{named list of metric functions or vector of metric names}
 
 \item{class_weights}{optional named numeric vector of weights for binomial outcomes}
+
+\item{positive_class}{optional value indicating the positive class for binomial outcomes.
+When set, the outcome levels are reordered so that \code{positive_class} is treated
+as the positive class (level 2). If NULL, the second factor level is used.}
 
 \item{parallel}{logical, use future.apply for multicore execution}
 
@@ -62,7 +71,10 @@ preventing leakage from global imputation, scaling, or feature selection.
 Use \code{learner_args} to pass model-specific arguments, either as a named
 list keyed by learner or a single list applied to all learners. For custom
 learners, \code{learner_args[[name]]} may be a list with \code{fit} and
-\code{predict} sublists to pass distinct arguments to each stage.
+\code{predict} sublists to pass distinct arguments to each stage. For binomial
+tasks, predictions and metrics assume the positive class is the second factor
+level; use \code{positive_class} to control this. Parsnip learners must support
+probability predictions for binomial metrics (AUC/PR-AUC/accuracy).
 }
 \examples{
 \dontrun{
@@ -78,6 +90,16 @@ splits <- make_splits(df, outcome = "outcome",
 fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     learner = "glmnet", metrics = "auc")
 summary(fit)
+
+# Parsnip model_spec
+\dontrun{
+if (requireNamespace("parsnip", quietly = TRUE)) {
+  spec <- parsnip::boost_tree(mode = "classification", trees = 200) |>
+    parsnip::set_engine("xgboost")
+  fit3 <- fit_resample(df, outcome = "outcome", splits = splits,
+                       learner = spec, metrics = "auc")
+}
+}
 
 # Custom learner (logistic regression)
 custom <- list(

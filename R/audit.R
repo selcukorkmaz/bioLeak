@@ -46,7 +46,10 @@
     }
     yb <- if (is.factor(truth)) as.numeric(truth) - 1 else truth
     pos <- pred[yb == 1]; neg <- pred[yb == 0]
-    if (length(pos) && length(neg)) return(mean(outer(pos, neg, ">")))
+    if (length(pos) && length(neg)) {
+      comp <- outer(pos, neg, function(a, b) (a > b) + 0.5 * (a == b))
+      return(mean(comp))
+    }
     return(NA_real_)
   }
   if (metric == "pr_auc") {
@@ -264,10 +267,18 @@ audit_leakage <- function(fit,
         " truth sets for ", length(pred_list), " prediction tables"
       )
     }
-    new_preds <- Map(function(df, tr) {
+    new_preds <- Map(function(df, tr, fold_idx) {
+      if (!nrow(df)) return(df)
+      if (length(tr) != nrow(df)) {
+        stop(
+          "Permutation truth length (", length(tr),
+          ") does not match predictions (", nrow(df),
+          ") for fold ", fold_idx, "."
+        )
+      }
       df$truth <- .coerce_truth_like(df$truth, tr)
       df
-    }, pred_list, truths)
+    }, pred_list, truths, seq_along(pred_list))
     agg <- do.call(rbind, new_preds)
     .metric_value(metric, task, agg$truth, agg$pred)
   }
@@ -353,11 +364,30 @@ audit_leakage <- function(fit,
     coldata <- fit@splits@info$coldata
   }
   if (!is.null(coldata)) {
-    if (!is.null(rownames(coldata))) {
-      coldata <- coldata[as.character(ids_all), , drop = FALSE]
-    } else if (nrow(coldata) == length(ids_all)) {
-      rownames(coldata) <- as.character(ids_all)
-    } else {
+    ids_all_chr <- as.character(ids_all)
+    rn <- rownames(coldata)
+    aligned <- FALSE
+
+    if (!is.null(rn) && all(ids_all_chr %in% rn)) {
+      coldata <- coldata[ids_all_chr, , drop = FALSE]
+      aligned <- TRUE
+    } else if ("row_id" %in% names(coldata)) {
+      rid_chr <- as.character(coldata[["row_id"]])
+      if (!anyDuplicated(rid_chr) && all(ids_all_chr %in% rid_chr)) {
+        coldata <- coldata[match(ids_all_chr, rid_chr), , drop = FALSE]
+        aligned <- TRUE
+      }
+    }
+
+    if (!aligned && is.numeric(ids_all) && max(ids_all, na.rm = TRUE) <= nrow(coldata)) {
+      if (!is.null(rn) && !all(ids_all_chr %in% rn)) {
+        warning("`coldata` row names do not match prediction ids; aligning by row order.")
+      }
+      coldata <- coldata[ids_all, , drop = FALSE]
+      aligned <- TRUE
+    }
+
+    if (!aligned) {
       warning("`coldata` not aligned to predictions; batch association skipped.")
       coldata <- NULL
     }
@@ -482,8 +512,8 @@ audit_leakage <- function(fit,
 #' @param learners optional character vector of learner names to audit; defaults
 #'   to all learners found in predictions.
 #' @param parallel_learners logical, if TRUE run audits per learner in parallel
-#'   using \code{parallel::mclapply} (not supported on Windows).
-#' @param mc.cores integer, number of cores for learner-level parallelism.
+#'   using \code{future.apply}.
+#' @param mc.cores integer, number of workers for learner-level parallelism.
 #' @return Named list of LeakAudit objects.
 #' @examples
 #' \dontrun{
@@ -541,23 +571,30 @@ audit_leakage_by_learner <- function(fit,
   }
 
   if (isTRUE(parallel_learners)) {
-    if (.Platform$OS.type == "windows") {
-      warning("parallel_learners uses mclapply which is not supported on Windows; using sequential execution.")
+    if (!requireNamespace("future.apply", quietly = TRUE)) {
+      warning("parallel_learners=TRUE requires the 'future.apply' package; using sequential execution.")
       parallel_learners <- FALSE
     }
   }
-  if (is.null(mc.cores)) {
-    detected <- parallel::detectCores()
-    if (is.na(detected) || detected < 1L) detected <- 1L
-    mc.cores <- min(length(learners), detected)
+  if (isTRUE(parallel_learners)) {
+    if (is.null(mc.cores)) {
+      detected <- parallel::detectCores()
+      if (is.na(detected) || detected < 1L) detected <- 1L
+      mc.cores <- min(length(learners), detected)
+    }
+    mc.cores <- max(1L, as.integer(mc.cores))
+    if (requireNamespace("future", quietly = TRUE)) {
+      old_plan <- future::plan()
+      on.exit(future::plan(old_plan), add = TRUE)
+      future::plan(future::multisession, workers = mc.cores)
+    }
   }
-  mc.cores <- max(1L, as.integer(mc.cores))
 
   runner <- function(ln) {
     audit_leakage(fit, metric = metric, learner = if (has_learner) ln else NULL, ...)
   }
   audits <- if (isTRUE(parallel_learners)) {
-    parallel::mclapply(learners, runner, mc.cores = mc.cores)
+    future.apply::future_lapply(learners, runner, future.seed = TRUE)
   } else {
     lapply(learners, runner)
   }

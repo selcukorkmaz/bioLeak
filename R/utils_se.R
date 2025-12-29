@@ -76,7 +76,7 @@
 }
 
 .bio_is_classification <- function(y) is.factor(y) || (is.numeric(y) && length(unique(y)) <= 10)
-.bio_is_regression <- function(y) is.numeric(y) && length(unique(y)) > 10
+.bio_is_regression <- function(y) is.numeric(y) && !.bio_is_binomial(y)
 .bio_is_binomial <- function(y) {
   if (is.factor(y)) return(nlevels(y) == 2)
   if (is.numeric(y)) {

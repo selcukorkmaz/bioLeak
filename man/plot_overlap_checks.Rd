@@ -12,11 +12,11 @@ plot_overlap_checks(fit, column = NULL)
 \item{column}{metadata column name (e.g., subject, batch).}
 }
 \value{
-A list containing overlap counts and the requested column.
+A list containing overlap counts, the requested column, and a ggplot object.
 }
 \description{
 Compares unique group counts per fold and highlights overlaps between train
-and test groups (e.g., subject or batch IDs).
+and test groups (e.g., subject or batch IDs). Requires ggplot2.
 }
 \examples{
 \dontrun{

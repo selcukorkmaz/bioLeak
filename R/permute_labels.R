@@ -118,9 +118,15 @@
   should_stratify <- FALSE
   if (isTRUE(perm_stratify)) {
     should_stratify <- TRUE
+    if (is.numeric(y_all) &&
+        length(stats::na.omit(y_all)) < MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION) {
+      warning("perm_stratify = TRUE requires at least 20 non-missing numeric outcomes; proceeding without stratification.")
+      should_stratify <- FALSE
+    }
   } else if (identical(perm_stratify, "auto")) {
     should_stratify <- is.factor(y_all) ||
-      (is.numeric(y_all) && length(y_all) >= MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION)
+      (is.numeric(y_all) &&
+       length(stats::na.omit(y_all)) >= MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION)
   }
   if (should_stratify) {
     if (is.factor(y_all)) {
@@ -130,9 +136,6 @@
                 paste(levels(strata_vec), collapse = ", "))
       }
     } else if (is.numeric(y_all)) {
-      if (isTRUE(perm_stratify) && length(y_all) < MIN_SAMPLES_FOR_REGRESSION_STRATIFICATION) {
-        stop("Numeric outcomes require at least 20 observations when perm_stratify = TRUE.")
-      }
       # for regression, bins by quantiles to maintain structure
       br <- .get_cached_quantile_breaks(y_all, probs = seq(0, 1, length.out = 5))
       strata_vec <- cut(y_all, breaks = br, include.lowest = TRUE, labels = FALSE)

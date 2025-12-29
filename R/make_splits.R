@@ -4,7 +4,9 @@
 #' Generates leakage-safe cross-validation splits for common biomedical setups:
 #' subject-grouped, batch-blocked, study leave-one-out, and time-series
 #' rolling-origin. Supports repeats, optional stratification, nested inner CV,
-#' and an optional prediction horizon for time series.
+#' and an optional prediction horizon for time series. Note that splits store
+#' explicit indices, which can be memory-intensive for large \code{n} and many
+#' repeats.
 #'
 #' @param x SummarizedExperiment or data.frame/matrix (samples x features).
 #'   If SummarizedExperiment, metadata are taken from colData(x). If data.frame,
@@ -25,7 +27,8 @@
 #'   using the same \code{mode} on the outer training set (with \code{v} folds, 1 repeat).
 #' @param seed integer seed.
 #' @param horizon numeric (>=0), minimal time gap for time_series so that the
-#'   training set only contains samples with time <= min(test_time) - horizon.
+#'   training set only contains samples with time < min(test_time) when horizon = 0,
+#'   and time <= min(test_time) - horizon otherwise.
 #' @param progress logical, print progress for large jobs.
 #'
 #' @return LeakSplits S4 object
@@ -51,9 +54,6 @@ make_splits <- function(x, outcome = NULL,
   stopifnot(is.numeric(repeats), repeats >= 1)
   stopifnot(is.numeric(horizon), horizon >= 0)
   set.seed(seed)
-
-  if (!methods::isClass("LeakSplits"))
-    stop("S4 class 'LeakSplits' must be defined before using make_splits().")
 
   # ---- Extract metadata ----
   X <- .bio_get_x(x)
@@ -102,13 +102,6 @@ make_splits <- function(x, outcome = NULL,
     ux[which.max(tabulate(match(y, ux)))]
   }
   .msg <- function(...) if (isTRUE(progress)) message(sprintf(...))
-
-  # Hash
-  hash_val <- tryCatch({
-    if (requireNamespace("digest", quietly = TRUE))
-      digest::digest(list(mode, n, v, repeats, stratify, seed, horizon, group, batch, study, time))
-    else paste0("h", sprintf("%08X", as.integer(sum(n, v, repeats, seed) %% .Machine$integer.max)))
-  }, error = function(e) NA_character_)
 
   indices <- list()
   inner_indices <- NULL
@@ -247,7 +240,11 @@ make_splits <- function(x, outcome = NULL,
     for (k in seq_len(v)) {
       test <- Xidx[max(1, (k - 1) * fold_size + 1):min(n, k * fold_size)]
       tmin <- min(tt[test])
-      train <- Xidx[tt[Xidx] <= (tmin - horizon)]
+      if (horizon == 0) {
+        train <- Xidx[tt[Xidx] < tmin]
+      } else {
+        train <- Xidx[tt[Xidx] <= (tmin - horizon)]
+      }
       if (length(train) < 1L) next
       if (length(test) < 3L) next
       indices[[length(indices) + 1L]] <- list(train = train, test = test, fold = as.integer(k), repeat_id = as.integer(1))
@@ -287,6 +284,19 @@ make_splits <- function(x, outcome = NULL,
     test_n    = vapply(indices, function(z) length(z$test), integer(1)),
     stringsAsFactors = FALSE
   )
+
+  indices_hash <- .bio_hash_indices(indices)
+  hash_val <- tryCatch({
+    if (requireNamespace("digest", quietly = TRUE)) {
+      digest::digest(list(
+        mode = mode, n = n, v = v, repeats = repeats, stratify = stratify,
+        seed = seed, horizon = horizon, group = group, batch = batch,
+        study = study, time = time, indices_hash = indices_hash
+      ))
+    } else {
+      indices_hash
+    }
+  }, error = function(e) NA_character_)
 
   info <- list(
     outcome = outcome, v = v, repeats = repeats, seed = seed, mode = mode,

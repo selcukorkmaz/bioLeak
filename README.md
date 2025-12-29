@@ -128,11 +128,20 @@ fit2 <- fit_resample(
 )
 ```
 
+Parsnip model_spec example:
+
+```r
+spec <- parsnip::boost_tree(mode = "classification", trees = 200) |>
+  parsnip::set_engine("xgboost")
+fit3 <- fit_resample(df, outcome = "outcome", splits = splits,
+                     learner = spec, metrics = "auc")
+```
+
 ### 3) Leakage auditing
 
 `audit_leakage()` quantifies residual leakage risk:
 
-- Permutation gap: observed metric vs permuted null
+- Permutation significance test: observed metric vs permuted null
 - Batch association: chi-square tests with Cramer V
 - Duplicate detection: cosine or Pearson similarity
 

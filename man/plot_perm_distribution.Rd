@@ -10,11 +10,12 @@ plot_perm_distribution(audit)
 \item{audit}{LeakAudit.}
 }
 \value{
-A list containing the observed value, permuted mean, and permutation values.
+A list containing the observed value, permuted mean, permutation values,
+  and a ggplot object.
 }
 \description{
 Visualizes the permutation metric distribution and marks the observed and
-permuted-mean values to help assess leakage signals.
+permuted-mean values to help assess leakage signals. Requires ggplot2.
 }
 \examples{
 \dontrun{

@@ -16,15 +16,192 @@
   ux[which.max(tabulate(match(x, ux)))]
 }
 
-.guard_mad_winsorize <- function(x, k = 5) {
+.guard_mad_winsorize <- function(x, k = 5, center = NULL, scale = NULL) {
   if (!is.numeric(x)) return(x)
   if (all(!is.finite(x))) return(x)
-  m <- stats::median(x, na.rm = TRUE)
-  s <- stats::mad(x, na.rm = TRUE, constant = 1)
+  m <- if (is.null(center)) stats::median(x, na.rm = TRUE) else center
+  s <- if (is.null(scale)) stats::mad(x, na.rm = TRUE, constant = 1) else scale
+  if (!is.finite(m) || !is.finite(s)) return(x)
   lo <- m - k * s; hi <- m + k * s
   x[x < lo] <- lo
   x[x > hi] <- hi
   x
+}
+
+.guard_align_cols <- function(X, ref_cols) {
+  X <- as.data.frame(X, check.names = FALSE)
+  missing_cols <- setdiff(ref_cols, names(X))
+  if (length(missing_cols)) {
+    for (nm in missing_cols) X[[nm]] <- NA_real_
+  }
+  extra_cols <- setdiff(names(X), ref_cols)
+  if (length(extra_cols)) {
+    X <- X[, setdiff(names(X), extra_cols), drop = FALSE]
+  }
+  X[, ref_cols, drop = FALSE]
+}
+
+.guard_fill_na <- function(X, fill) {
+  X <- as.data.frame(X, check.names = FALSE)
+  for (nm in names(fill)) {
+    if (!nm %in% names(X)) next
+    idx <- is.na(X[[nm]])
+    if (any(idx)) X[[nm]][idx] <- fill[[nm]]
+  }
+  X
+}
+
+.guard_knn_search <- function(train, query, k) {
+  train <- as.matrix(train)
+  query <- as.matrix(query)
+  if (!nrow(train) || !nrow(query) || k < 1L) {
+    return(matrix(integer(0), nrow = nrow(query), ncol = 0))
+  }
+  k <- min(k, nrow(train))
+  if (requireNamespace("RANN", quietly = TRUE)) {
+    nn <- RANN::nn2(train, query, k = k)
+    return(nn$nn.idx)
+  }
+  if (requireNamespace("FNN", quietly = TRUE)) {
+    nn <- FNN::get.knnx(train, query, k = k)
+    return(nn$nn.index)
+  }
+  idx <- matrix(NA_integer_, nrow(query), k)
+  for (i in seq_len(nrow(query))) {
+    diff <- sweep(train, 2, query[i, ], "-")
+    d <- rowSums(diff * diff)
+    ord <- order(d, na.last = NA)
+    idx[i, ] <- ord[seq_len(k)]
+  }
+  idx
+}
+
+.guard_knn_impute_train <- function(X, k = 5) {
+  X <- as.data.frame(X, check.names = FALSE)
+  med <- vapply(X, function(col) {
+    m <- stats::median(col, na.rm = TRUE)
+    if (!is.finite(m)) 0 else m
+  }, numeric(1))
+  X_fill <- .guard_fill_na(X, med)
+  scale <- vapply(X_fill, stats::sd, numeric(1))
+  scale[!is.finite(scale) | scale == 0] <- 1
+  X_scaled <- sweep(as.matrix(X_fill), 2, scale, "/")
+
+  n <- nrow(X_fill)
+  if (n < 2L) {
+    return(list(imp = X_fill, med = med, scale = scale))
+  }
+
+  idx <- .guard_knn_search(X_scaled, X_scaled, k = min(k + 1L, n))
+  X_imp <- X_fill
+  for (i in seq_len(n)) {
+    miss_cols <- which(is.na(X[i, ]))
+    if (!length(miss_cols)) next
+    neigh <- idx[i, ]
+    neigh <- neigh[neigh != i]
+    if (!length(neigh)) next
+    if (length(neigh) > k) neigh <- neigh[seq_len(k)]
+    for (j in miss_cols) {
+      val <- mean(X_fill[neigh, j], na.rm = TRUE)
+      if (!is.finite(val)) val <- med[j]
+      X_imp[i, j] <- val
+    }
+  }
+  list(imp = X_imp, med = med, scale = scale)
+}
+
+.guard_knn_impute_new <- function(Xnew, ref, k, med, scale) {
+  Xnew <- .guard_align_cols(Xnew, names(med))
+  Xnew_raw <- Xnew
+  Xnew_fill <- .guard_fill_na(Xnew, med)
+  if (!nrow(ref)) return(Xnew_fill)
+
+  ref_scaled <- sweep(as.matrix(ref), 2, scale, "/")
+  new_scaled <- sweep(as.matrix(Xnew_fill), 2, scale, "/")
+  idx <- .guard_knn_search(ref_scaled, new_scaled, k = min(k, nrow(ref)))
+
+  X_imp <- Xnew_fill
+  for (i in seq_len(nrow(Xnew_fill))) {
+    miss_cols <- which(is.na(Xnew_raw[i, ]))
+    if (!length(miss_cols)) next
+    neigh <- idx[i, ]
+    if (!length(neigh)) next
+    for (j in miss_cols) {
+      val <- mean(ref[neigh, j], na.rm = TRUE)
+      if (!is.finite(val)) val <- med[j]
+      X_imp[i, j] <- val
+    }
+  }
+  X_imp
+}
+
+.guard_rf_impute_train <- function(X, maxiter = 1, ntree = 100, seed = NULL) {
+  X <- as.data.frame(X, check.names = FALSE)
+  if (!requireNamespace("randomForest", quietly = TRUE)) {
+    stop("Package 'randomForest' is required for impute$method='missForest'.", call. = FALSE)
+  }
+  med <- vapply(X, function(col) {
+    m <- stats::median(col, na.rm = TRUE)
+    if (!is.finite(m)) 0 else m
+  }, numeric(1))
+  X_fill <- .guard_fill_na(X, med)
+  miss_cols <- names(which(vapply(X, function(col) any(is.na(col)), logical(1))))
+  models <- list()
+
+  if (!length(miss_cols)) {
+    return(list(imp = X_fill, med = med, models = models))
+  }
+
+  for (iter in seq_len(maxiter)) {
+    for (col in miss_cols) {
+      obs <- !is.na(X[[col]])
+      if (sum(obs) < 2L) next
+      pred_cols <- setdiff(names(X_fill), col)
+      if (!length(pred_cols)) next
+      df_obs <- data.frame(y = X_fill[obs, col],
+                           X_fill[obs, pred_cols, drop = FALSE],
+                           check.names = FALSE)
+      if (!is.null(seed)) set.seed(seed + iter)
+      rf <- randomForest::randomForest(y ~ ., data = df_obs, ntree = ntree)
+      if (iter == maxiter) {
+        models[[col]] <- list(model = rf, predictors = pred_cols)
+      }
+      if (any(!obs)) {
+        newdata <- X_fill[!obs, pred_cols, drop = FALSE]
+        X_fill[!obs, col] <- stats::predict(rf, newdata = newdata)
+      }
+    }
+  }
+
+  med_out <- vapply(X_fill, function(col) {
+    m <- stats::median(col, na.rm = TRUE)
+    if (!is.finite(m)) 0 else m
+  }, numeric(1))
+  list(imp = X_fill, med = med_out, models = models)
+}
+
+.guard_rf_impute_new <- function(Xnew, models, med) {
+  Xnew <- .guard_align_cols(Xnew, names(med))
+  Xnew_raw <- Xnew
+  Xnew_fill <- .guard_fill_na(Xnew, med)
+
+  if (length(models)) {
+    for (col in names(models)) {
+      if (!col %in% names(Xnew_fill)) next
+      idx <- is.na(Xnew_raw[[col]])
+      if (!any(idx)) next
+      pred_cols <- models[[col]]$predictors
+      missing_pred <- setdiff(pred_cols, names(Xnew_fill))
+      if (length(missing_pred)) {
+        for (nm in missing_pred) Xnew_fill[[nm]] <- med[[nm]]
+      }
+      newdata <- Xnew_fill[idx, pred_cols, drop = FALSE]
+      Xnew_fill[idx, col] <- stats::predict(models[[col]]$model, newdata = newdata)
+    }
+  }
+
+  Xnew_fill <- .guard_fill_na(Xnew_fill, med)
+  Xnew_fill
 }
 
 .guard_hash <- function(obj) {
@@ -164,9 +341,17 @@
   winsor_k  <- impute_cfg$winsor_k %||% 5
 
   if (isTRUE(winsor_on)) {
-    X <- as.data.frame(lapply(X, .guard_mad_winsorize, k = winsor_k),
+    winsor_med <- vapply(X, function(col) {
+      if (is.numeric(col)) stats::median(col, na.rm = TRUE) else NA_real_
+    }, numeric(1))
+    winsor_mad <- vapply(X, function(col) {
+      if (is.numeric(col)) stats::mad(col, na.rm = TRUE, constant = 1) else NA_real_
+    }, numeric(1))
+    X <- as.data.frame(Map(function(col, med, mad) {
+      .guard_mad_winsorize(col, k = winsor_k, center = med, scale = mad)
+    }, X, winsor_med, winsor_mad),
                        check.names = FALSE)
-    state$winsor <- list(enabled = TRUE, k = winsor_k)
+    state$winsor <- list(enabled = TRUE, k = winsor_k, med = winsor_med, mad = winsor_mad)
     audit <- c(audit, list(paste0("winsor: k=", winsor_k)))
   } else {
     state$winsor <- list(enabled = FALSE)
@@ -190,44 +375,33 @@
     state$impute <- list(method = "median", med = meds)
 
   } else if (imp_method == "knn") {
-    # Fit imputation on train, store column medians as safe application rule
-    if (!requireNamespace("VIM", quietly = TRUE)) {
-      stop("Package 'VIM' is required for impute$method='knn'. Install it or use 'median'.", call. = FALSE)
-    }
     k <- impute_cfg$k %||% 5
-    X_imp <- suppressWarnings(VIM::kNN(X, k = k, imp_var = FALSE))
-    # After KNN on train, derive column medians to apply on newdata (leak-safe)
-    meds <- vapply(X_imp, function(col) stats::median(col, na.rm = TRUE), numeric(1))
-    X <- X_imp
-    state$impute <- list(method = "knn", k = k, med = meds)
+    knn_fit <- .guard_knn_impute_train(X, k = k)
+    X <- knn_fit$imp
+    state$impute <- list(
+      method = "knn",
+      k = k,
+      med = knn_fit$med,
+      knn_ref = knn_fit$imp,
+      knn_scale = knn_fit$scale
+    )
 
   } else if (imp_method == "mice") {
-    if (!requireNamespace("mice", quietly = TRUE)) {
-      stop("Package 'mice' is required for impute$method='mice'.", call. = FALSE)
-    }
-    maxit <- impute_cfg$maxit %||% 5
-    mfit <- mice::mice(X, m = 1, maxit = maxit, printFlag = FALSE)
-    X_imp <- mice::complete(mfit)
-    # Store column medians from completed train to apply safely to new data
-    meds <- vapply(X_imp, function(col) stats::median(col, na.rm = TRUE), numeric(1))
-    X <- X_imp
-    state$impute <- list(method = "mice", maxit = maxit, med = meds)
+    stop("impute$method='mice' is not supported for guarded prediction; use 'knn', 'missForest', or 'median'.",
+         call. = FALSE)
 
   } else if (imp_method == "missForest") {
-    if (!requireNamespace("missForest", quietly = TRUE)) {
-      stop("Package 'missForest' is required for impute$method='missForest'.", call. = FALSE)
-    }
-    mf_args <- list(
-      xmis = X,
-      maxiter = impute_cfg$maxiter %||% 10,
-      ntree = impute_cfg$ntree %||% 100,
-      parallelize = "no",  # <<--- ÖNEMLİ DEĞİŞİKLİK
-      verbose = FALSE
+    rf_maxiter <- impute_cfg$maxiter %||% 10
+    rf_ntree <- impute_cfg$ntree %||% 100
+    rf_fit <- .guard_rf_impute_train(X, maxiter = rf_maxiter, ntree = rf_ntree)
+    X <- rf_fit$imp
+    state$impute <- list(
+      method = "missForest",
+      maxiter = rf_maxiter,
+      ntree = rf_ntree,
+      med = rf_fit$med,
+      rf_models = rf_fit$models
     )
-    X_imp <- suppressWarnings(do.call(missForest::missForest, mf_args)$ximp)
-    meds <- vapply(X_imp, function(col) stats::median(col, na.rm = TRUE), numeric(1))
-    X <- X_imp
-    state$impute <- list(method = "missForest", med = meds)
   } else if (imp_method == "none") {
     orig_cols <- colnames(X)
     med <- vapply(orig_cols, function(nm) {
@@ -272,7 +446,7 @@
       state$impute$label <- "impute: none"
     }
   } else {
-    stop("Unknown impute method. Use 'median', 'knn', 'mice', 'missForest', or 'none'.")
+    stop("Unknown impute method. Use 'median', 'knn', 'missForest', or 'none'.")
   }
 
   state$impute$order <- colnames(X)
@@ -417,7 +591,10 @@
     action = as.character(unlist(audit)),
     stringsAsFactors = FALSE
   )
-  state$hash  <- .guard_hash(list(impute = state$impute, normalize = state$normalize,
+  impute_hash <- state$impute
+  if (!is.null(impute_hash$knn_ref)) impute_hash$knn_ref <- NULL
+  if (!is.null(impute_hash$rf_models)) impute_hash$rf_models <- NULL
+  state$hash  <- .guard_hash(list(impute = impute_hash, normalize = state$normalize,
                                   filter = list(var_th = var_th, iqr_th = iqr_th),
                                   fs = state$fs))
 
@@ -439,13 +616,25 @@
       Xnew[[j]][!is.finite(Xnew[[j]])] <- NA
     }
 
-    # Winsorization: apply same MAD k to new data (centers from new data)
+    # Winsorization: apply train-fitted centers/scales to new data
     if (isTRUE(state$winsor$enabled)) {
       k <- state$winsor$k
-      Xnew <- as.data.frame(lapply(Xnew, .guard_mad_winsorize, k = k), check.names = FALSE)
+      w_med <- state$winsor$med
+      w_mad <- state$winsor$mad
+      if (!is.null(w_med) && !is.null(w_mad)) {
+        common <- intersect(names(w_med), colnames(Xnew))
+        for (nm in common) {
+          Xnew[[nm]] <- .guard_mad_winsorize(Xnew[[nm]], k = k,
+                                             center = w_med[[nm]],
+                                             scale = w_mad[[nm]])
+        }
+      } else {
+        warning("Winsorization statistics missing; skipping winsorization to avoid leakage.",
+                call. = FALSE)
+      }
     }
 
-    # Impute using TRAIN-FITTED parameters (medians from train/imputed-train)
+    # Impute using TRAIN-FITTED parameters
     if (identical(state$impute$method, "none") && !is.null(state$impute$fallback)) {
       base_cols <- state$impute$base_cols %||% character(0)
       med <- state$impute$med %||% numeric(0)
@@ -495,6 +684,35 @@
       }
       Xnew <- Xnew[, order_cols, drop = FALSE]
 
+    } else if (identical(state$impute$method, "knn")) {
+      med <- state$impute$med
+      ref <- state$impute$knn_ref
+      scale <- state$impute$knn_scale
+      k <- state$impute$k %||% 5
+      if (is.null(ref) || is.null(scale) || is.null(med)) {
+        warning("KNN imputation state missing; falling back to median imputation.",
+                call. = FALSE)
+        if (!is.null(med)) {
+          Xnew <- .guard_align_cols(Xnew, names(med))
+          Xnew <- .guard_fill_na(Xnew, med)
+        }
+      } else {
+        Xnew <- .guard_knn_impute_new(Xnew, ref, k = k, med = med, scale = scale)
+      }
+    } else if (identical(state$impute$method, "missForest")) {
+      med <- state$impute$med
+      models <- state$impute$rf_models
+      if (is.null(med)) {
+        warning("missForest imputation state missing; skipping imputation.",
+                call. = FALSE)
+      } else if (is.null(models) || !length(models)) {
+        warning("missForest models missing; falling back to median imputation.",
+                call. = FALSE)
+        Xnew <- .guard_align_cols(Xnew, names(med))
+        Xnew <- .guard_fill_na(Xnew, med)
+      } else {
+        Xnew <- .guard_rf_impute_new(Xnew, models, med)
+      }
     } else if (!identical(state$impute$method, "none")) {
       med <- state$impute$med
       # align columns if train/test encodings differ (missing columns -> fill with 0 then impute)

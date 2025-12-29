@@ -11,10 +11,8 @@
 #' 4. Audits leakage with the permutation-gap diagnostic (`audit_leakage()`).
 #'
 #' @details
-#' The function can optionally run in parallel using
-#' `parallel::mclapply()` for Linux/macOS systems.
-#' **Windows users** should set `parallel = FALSE` (or `mc.cores = 1`)
-#' because `mclapply` is not supported under Windows.
+#' The function can optionally run in parallel using `future.apply`.
+#' Set a future plan (e.g., `future::plan("multisession")`) before calling.
 #' \code{signal_strength} scales the linear predictor before converting to
 #' outcome probabilities; larger values yield stronger separation.
 #'
@@ -32,7 +30,7 @@
 #' @param horizon Numeric. Time gap for time-series CV.
 #' @param B Integer. Number of permutations for `audit_leakage`.
 #' @param seeds Integer vector. Random seeds for Monte Carlo replicates.
-#' @param parallel Logical. If TRUE, uses `parallel::mclapply()` for multi-seed execution.
+#' @param parallel Logical. If TRUE, uses `future.apply` for multi-seed execution.
 #' @param signal_strength Numeric. Scaling factor for signal-to-noise ratio.
 #' @param verbose Logical. If TRUE, prints progress messages for each seed and mode.
 #'
@@ -105,10 +103,12 @@ simulate_leakage_suite <- function(
   }
 
   results <- if (parallel) {
-    parallel::mclapply(
-      seeds, FUN,
-      mc.cores = min(length(seeds), parallel::detectCores())
-    )
+    if (!requireNamespace("future.apply", quietly = TRUE)) {
+      warning("parallel=TRUE requires the 'future.apply' package; running sequentially.")
+      lapply(seeds, FUN)
+    } else {
+      future.apply::future_lapply(seeds, FUN, future.seed = TRUE)
+    }
   } else {
     lapply(seeds, FUN)
   }

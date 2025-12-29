@@ -22,9 +22,9 @@ audit_leakage_by_learner(
 to all learners found in predictions.}
 
 \item{parallel_learners}{logical, if TRUE run audits per learner in parallel
-using \code{parallel::mclapply} (not supported on Windows).}
+using \code{future.apply}.}
 
-\item{mc.cores}{integer, number of cores for learner-level parallelism.}
+\item{mc.cores}{integer, number of workers for learner-level parallelism.}
 }
 \value{
 Named list of LeakAudit objects.

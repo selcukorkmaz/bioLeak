@@ -49,7 +49,7 @@ simulate_leakage_suite(
 
 \item{seeds}{Integer vector. Random seeds for Monte Carlo replicates.}
 
-\item{parallel}{Logical. If TRUE, uses `parallel::mclapply()` for multi-seed execution.}
+\item{parallel}{Logical. If TRUE, uses `future.apply` for multi-seed execution.}
 
 \item{signal_strength}{Numeric. Scaling factor for signal-to-noise ratio.}
 
@@ -75,10 +75,8 @@ For each seed, this function:
 4. Audits leakage with the permutation-gap diagnostic (`audit_leakage()`).
 }
 \details{
-The function can optionally run in parallel using
-`parallel::mclapply()` for Linux/macOS systems.
-**Windows users** should set `parallel = FALSE` (or `mc.cores = 1`)
-because `mclapply` is not supported under Windows.
+The function can optionally run in parallel using `future.apply`.
+Set a future plan (e.g., `future::plan("multisession")`) before calling.
 \code{signal_strength} scales the linear predictor before converting to
 outcome probabilities; larger values yield stronger separation.
 }

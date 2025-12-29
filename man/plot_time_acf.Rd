@@ -12,11 +12,11 @@ plot_time_acf(fit, lag.max = 20)
 \item{lag.max}{maximum lag to show.}
 }
 \value{
-A list with the autocorrelation results and \code{lag.max}.
+A list with the autocorrelation results, \code{lag.max}, and a ggplot object.
 }
 \description{
 Uses the autocorrelation function of out-of-fold predictions to detect
-temporal dependence that may indicate leakage.
+temporal dependence that may indicate leakage. Requires ggplot2.
 }
 \examples{
 \dontrun{

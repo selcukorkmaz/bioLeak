@@ -10,11 +10,13 @@ plot_fold_balance(fit)
 \item{fit}{LeakFit.}
 }
 \value{
-A list containing the fold summary and plot metadata.
+A list containing the fold summary, positive class, and a ggplot object.
 }
 \description{
 Displays a bar chart of class counts per fold and overlays the positive
-proportion to diagnose stratification issues.
+proportion to diagnose stratification issues. The positive class is taken
+from \code{fit@info$positive_class} when available; otherwise the second
+factor level is used. Requires ggplot2.
 }
 \examples{
 \dontrun{
