@@ -11,23 +11,25 @@ test_that("audit_leakage reports batch association and duplicates", {
     x2 = X[, 2]
   )
 
-  fold1 <- c(1, 2, 3, 7, 8, 9)
-  fold2 <- c(4, 5, 6, 10, 11, 12)
+  fold1 <- c(1L, 2L, 3L, 7L, 8L, 9L)
+  fold2 <- c(4L, 5L, 6L, 10L, 11L, 12L)
   indices <- list(
     list(train = setdiff(seq_len(12), fold1), test = fold1, fold = 1, repeat_id = 1),
     list(train = setdiff(seq_len(12), fold2), test = fold2, fold = 2, repeat_id = 1)
   )
-  splits <- LeakSplits(mode = "custom", indices = indices,
-                       info = list(outcome = "outcome", coldata = df))
+  splits <- bioLeak:::LeakSplits(mode = "custom", indices = indices,
+                                 info = list(outcome = "outcome", coldata = df))
 
   custom <- list(
     glm = list(
       fit = function(x, y, task, weights, ...) {
-        stats::glm(y ~ ., data = as.data.frame(x),
-                   family = stats::binomial(), weights = weights)
+        suppressWarnings(stats::glm(y ~ ., data = as.data.frame(x),
+                                    family = stats::binomial(), weights = weights))
       },
       predict = function(object, newdata, task, ...) {
-        as.numeric(stats::predict(object, newdata = as.data.frame(newdata), type = "response"))
+        as.numeric(suppressWarnings(stats::predict(object,
+                                                   newdata = as.data.frame(newdata),
+                                                   type = "response")))
       }
     )
   )

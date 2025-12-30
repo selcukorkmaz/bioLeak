@@ -22,22 +22,27 @@ test_that("make_splits validates required columns and time types", {
 
 test_that("make_splits warns on stratification issues and compact/nested conflicts", {
   df <- make_class_df(10)
-  expect_warning(make_splits_quiet(df, outcome = "missing",
-                                   mode = "subject_grouped", group = "subject",
-                                   v = 2, stratify = TRUE),
-                 "Stratification requested")
+  expect_warning_match(
+    make_splits_quiet(df, outcome = "missing",
+                      mode = "subject_grouped", group = "subject",
+                      v = 2, stratify = TRUE),
+    "Stratification requested"
+  )
 
   df$outcome <- 1
-  expect_warning(make_splits_quiet(df, outcome = "outcome",
-                                   mode = "subject_grouped", group = "subject",
-                                   v = 2, stratify = TRUE),
-                 "Stratification ignored")
+  expect_warning_match(
+    make_splits_quiet(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject",
+                      v = 2, stratify = TRUE),
+    "Stratification ignored"
+  )
 
-  expect_warning({
-    splits <- make_splits_quiet(df, outcome = "outcome",
-                                mode = "subject_grouped", group = "subject",
-                                v = 2, nested = TRUE, compact = TRUE)
-  }, "compact=TRUE is not supported")
+  splits <- expect_warning_match(
+    make_splits_quiet(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject",
+                      v = 2, nested = TRUE, compact = TRUE),
+    "compact=TRUE is not supported"
+  )
   expect_false(splits@info$compact)
 })
 

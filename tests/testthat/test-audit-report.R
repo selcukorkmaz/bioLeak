@@ -1,6 +1,7 @@
 test_that("audit_report renders an HTML report", {
   skip_if_not_installed("rmarkdown")
-  if (!rmarkdown::pandoc_available()) {
+  pandoc_ok <- tryCatch(rmarkdown::pandoc_available(), error = function(e) FALSE)
+  if (!isTRUE(pandoc_ok)) {
     skip("pandoc not available")
   }
 
@@ -18,11 +19,13 @@ test_that("audit_report renders an HTML report", {
   custom <- list(
     glm = list(
       fit = function(x, y, task, weights, ...) {
-        stats::glm(y ~ ., data = as.data.frame(x),
-                   family = stats::binomial(), weights = weights)
+        suppressWarnings(stats::glm(y ~ ., data = as.data.frame(x),
+                                    family = stats::binomial(), weights = weights))
       },
       predict = function(object, newdata, task, ...) {
-        as.numeric(stats::predict(object, newdata = as.data.frame(newdata), type = "response"))
+        as.numeric(suppressWarnings(stats::predict(object,
+                                                   newdata = as.data.frame(newdata),
+                                                   type = "response")))
       }
     )
   )

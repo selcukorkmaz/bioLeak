@@ -870,15 +870,44 @@ print.summary.GuardFit <- function(x, ...) {
 
 #' Apply a fitted GuardFit transformer to new data
 #'
-#' @param fit GuardFit object returned by [.guard_fit()].
-#' @param newdata matrix/data.frame to transform.
-#' @return A data.frame of transformed predictors.
+#' @description
+#' Applies the preprocessing steps stored in a \code{GuardFit} object to new
+#' data without refitting any statistics. This is designed to prevent
+#' validation leakage that would occur if imputation, scaling, filtering, or
+#' feature selection were recomputed on evaluation data. It enforces the
+#' training schema by aligning columns and factor levels, and it errors when a
+#' numeric-only training fit receives non-numeric predictors. It does not
+#' detect label leakage, duplicate samples, or train/test contamination.
+#'
+#' @param fit A \code{GuardFit} object created by [.guard_fit()]. This required
+#' argument (no default) contains the training-time preprocessing settings and
+#' statistics. Changing \code{fit} (for example, a different imputation method
+#' or feature selection step) changes the output columns and values.
+#' @param newdata A matrix or data.frame of predictors with one row per sample.
+#' This required argument (no default) is transformed using the training-time
+#' parameters in \code{fit} only. Missing columns are added and filled, extra
+#' columns are dropped, and factor levels are aligned to the training levels; if
+#' the training fit was numeric-only, non-numeric columns in \code{newdata}
+#' trigger an error.
+#'
+#' @return A data.frame of transformed predictors with the same number of rows
+#' as \code{newdata}. Column order and content match the training pipeline and
+#' may include derived features (one-hot encodings, missingness indicators, or
+#' PCA components). This output is not a prediction; it is intended as input to
+#' a downstream model and assumes the training-time preprocessing is valid for
+#' the new data.
+#'
 #' @examples
-#' x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
-#' fit <- .guard_fit(x, y = c(1, 2, 3),
-#'                   steps = list(impute = list(method = "median")),
-#'                   task = "gaussian")
-#' predict_guard(fit, x)
+#' x_train <- data.frame(a = c(1, 2, NA, 4), b = c(10, 11, 12, 13))
+#' fit <- .guard_fit(
+#'   x_train,
+#'   y = c(0.1, 0.2, 0.3, 0.4),
+#'   steps = list(impute = list(method = "median")),
+#'   task = "gaussian"
+#' )
+#' x_new <- data.frame(a = c(NA, 5), b = c(9, 14))
+#' out <- predict_guard(fit, x_new)
+#' out
 #' @export
 predict_guard <- function(fit, newdata) {
   stopifnot(inherits(fit, "GuardFit"))

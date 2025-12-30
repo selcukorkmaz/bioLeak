@@ -30,7 +30,7 @@ test_that("permute_labels_factory returns per-fold permutations", {
   df <- make_class_df(20)
   splits <- make_splits_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
-                              v = 4, stratify = TRUE, seed = 1)
+                              v = 4, stratify = FALSE, seed = 1)
   perm_fun <- bioLeak:::.permute_labels_factory(
     cd = df, outcome = "outcome", mode = "subject_grouped",
     folds = splits@indices, perm_stratify = TRUE,
@@ -48,14 +48,15 @@ test_that("permute_labels_factory warns for small numeric stratification", {
   splits <- make_splits_quiet(df, outcome = "outcome",
                               mode = "batch_blocked", batch = "batch",
                               v = 3, stratify = FALSE, seed = 1)
-  expect_warning({
-    perm_fun <- bioLeak:::.permute_labels_factory(
+  perm_fun <- expect_warning_match(
+    bioLeak:::.permute_labels_factory(
       cd = df, outcome = "outcome", mode = "batch_blocked",
       folds = splits@indices, perm_stratify = TRUE,
       time_block = "circular", block_len = 2, seed = 1,
       batch_col = "batch"
-    )
-  }, "requires at least 20")
+    ),
+    "requires at least 20"
+  )
   out <- perm_fun(1)
   expect_equal(length(out), length(splits@indices))
 })

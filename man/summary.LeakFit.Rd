@@ -7,22 +7,68 @@
 \method{summary}{LeakFit}(object, digits = 3, ...)
 }
 \arguments{
-\item{object}{A \code{LeakFit} object returned by [fit_resample()].}
+\item{object}{A [LeakFit] object returned by [fit_resample()]. It should
+contain `metric_summary` and `audit` slots; missing entries result in empty
+sections in the printed report.}
 
-\item{digits}{Number of digits to display.}
+\item{digits}{Integer scalar. Number of decimal places to print in numeric
+summary tables. Defaults to 3; affects printed output only, not the
+returned data.}
 
-\item{...}{Not used.}
+\item{...}{Unused. Included for S3 method compatibility; changing these
+values has no effect.}
 }
 \value{
-Invisibly returns the summary data frame.
+Invisibly returns `object@metric_summary`, a data frame of per-learner
+  metric means and standard deviations computed across folds. This function
+  does not recompute metrics.
 }
 \description{
-Provides a concise summary of resampled model performance,
-including learners, folds, and mean ± SD of metrics.
+Prints a compact console report for a [LeakFit] object created by
+[fit_resample()]. The report lists task/outcome metadata, learners,
+total folds, and cross-validated metrics summarized as mean and standard
+deviation across completed folds, plus a small audit table with per-fold
+train/test sizes and retained feature counts.
+}
+\details{
+This summary is meant for quick sanity checks of the resampling setup and
+performance. It does not run leakage diagnostics and will not detect target
+leakage, duplicate samples, or batch/study confounding; use [audit_leakage()]
+or `summary()` on a [LeakAudit] object for those checks.
 }
 \examples{
-\dontrun{
-# fit <- fit_resample(...)
-summary(fit)
-}
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:6, each = 2),
+  outcome = factor(rep(c(0, 1), each = 6)),
+  x1 = rnorm(12),
+  x2 = rnorm(12)
+)
+splits <- make_splits(
+  df,
+  outcome = "outcome",
+  mode = "subject_grouped",
+  group = "subject",
+  v = 3,
+  stratify = TRUE,
+  progress = FALSE
+)
+custom <- list(
+  glm = list(
+    fit = function(x, y, task, weights, ...) {
+      stats::glm(y ~ ., data = data.frame(y = y, x),
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object,
+                                newdata = as.data.frame(newdata),
+                                type = "response"))
+    }
+  )
+)
+fit <- fit_resample(df, outcome = "outcome", splits = splits,
+                    learner = "glm", custom_learners = custom,
+                    metrics = "auc", seed = 1)
+summary_df <- summary(fit)
+summary_df
 }

@@ -14,32 +14,78 @@ audit_leakage_by_learner(
 )
 }
 \arguments{
-\item{fit}{LeakFit}
+\item{fit}{A [LeakFit] object produced by [fit_resample()]. It must contain
+predictions and split metadata. Learner IDs must be present in predictions
+to audit multiple models.}
 
-\item{metric}{performance metric ("auc","pr_auc","rmse","cindex")}
+\item{metric}{Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
+`"cindex"`. Controls which metric is audited for each learner.}
 
-\item{learners}{optional character vector of learner names to audit; defaults
-to all learners found in predictions.}
+\item{learners}{Character vector or NULL. If NULL (default), audits all
+learners found in predictions. If provided, must match learner IDs stored in
+the predictions. Supplying more than one learner requires learner IDs.}
 
-\item{parallel_learners}{logical, if TRUE run audits per learner in parallel
-using \code{future.apply}.}
+\item{parallel_learners}{Logical scalar. If TRUE, runs per-learner audits in
+parallel using `future.apply` (if installed). This changes runtime but not
+the audit results.}
 
-\item{mc.cores}{integer, number of workers for learner-level parallelism.}
+\item{mc.cores}{Integer scalar or NULL. Number of workers used when
+`parallel_learners = TRUE`. Defaults to the minimum of available cores and
+the number of learners.}
+
+\item{...}{Additional named arguments forwarded to [audit_leakage()] for each
+learner. These control the audit itself. Common options include:
+`B` (integer permutations), `perm_stratify` (logical or `"auto"`),
+`time_block` (character), `block_len` (integer or NULL), `include_z`
+(logical), `ci_method` (character), `boot_B` (integer), `parallel`
+(logical), `seed` (integer), `return_perm` (logical), `batch_cols`
+(character vector), `coldata` (data.frame), `X_ref` (matrix/data.frame),
+`target_scan` (logical), `target_threshold` (numeric), `feature_space`
+(character), `sim_method` (character), `sim_threshold` (numeric),
+`nn_k` (integer), and `max_pairs` (integer). See [audit_leakage()] for full
+definitions; changing these values changes each learner's audit.}
 }
 \value{
-Named list of LeakAudit objects.
+Named list of [LeakAudit] objects, keyed by learner ID.
 }
 \description{
-Runs [audit_leakage()] separately for each learner recorded in the fit and
-returns a named list of `LeakAudit` objects.
+Runs [audit_leakage()] separately for each learner recorded in a [LeakFit]
+and returns a named list of [LeakAudit] objects. Use this when a single fit
+contains predictions for multiple models and you want model-specific audits.
+If predictions do not include learner IDs, only a single audit can be run and
+requesting multiple learners is an error.
 }
 \examples{
 \dontrun{
-splits <- make_splits(mtcars, outcome = "am",
-                      mode = "subject_grouped", group = "cyl", v = 3)
-fit <- fit_resample(mtcars, outcome = "am", splits = splits,
-                    learner = c("glmnet", "ranger"), metrics = "auc")
-audits <- audit_leakage_by_learner(fit, metric = "auc", B = 20)
-audits
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:6, each = 2),
+  outcome = factor(rep(c(0, 1), 6)),
+  x1 = rnorm(12),
+  x2 = rnorm(12)
+)
+splits <- make_splits(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject",
+                      v = 3, progress = FALSE)
+custom <- list(
+  glm = list(
+    fit = function(x, y, task, weights, ...) {
+      stats::glm(y ~ ., data = data.frame(y = y, x),
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object,
+                                newdata = as.data.frame(newdata),
+                                type = "response"))
+    }
+  )
+)
+custom$glm2 <- custom$glm
+fit <- fit_resample(df, outcome = "outcome", splits = splits,
+                    learner = c("glm", "glm2"), custom_learners = custom,
+                    metrics = "auc", refit = FALSE, seed = 1)
+audits <- audit_leakage_by_learner(fit, metric = "auc", B = 10,
+                                   perm_stratify = FALSE)
+names(audits)
 }
 }

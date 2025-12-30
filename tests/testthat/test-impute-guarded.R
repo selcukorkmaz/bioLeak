@@ -32,11 +32,13 @@ test_that("impute_guarded validates inputs and emits warnings", {
   expect_error(impute_guarded(1, test), "data frames")
   expect_error(impute_guarded(train, 1), "data frames")
 
-  expect_warning({
-    res <- impute_guarded(train, test, method = "median",
-                          parallel = TRUE, return_outliers = TRUE,
-                          constant_value = 1)
-  }, "unused|not supported", all = TRUE)
+  res <- expect_warning_match(
+    impute_guarded(train, test, method = "median",
+                   parallel = TRUE, return_outliers = TRUE,
+                   constant_value = 1),
+    "unused|not supported",
+    all = TRUE
+  )
   expect_equal(class(res), "LeakImpute")
 })
 

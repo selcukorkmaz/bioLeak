@@ -1,19 +1,64 @@
 #' Summarize a leakage audit
 #'
-#' Provides a console summary of the leakage audit results,
-#' including permutation gap, batch association, target scan, and duplicates.
+#' Prints a concise, human-readable report for a `LeakAudit` object produced by
+#' [audit_leakage()]. The summary surfaces four diagnostics when available:
+#' permutation gap (signal vs. randomized labels), batch/study association tests
+#' (metadata aligned with fold splits), target leakage scan (features strongly
+#' associated with the outcome), and near-duplicate detection (high similarity
+#' in `X_ref`). The output reflects the stored audit results only; it does not
+#' recompute any tests.
+#'
+#' @details
+#' The permutation test indicates whether model performance exceeds random label
+#' performance; it does not by itself prove or rule out leakage.
+#' Batch association flags metadata that align with fold assignment; this may
+#' reflect study design rather than leakage.
+#' Target leakage scan uses univariate feature-outcome associations and can miss
+#' multivariate leakage or proxies not present in `X_ref`.
+#' Duplicate detection only considers the provided `X_ref` features and the
+#' similarity threshold used during [audit_leakage()].
+#' Sections are reported as "not available" when the corresponding audit
+#' component was not computed.
 #'
 #' @seealso [plot_perm_distribution()], [plot_fold_balance()], [plot_overlap_checks()]
 #'
-#' @param object LeakAudit
-#' @param digits number of digits for numeric display
-#' @param ... ignored
-#' @return Invisibly returns the input object.
+#' @param object A `LeakAudit` object from [audit_leakage()]. The summary reads
+#'   stored results from `object` and prints them to the console.
+#' @param digits Integer number of digits to show when formatting numeric
+#'   statistics in the console output. Defaults to `3`. Increasing `digits`
+#'   shows more precision; decreasing it shortens the printout without changing
+#'   the underlying values.
+#' @param ... Unused. Included for S3 method compatibility; additional
+#'   arguments are ignored.
+#' @return Invisibly returns `object` after printing the summary.
 #' @examples
-#' \dontrun{
-#' # audit <- audit_leakage(fit, metric = "auc", B = 50)
-#' summary(audit)
-#' }
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:6, each = 2),
+#'   outcome = rbinom(12, 1, 0.5),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
+#' )
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 3)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#' audit <- audit_leakage(fit, metric = "auc", B = 5,
+#'                        X_ref = df[, c("x1", "x2")], seed = 1)
+#' summary(audit) # prints the audit report and returns `audit` invisibly
 #' @export
 summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!inherits(object, "LeakAudit"))
@@ -32,8 +77,8 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     loc <- tryCatch(l10n_info(), error = function(e) NULL)
     if (!is.null(loc) && isTRUE(loc$`UTF-8`)) utf8_ok <- TRUE
   }
-  warn_sym <- if (utf8_ok) "⚠️" else "WARNING:"
-  ok_sym   <- if (utf8_ok) "✓" else "OK:"
+  warn_sym <- if (utf8_ok) "âš ï¸" else "WARNING:"
+  ok_sym   <- if (utf8_ok) "âœ“" else "OK:"
 
   task <- fit@task %||% NA_character_
   outcome <- fit@outcome %||% NA_character_
@@ -61,7 +106,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat("Permutation Significance Test:\n")
     cat(sprintf("  Observed metric: %s\n",
                 formatC(pg$metric_obs, digits = digits, format = "f")))
-    cat(sprintf("  Permuted mean ± SD: %s ± %s\n",
+    cat(sprintf("  Permuted mean Â± SD: %s Â± %s\n",
                 formatC(pg$perm_mean, digits = digits, format = "f"),
                 formatC(pg$perm_sd, digits = digits, format = "f")))
     cat(sprintf("  Gap: %s (larger gap = stronger non-random signal)\n",
@@ -78,7 +123,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat("Batch / Study Association:\n")
     if ("batch_col" %in% names(ba)) {
       for (i in seq_len(nrow(ba))) {
-        cat(sprintf("  %s: χ² = %s (df = %s), p = %s\n",
+        cat(sprintf("  %s: Ï‡Â² = %s (df = %s), p = %s\n",
                     ba$batch_col[i],
                     formatC(ba$stat[i], digits = digits, format = "f"),
                     formatC(ba$df[i], digits = digits, format = "f"),
@@ -86,7 +131,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
       }
       cat("\n")
     } else {
-      cat(sprintf("  χ² = %s (df = %s), p = %s\n\n",
+      cat(sprintf("  Ï‡Â² = %s (df = %s), p = %s\n\n",
                   formatC(ba$stat, digits = digits, format = "f"),
                   formatC(ba$df, digits = digits, format = "f"),
                   formatC(ba$pval, digits = digits, format = "f")))
@@ -123,7 +168,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     dd <- object@duplicates
     cat("Near-Duplicate Samples:\n")
     sim_label <- object@info$sim_method %||% "cosine"
-    cat(sprintf("  %d pairs detected above %s ≥ %s\n",
+    cat(sprintf("  %d pairs detected above %s â‰¥ %s\n",
                 nrow(dd),
                 sim_label,
                 formatC(object@info$duplicate_threshold, digits = digits, format = "f")))
@@ -154,18 +199,63 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 
 #' Summarize a LeakFit object
 #'
-#' Provides a concise summary of resampled model performance,
-#' including learners, folds, and mean ± SD of metrics.
+#' Prints a compact console report for a [LeakFit] object created by
+#' [fit_resample()]. The report lists task/outcome metadata, learners,
+#' total folds, and cross-validated metrics summarized as mean and standard
+#' deviation across completed folds, plus a small audit table with per-fold
+#' train/test sizes and retained feature counts.
 #'
-#' @param object A \code{LeakFit} object returned by [fit_resample()].
-#' @param digits Number of digits to display.
-#' @param ... Not used.
-#' @return Invisibly returns the summary data frame.
+#' This summary is meant for quick sanity checks of the resampling setup and
+#' performance. It does not run leakage diagnostics and will not detect target
+#' leakage, duplicate samples, or batch/study confounding; use [audit_leakage()]
+#' or `summary()` on a [LeakAudit] object for those checks.
+#'
+#' @param object A [LeakFit] object returned by [fit_resample()]. It should
+#'   contain `metric_summary` and `audit` slots; missing entries result in empty
+#'   sections in the printed report.
+#' @param digits Integer scalar. Number of decimal places to print in numeric
+#'   summary tables. Defaults to 3; affects printed output only, not the
+#'   returned data.
+#' @param ... Unused. Included for S3 method compatibility; changing these
+#'   values has no effect.
+#' @return Invisibly returns `object@metric_summary`, a data frame of per-learner
+#'   metric means and standard deviations computed across folds. This function
+#'   does not recompute metrics.
 #' @examples
-#' \dontrun{
-#' # fit <- fit_resample(...)
-#' summary(fit)
-#' }
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:6, each = 2),
+#'   outcome = factor(rep(c(0, 1), each = 6)),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
+#' )
+#' splits <- make_splits(
+#'   df,
+#'   outcome = "outcome",
+#'   mode = "subject_grouped",
+#'   group = "subject",
+#'   v = 3,
+#'   stratify = TRUE,
+#'   progress = FALSE
+#' )
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = data.frame(y = y, x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object,
+#'                                 newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", seed = 1)
+#' summary_df <- summary(fit)
+#' summary_df
 #' @export
 summary.LeakFit <- function(object, digits = 3, ...) {
   if (!inherits(object, "LeakFit"))
@@ -190,7 +280,7 @@ summary.LeakFit <- function(object, digits = 3, ...) {
 
   # Metric summary
   if (nrow(object@metric_summary) > 0) {
-    cat("Cross-validated metrics (mean ± SD):\n")
+    cat("Cross-validated metrics (mean Â± SD):\n")
     ms <- object@metric_summary
     metrics_fmt <- as.data.frame(ms)
     num_cols <- vapply(metrics_fmt, is.numeric, logical(1))

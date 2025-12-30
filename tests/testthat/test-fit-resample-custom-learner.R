@@ -13,17 +13,19 @@ test_that("fit_resample supports custom learners", {
     mode = "subject_grouped",
     group = "subject",
     v = 5,
-    stratify = TRUE
+    stratify = FALSE
   )
 
   custom <- list(
     glm = list(
       fit = function(x, y, task, weights, ...) {
-        stats::glm(y ~ ., data = as.data.frame(x),
-                   family = stats::binomial(), weights = weights)
+        suppressWarnings(stats::glm(y ~ ., data = as.data.frame(x),
+                                    family = stats::binomial(), weights = weights))
       },
       predict = function(object, newdata, task, ...) {
-        as.numeric(stats::predict(object, newdata = as.data.frame(newdata), type = "response"))
+        as.numeric(suppressWarnings(stats::predict(object,
+                                                   newdata = as.data.frame(newdata),
+                                                   type = "response")))
       }
     )
   )

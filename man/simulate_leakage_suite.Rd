@@ -23,71 +23,124 @@ simulate_leakage_suite(
 )
 }
 \arguments{
-\item{n}{Integer. Number of samples.}
+\item{n}{Integer scalar. Number of samples to simulate (default 500). Larger
+values stabilize the Monte Carlo summary but increase runtime.}
 
-\item{p}{Integer. Number of predictors.}
+\item{p}{Integer scalar. Number of baseline predictors before any leakage
+feature is added (default 20). Increasing \code{p} changes the signal-to-noise
+ratio and increases fitting time.}
 
-\item{prevalence}{Numeric. Prevalence (probability of class 1).}
+\item{prevalence}{Numeric scalar in (0, 1). Target prevalence of class 1 in
+the simulated outcome (default 0.5). Changing this alters class imbalance
+and can affect AUC and the permutation gap.}
 
-\item{mode}{Character. Cross-validation mode:
-`"subject_grouped"`, `"batch_blocked"`, `"study_loocv"`, `"time_series"`.}
+\item{mode}{Character scalar. Cross-validation scheme passed to
+\code{make_splits()}; one of \code{"subject_grouped"},
+\code{"batch_blocked"}, \code{"study_loocv"}, \code{"time_series"}.
+Defaults to \code{"subject_grouped"}. This controls how samples are grouped
+into folds (by subject, batch, study, or time) and therefore which leakage
+mechanisms are realistically challenged.}
 
-\item{learner}{Character. Base learner: `"glmnet"` or `"ranger"`.}
+\item{learner}{Character scalar. Base learner, \code{"glmnet"} (default) or
+\code{"ranger"}. Requires the corresponding package in \code{Suggests}.
+Switching learners changes the fitted model, runtime, and performance.}
 
-\item{leakage}{Character. Leakage type:
-`"none"`, `"subject_overlap"`, `"batch_confounded"`, `"peek_norm"`, `"lookahead"`.}
+\item{leakage}{Character scalar. Leakage mechanism to inject; one of
+\code{"none"}, \code{"subject_overlap"}, \code{"batch_confounded"},
+\code{"peek_norm"}, \code{"lookahead"}. Leakage is added as an extra
+predictor: \code{"subject_overlap"} adds per-subject mean outcome,
+\code{"batch_confounded"} adds per-batch mean outcome, \code{"peek_norm"}
+adds the global mean outcome, and \code{"lookahead"} adds the next-time
+outcome. Changing this controls whether and how leakage is present.}
 
-\item{rho}{Numeric. Autocorrelation coefficient (0 = independent).}
+\item{rho}{Numeric scalar in [-1, 1]. AR(1)-style autocorrelation applied to
+each predictor across row order (default 0). Higher absolute values increase
+serial correlation and make time-ordered leakage more pronounced.}
 
-\item{K}{Integer. Number of folds.}
+\item{K}{Integer scalar. Number of folds/partitions (default 5). Used as the
+fold count for \code{"subject_grouped"} and \code{"batch_blocked"}, and as
+the number of rolling partitions for \code{"time_series"}. Ignored for
+\code{"study_loocv"} (folds equal the number of studies).}
 
-\item{repeats}{Integer. Number of repeats.}
+\item{repeats}{Integer scalar >= 1. Number of repeated CV runs for
+\code{"subject_grouped"} and \code{"batch_blocked"} (default 1). Increasing
+\code{repeats} increases the number of folds and runtime. Ignored for
+\code{"study_loocv"} and \code{"time_series"}.}
 
-\item{horizon}{Numeric. Time gap for time-series CV.}
+\item{horizon}{Numeric scalar >= 0. Minimum time gap enforced between train
+and test for \code{"time_series"} splits (default 0). Larger values make the
+split more conservative and can reduce leakage from temporal proximity.}
 
-\item{B}{Integer. Number of permutations for `audit_leakage`.}
+\item{B}{Integer scalar >= 1. Number of permutations used by
+\code{audit_leakage()} to compute the permutation gap and p-value (default
+1000). Larger values yield more stable p-values but increase runtime.}
 
-\item{seeds}{Integer vector. Random seeds for Monte Carlo replicates.}
+\item{seeds}{Integer vector. Monte Carlo seeds (default \code{1:10}). One row
+of output is produced per seed; changing \code{seeds} changes the simulated
+datasets and splits.}
 
-\item{parallel}{Logical. If TRUE, uses `future.apply` for multi-seed execution.}
+\item{parallel}{Logical scalar. If \code{TRUE}, evaluates seeds in parallel
+using \code{future.apply} (if installed). Results are identical to sequential
+execution; only runtime changes.}
 
-\item{signal_strength}{Numeric. Scaling factor for signal-to-noise ratio.}
+\item{signal_strength}{Numeric scalar. Scales the linear predictor before
+sampling outcomes (default 1). Larger values increase class separation and
+tend to increase AUC; smaller values make the task harder.}
 
-\item{verbose}{Logical. If TRUE, prints progress messages for each seed and mode.}
+\item{verbose}{Logical scalar. If \code{TRUE}, prints progress messages for
+each seed. Does not affect results.}
 }
 \value{
-A `LeakSimResults` data frame with columns:
-- `seed`: simulation seed
-- `metric_obs`: observed model performance
-- `gap`: permutation-gap statistic
-- `p_value`: permutation-based significance
-- `leakage`: leakage scenario
-- `mode`: CV mode used
+A \code{LeakSimResults} data frame with one row per seed and columns:
+\itemize{
+  \item \code{seed}: seed used for data generation, splitting, and auditing.
+  \item \code{metric_obs}: observed CV performance (AUC for this simulation).
+  \item \code{gap}: permutation-gap statistic (observed minus permutation mean).
+  \item \code{p_value}: permutation p-value for the gap.
+  \item \code{leakage}: leakage scenario used.
+  \item \code{mode}: CV mode used.
+}
+Only the permutation-gap summary is returned; fitted models, predictions, and
+other audit components are not included.
 }
 \description{
-Runs a Monte Carlo simulation suite for evaluating leakage detection
-across multiple leakage types, CV modes, and learners.
-
-For each seed, this function:
-1. Simulates a dataset with a defined leakage mechanism.
-2. Generates leakage-resistant CV splits using `make_splits()`.
-3. Fits a machine learning model using `fit_resample()`.
-4. Audits leakage with the permutation-gap diagnostic (`audit_leakage()`).
+Simulates synthetic binary classification datasets with optional leakage
+mechanisms, fits a model using a leakage-aware cross-validation scheme, and
+summarizes the permutation-gap audit for each Monte Carlo seed. The suite is
+designed to surface validation failures such as subject overlap across folds,
+batch-confounded outcomes, global normalization/summary leakage, and
+time-series look-ahead. The output is a per-seed summary of observed CV
+performance and its gap versus a label-permutation null; it does not return
+fitted models or the full audit object. Results are limited to the built-in
+data generator and leakage types implemented here, and should be interpreted
+as a simulation-based sanity check rather than a comprehensive leakage
+detector for real data.
 }
 \details{
-The function can optionally run in parallel using `future.apply`.
-Set a future plan (e.g., `future::plan("multisession")`) before calling.
-\code{signal_strength} scales the linear predictor before converting to
-outcome probabilities; larger values yield stronger separation.
+The generator draws \code{p} standard normal predictors, builds a linear
+predictor from the first \code{min(5, p)} features, scales it by
+\code{signal_strength}, and samples a binary outcome to achieve the requested
+\code{prevalence}. Outcomes are returned as a two-level factor, so the audited
+metric is AUC. Simulated metadata include subject, batch, study, and time
+fields used by \code{mode} to create leakage-aware splits. Leakage mechanisms
+are injected by adding a single extra predictor as described in
+\code{leakage}. Parallel execution uses \code{future.apply} when installed and
+does not change results.
 }
 \examples{
-\dontrun{
-res <- simulate_leakage_suite(
-  n = 300, p = 10, mode = "subject_grouped",
-  learner = "ranger", leakage = "subject_overlap",
-  seeds = 1:5, parallel = FALSE, verbose = TRUE
-)
-head(res)
+if (requireNamespace("glmnet", quietly = TRUE)) {
+  set.seed(1)
+  res <- simulate_leakage_suite(
+    n = 120, p = 6, prevalence = 0.4,
+    mode = "subject_grouped",
+    learner = "glmnet",
+    leakage = "subject_overlap",
+    K = 3, repeats = 1,
+    B = 50, seeds = 1,
+    parallel = FALSE
+  )
+  # One row per seed with observed AUC, permutation gap, and p-value
+  res
 }
 
 }

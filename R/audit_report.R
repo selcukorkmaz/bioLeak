@@ -1,20 +1,87 @@
 #' Render an HTML audit report
 #'
-#' Generates a one-click HTML report for a [LeakAudit] object. You can also pass
-#' a [LeakFit] object, in which case [audit_leakage()] is run first.
+#' Creates an HTML report that summarizes a leakage audit for a resampled model.
+#' The report is built from a [LeakAudit] (or created from a [LeakFit]) and
+#' presents: permutation-based significance of the chosen performance metric,
+#' batch or study association tests between metadata and predictions, a target
+#' leakage scan based on feature-outcome similarity, and duplicate detection
+#' across training and test folds. The output is a self-contained HTML file with
+#' tables and plots for these checks plus the audit parameters used.
 #'
-#' @param audit LeakAudit or LeakFit object.
-#' @param output_file Output HTML filename.
-#' @param output_dir Directory to write the report.
-#' @param quiet Logical, pass through to rmarkdown render.
-#' @param open Logical, open the report in a browser after rendering.
-#' @param ... Additional arguments passed to [audit_leakage()] when `audit` is a LeakFit.
+#' The report does not refit models or reprocess data; it only inspects the
+#' predictions and metadata stored in the input. Results are conditional on the
+#' provided splits, selected metric, and any feature matrix supplied to
+#' [audit_leakage()]. A non-significant result does not prove the absence of
+#' leakage, especially with small `B` or incomplete metadata. Rendering requires
+#' the `rmarkdown` package and `ggplot2` for plots.
+#'
+#' @param audit A [LeakAudit] object from [audit_leakage()] or a [LeakFit] object
+#'   from [fit_resample()]. If a [LeakAudit] is supplied, the report uses its
+#'   stored results verbatim. If a [LeakFit] is supplied, `audit_report()` first
+#'   computes a new audit via [audit_leakage(...)]; the fit must contain
+#'   predictions and split metadata. When multiple learners were fit, pass a
+#'   `learner` argument via `...` to select a single model.
+#' @param output_file Character scalar. File name for the HTML report. Defaults
+#'   to `"bioLeak_audit_report.html"`. If a relative name is provided, it is
+#'   created inside `output_dir`. Changing this value only changes the file name,
+#'   not the audit content.
+#' @param output_dir Character scalar. Directory path where the report is
+#'   written. Defaults to [tempdir()]. The directory must exist or be creatable
+#'   by `rmarkdown::render()`. Changing this value only changes the output
+#'   location.
+#' @param quiet Logical scalar passed to `rmarkdown::render()`. Defaults to
+#'   `TRUE`. When `FALSE`, knitting output and warnings are printed to the
+#'   console. This does not change audit results.
+#' @param open Logical scalar. Defaults to `FALSE`. When `TRUE`, opens the
+#'   generated report in a browser via [utils::browseURL()]. This does not change
+#'   the report contents.
+#' @param ... Additional named arguments forwarded to [audit_leakage()] only
+#'   when `audit` is a [LeakFit]. These control how the audit is computed and
+#'   therefore change the report. Typical examples include `metric` (character),
+#'   `B` (integer), `perm_stratify` (logical), `batch_cols` (character vector),
+#'   `X_ref` (matrix/data.frame), and `sim_method` (character). When omitted,
+#'   [audit_leakage()] defaults are used. Ignored when `audit` is already a
+#'   [LeakAudit].
 #' @return Path to the generated HTML report.
 #' @examples
 #' \dontrun{
-#' # fit <- fit_resample(...)
-#' audit <- audit_leakage(fit, metric = "auc", B = 50)
-#' audit_report(audit, output_dir = ".")
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:6, each = 2),
+#'   outcome = factor(rep(c(0, 1), 6)),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
+#' )
+#'
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject",
+#'                       v = 3, progress = FALSE)
+#'
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = data.frame(y = y, x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object,
+#'                                 newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#'
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#'
+#' audit <- audit_leakage(fit, metric = "auc", B = 5, perm_stratify = FALSE)
+#'
+#' if (requireNamespace("rmarkdown", quietly = TRUE) &&
+#'     requireNamespace("ggplot2", quietly = TRUE)) {
+#'   out_file <- audit_report(audit, output_dir = tempdir(), quiet = TRUE)
+#'   out_file
+#' }
 #' }
 #' @export
 audit_report <- function(audit,

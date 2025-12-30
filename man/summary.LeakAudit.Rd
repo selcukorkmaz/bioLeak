@@ -7,24 +7,69 @@
 \method{summary}{LeakAudit}(object, digits = 3, ...)
 }
 \arguments{
-\item{object}{LeakAudit}
+\item{object}{A `LeakAudit` object from [audit_leakage()]. The summary reads
+stored results from `object` and prints them to the console.}
 
-\item{digits}{number of digits for numeric display}
+\item{digits}{Integer number of digits to show when formatting numeric
+statistics in the console output. Defaults to `3`. Increasing `digits`
+shows more precision; decreasing it shortens the printout without changing
+the underlying values.}
 
-\item{...}{ignored}
+\item{...}{Unused. Included for S3 method compatibility; additional
+arguments are ignored.}
 }
 \value{
-Invisibly returns the input object.
+Invisibly returns `object` after printing the summary.
 }
 \description{
-Provides a console summary of the leakage audit results,
-including permutation gap, batch association, target scan, and duplicates.
+Prints a concise, human-readable report for a `LeakAudit` object produced by
+[audit_leakage()]. The summary surfaces four diagnostics when available:
+permutation gap (signal vs. randomized labels), batch/study association tests
+(metadata aligned with fold splits), target leakage scan (features strongly
+associated with the outcome), and near-duplicate detection (high similarity
+in `X_ref`). The output reflects the stored audit results only; it does not
+recompute any tests.
+}
+\details{
+The permutation test indicates whether model performance exceeds random label
+performance; it does not by itself prove or rule out leakage.
+Batch association flags metadata that align with fold assignment; this may
+reflect study design rather than leakage.
+Target leakage scan uses univariate feature-outcome associations and can miss
+multivariate leakage or proxies not present in `X_ref`.
+Duplicate detection only considers the provided `X_ref` features and the
+similarity threshold used during [audit_leakage()].
+Sections are reported as "not available" when the corresponding audit
+component was not computed.
 }
 \examples{
-\dontrun{
-# audit <- audit_leakage(fit, metric = "auc", B = 50)
-summary(audit)
-}
+set.seed(1)
+df <- data.frame(
+  subject = rep(1:6, each = 2),
+  outcome = rbinom(12, 1, 0.5),
+  x1 = rnorm(12),
+  x2 = rnorm(12)
+)
+splits <- make_splits(df, outcome = "outcome",
+                      mode = "subject_grouped", group = "subject", v = 3)
+custom <- list(
+  glm = list(
+    fit = function(x, y, task, weights, ...) {
+      stats::glm(y ~ ., data = as.data.frame(x),
+                 family = stats::binomial(), weights = weights)
+    },
+    predict = function(object, newdata, task, ...) {
+      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+                                type = "response"))
+    }
+  )
+)
+fit <- fit_resample(df, outcome = "outcome", splits = splits,
+                    learner = "glm", custom_learners = custom,
+                    metrics = "auc", refit = FALSE, seed = 1)
+audit <- audit_leakage(fit, metric = "auc", B = 5,
+                       X_ref = df[, c("x1", "x2")], seed = 1)
+summary(audit) # prints the audit report and returns `audit` invisibly
 }
 \seealso{
 [plot_perm_distribution()], [plot_fold_balance()], [plot_overlap_checks()]

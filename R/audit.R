@@ -293,54 +293,153 @@
 
 #' Audit leakage and confounding
 #'
-#' @param fit LeakFit
-#' @param metric performance metric ("auc","pr_auc","rmse","cindex")
-#' @param B integer, number of permutations
-#' @param perm_stratify logical, stratify permutation by class within fold (binomial)
-#' @param time_block block resampling method for time-series modes
-#' @param block_len integer block length (NULL for automatic)
-#' @param include_z logical, whether to compute IF-based z-score for Δ
-#' @param ci_method "if" or "bootstrap" for Δ confidence interval
-#' @param boot_B bootstrap resamples when ci_method = "bootstrap"
-#' @param parallel logical, use future.apply for permutations
-#' @param seed integer random seed
-#' @param return_perm logical, store permutation distribution
-#' @param batch_cols character vector of metadata columns to test association with folds
-#' @param coldata optional data.frame of sample-level metadata (rows align to original samples)
-#' @param X_ref optional numeric matrix/data.frame (samples x features) used for duplicate detection
-#'   and target leakage scan
-#' @param target_scan logical, compute feature-wise outcome associations to flag proxy columns
-#' @param target_threshold numeric in (0,1), score threshold for flagging proxy features
-#' @param feature_space "raw" or "rank" (rank-normalize rows before similarity)
-#' @param sim_method "cosine" or "pearson"
-#' @param sim_threshold numeric in (0,1), similarity threshold for duplicates (default 0.995)
-#' @param nn_k integer, if RANN available and n large, #nearest neighbors per row to check (default 50)
-#' @param max_pairs cap on the number of duplicate pairs returned (default 5000)
-#' @param learner optional learner name to audit when multiple learners are present
-#' @return LeakAudit
+#' @description
+#' Computes a post-hoc leakage audit for a resampled model fit. The audit
+#' (1) compares observed cross-validated performance to a permutation null to
+#' detect label or split leakage, (2) tests whether fold assignments are
+#' associated with batch or study metadata (confounding by design), (3) scans
+#' features for unusually strong outcome proxies, and (4) flags duplicate or
+#' near-duplicate samples in a reference feature matrix.
+#'
+#' The returned [LeakAudit] summarizes these diagnostics. It relies only on the
+#' stored predictions, splits, and optional metadata; it does not refit models
+#' or alter splits. Results are conditional on the chosen metric and supplied
+#' metadata/features and should be interpreted as diagnostics, not proof of
+#' leakage or its absence.
+#'
+#' @param fit A [LeakFit] object from [fit_resample()] containing cross-validated
+#'   predictions and split metadata. If predictions include learner IDs for
+#'   multiple models, you must supply `learner` to select one; if learner IDs are
+#'   absent, the audit uses all predictions and may mix learners.
+#' @param metric Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
+#'   `"cindex"`. Defaults to `"auc"`. This controls the observed performance
+#'   statistic, the permutation null, and the sign of the reported gap.
+#' @param B Integer scalar. Number of permutations used to build the null
+#'   distribution (default 1000). Larger values reduce Monte Carlo error but
+#'   increase runtime.
+#' @param perm_stratify Logical scalar or `"auto"`. If TRUE (default), permutations
+#'   are stratified within each fold (factor levels; numeric outcomes are binned
+#'   into quantiles when enough non-missing values are available). If FALSE, no
+#'   stratification is used. Stratification only applies when `coldata` supplies
+#'   the outcome; otherwise labels are shuffled within each fold.
+#' @param time_block Character scalar, `"circular"` or `"stationary"`. Controls
+#'   block permutation for `time_series` splits; ignored for other split modes.
+#'   Default is `"circular"`.
+#' @param block_len Integer scalar or NULL. Block length for time-series
+#'   permutations. NULL selects `max(5, floor(0.1 * fold_size))`. Larger values
+#'   preserve more temporal structure and yield a more conservative null.
+#' @param include_z Logical scalar. If TRUE (default), include the z-score for the
+#'   permutation gap when a standard error is available; if FALSE, `z` is NA.
+#' @param ci_method Character scalar, `"if"` or `"bootstrap"`. Controls how the
+#'   standard error and confidence interval for the permutation gap are estimated.
+#'   Default is `"if"`. `"if"` uses an influence-function estimate when available; `"bootstrap"`
+#'   resamples permutation values `boot_B` times. Failed estimates yield NA.
+#' @param boot_B Integer scalar. Number of bootstrap resamples when
+#'   `ci_method = "bootstrap"` (default 400). Larger values are more stable but slower.
+#' @param parallel Logical scalar. If TRUE and `future.apply` is available,
+#'   permutations run in parallel. Results should match sequential execution.
+#'   Default is FALSE.
+#' @param seed Integer scalar. Random seed used for permutations and bootstrap
+#'   resampling; changing it changes the randomization but not the observed metric.
+#'   Default is 1.
+#' @param return_perm Logical scalar. If TRUE (default), stores the permutation
+#'   distribution in `audit@perm_values`. Set FALSE to reduce memory use.
+#' @param batch_cols Character vector. Names of `coldata` columns to test for
+#'   association with fold assignment. If NULL, defaults to any of
+#'   `"batch"`, `"plate"`, `"center"`, `"site"`, `"study"` found in `coldata`.
+#'   Changing this controls which batch tests appear in `batch_assoc`.
+#' @param coldata Optional data.frame of sample-level metadata. Rows must align
+#'   to prediction ids via row names, a `row_id` column, or row order. Used to
+#'   build restricted permutations (when the outcome column is present), compute
+#'   batch associations, and supply outcomes for target scans. If NULL, uses
+#'   `fit@splits@info$coldata` when available. Misalignment triggers warnings
+#'   and skips the affected checks.
+#' @param X_ref Optional numeric matrix/data.frame (samples x features). Used for
+#'   duplicate detection and the target leakage scan. If NULL, uses
+#'   `fit@info$X_ref` when available. Rows must align to prediction ids via
+#'   row names, sample ids, or row order; misalignment disables these checks.
+#' @param target_scan Logical scalar. If TRUE (default), computes per-feature
+#'   outcome associations on `X_ref` and flags proxy features; if FALSE, or if
+#'   `X_ref`/outcomes are unavailable, `target_assoc` is empty.
+#' @param target_threshold Numeric scalar in (0,1). Threshold applied to the
+#'   association score used to flag proxy features. Higher values are stricter.
+#'   Default is 0.9.
+#' @param feature_space Character scalar, `"raw"` or `"rank"`. If `"rank"`,
+#'   each row of `X_ref` is rank-transformed before similarity calculations.
+#'   This affects duplicate detection only. Default is `"raw"`.
+#' @param sim_method Character scalar, `"cosine"` or `"pearson"`. Similarity
+#'   metric for duplicate detection. `"pearson"` row-centers before cosine.
+#'   Default is `"cosine"`.
+#' @param sim_threshold Numeric scalar in (0,1). Similarity cutoff for reporting
+#'   duplicate pairs (default 0.995). Higher values yield fewer pairs.
+#' @param nn_k Integer scalar. For large datasets (`n > 3000`) with `RANN`
+#'   installed, checks only the nearest `nn_k` neighbors per row. Larger values
+#'   increase sensitivity but slow the search. Ignored when full comparisons are used.
+#'   Default is 50.
+#' @param max_pairs Integer scalar. Maximum number of duplicate pairs returned.
+#'   If more pairs are found, only the most similar are kept. This does not
+#'   affect permutation results. Default is 5000.
+#' @param learner Optional character scalar. When predictions include multiple
+#'   learner IDs, selects the learner to audit. If NULL and multiple learners
+#'   are present, the function errors; if predictions lack learner IDs, this
+#'   argument is ignored with a warning. Default is NULL.
+#' @return A [LeakAudit] object with slots:
+#'   `permutation_gap` (one-row data.frame), `perm_values` (optional numeric
+#'   vector), `batch_assoc`, `target_assoc`, `duplicates`, and `trail`.
 #' @details
-#' Duplicate detection uses the selected \code{sim_method}:
-#' cosine similarity on L2-normalized rows, or Pearson similarity by row-centering
-#' before normalization. Use \code{feature_space = "rank"} to compare rank profiles.
-#' Target leakage scan computes feature-wise associations with the outcome and
-#' flags proxy columns based on the scaled association score.
+#' The `permutation_gap` slot reports `metric_obs`, `perm_mean`, `perm_sd`,
+#' `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as
+#' `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
+#' C-index) and `perm_mean - metric_obs` for RMSE.
+#'
+#' `batch_assoc` contains chi-square tests between fold assignment and each
+#' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
+#' reports feature-wise outcome associations on `X_ref`; numeric features use
+#' AUC (binomial) or correlation (gaussian), while categorical features use
+#' Cramer's V (binomial) or `eta_sq` from a one-way ANOVA (gaussian). The
+#' `score` column is the scaled effect size used for flagging
+#' (`flag = score >= target_threshold`).
+#'
+#' Duplicate detection compares rows of `X_ref` using the chosen `sim_method`
+#' (cosine on L2-normalized rows, or Pearson via row-centering), optionally after
+#' rank transformation (`feature_space = "rank"`). The `duplicates` slot returns
+#' index pairs and similarity values for near-duplicate samples. Only duplicates
+#' present in `X_ref` can be detected, and checks are skipped if inputs cannot
+#' be aligned to prediction ids.
 #' @examples
-#' \dontrun{
 #' set.seed(1)
 #' df <- data.frame(
-#'   subject = rep(1:20, each = 2),
-#'   outcome = rbinom(40, 1, 0.5),
-#'   x1 = rnorm(40),
-#'   x2 = rnorm(40)
+#'   subject = rep(1:6, each = 2),
+#'   outcome = rbinom(12, 1, 0.5),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
 #' )
+#'
 #' splits <- make_splits(df, outcome = "outcome",
-#'                       mode = "subject_grouped", group = "subject", v = 5)
+#'                       mode = "subject_grouped", group = "subject", v = 3,
+#'                       progress = FALSE)
+#'
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object,
+#'                                 newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#'
 #' fit <- fit_resample(df, outcome = "outcome", splits = splits,
-#'                     learner = "glmnet", metrics = "auc")
-#' audit <- audit_leakage(fit, metric = "auc", B = 50, X_ref = df[, c("x1", "x2")])
-#' summary(audit)
-#' }
-#' @export
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#'
+#' audit <- audit_leakage(fit, metric = "auc", B = 10,
+#'                        X_ref = df[, c("x1", "x2")])
+#' audit@permutation_gap#' @export
 audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "rmse", "cindex"),
                           B = 1000,
@@ -824,24 +923,70 @@ audit_leakage <- function(fit,
 
 #' Audit leakage per learner
 #'
-#' Runs [audit_leakage()] separately for each learner recorded in the fit and
-#' returns a named list of `LeakAudit` objects.
+#' Runs [audit_leakage()] separately for each learner recorded in a [LeakFit]
+#' and returns a named list of [LeakAudit] objects. Use this when a single fit
+#' contains predictions for multiple models and you want model-specific audits.
+#' If predictions do not include learner IDs, only a single audit can be run and
+#' requesting multiple learners is an error.
 #'
-#' @inheritParams audit_leakage
-#' @param learners optional character vector of learner names to audit; defaults
-#'   to all learners found in predictions.
-#' @param parallel_learners logical, if TRUE run audits per learner in parallel
-#'   using \code{future.apply}.
-#' @param mc.cores integer, number of workers for learner-level parallelism.
-#' @return Named list of LeakAudit objects.
+#' @param fit A [LeakFit] object produced by [fit_resample()]. It must contain
+#'   predictions and split metadata. Learner IDs must be present in predictions
+#'   to audit multiple models.
+#' @param metric Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
+#'   `"cindex"`. Controls which metric is audited for each learner.
+#' @param learners Character vector or NULL. If NULL (default), audits all
+#'   learners found in predictions. If provided, must match learner IDs stored in
+#'   the predictions. Supplying more than one learner requires learner IDs.
+#' @param parallel_learners Logical scalar. If TRUE, runs per-learner audits in
+#'   parallel using `future.apply` (if installed). This changes runtime but not
+#'   the audit results.
+#' @param mc.cores Integer scalar or NULL. Number of workers used when
+#'   `parallel_learners = TRUE`. Defaults to the minimum of available cores and
+#'   the number of learners.
+#' @param ... Additional named arguments forwarded to [audit_leakage()] for each
+#'   learner. These control the audit itself. Common options include:
+#'   `B` (integer permutations), `perm_stratify` (logical or `"auto"`),
+#'   `time_block` (character), `block_len` (integer or NULL), `include_z`
+#'   (logical), `ci_method` (character), `boot_B` (integer), `parallel`
+#'   (logical), `seed` (integer), `return_perm` (logical), `batch_cols`
+#'   (character vector), `coldata` (data.frame), `X_ref` (matrix/data.frame),
+#'   `target_scan` (logical), `target_threshold` (numeric), `feature_space`
+#'   (character), `sim_method` (character), `sim_threshold` (numeric),
+#'   `nn_k` (integer), and `max_pairs` (integer). See [audit_leakage()] for full
+#'   definitions; changing these values changes each learner's audit.
+#' @return Named list of [LeakAudit] objects, keyed by learner ID.
 #' @examples
 #' \dontrun{
-#' splits <- make_splits(mtcars, outcome = "am",
-#'                       mode = "subject_grouped", group = "cyl", v = 3)
-#' fit <- fit_resample(mtcars, outcome = "am", splits = splits,
-#'                     learner = c("glmnet", "ranger"), metrics = "auc")
-#' audits <- audit_leakage_by_learner(fit, metric = "auc", B = 20)
-#' audits
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:6, each = 2),
+#'   outcome = factor(rep(c(0, 1), 6)),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
+#' )
+#' splits <- make_splits(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject",
+#'                       v = 3, progress = FALSE)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = data.frame(y = y, x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object,
+#'                                 newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' custom$glm2 <- custom$glm
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = c("glm", "glm2"), custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#' audits <- audit_leakage_by_learner(fit, metric = "auc", B = 10,
+#'                                    perm_stratify = FALSE)
+#' names(audits)
 #' }
 #' @export
 audit_leakage_by_learner <- function(fit,
@@ -1034,3 +1179,4 @@ print.LeakAuditList <- function(x, digits = 3, ...) {
     values
   }
 }
+

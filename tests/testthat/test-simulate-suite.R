@@ -38,16 +38,16 @@ test_that("simulate_dataset adds leakage-specific columns", {
 test_that("simulate_leakage_suite runs when required learners are available", {
   if (!requireNamespace("glmnet", quietly = TRUE)) {
     expect_error(simulate_leakage_suite(
-      n = 30, p = 5, prevalence = 0.5,
-      mode = "subject_grouped", learner = "glmnet",
-      leakage = "none", rho = 0, K = 2, repeats = 1,
+      n = 120, p = 5, prevalence = 0.5,
+      mode = "batch_blocked", learner = "glmnet",
+      leakage = "none", rho = 0, K = 3, repeats = 1,
       B = 3, seeds = 1:2, parallel = FALSE, signal_strength = 1
     ), "glmnet")
   } else {
     res <- simulate_leakage_suite(
-      n = 30, p = 5, prevalence = 0.5,
-      mode = "subject_grouped", learner = "glmnet",
-      leakage = "none", rho = 0, K = 2, repeats = 1,
+      n = 120, p = 5, prevalence = 0.5,
+      mode = "batch_blocked", learner = "glmnet",
+      leakage = "none", rho = 0, K = 3, repeats = 1,
       B = 3, seeds = 1:2, parallel = FALSE, signal_strength = 1
     )
     expect_true(inherits(res, "LeakSimResults"))

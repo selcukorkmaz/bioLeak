@@ -60,9 +60,10 @@ test_that("random-forest imputation guard handles missing dependency", {
     expect_error(bioLeak:::.guard_rf_impute_train(X, maxiter = 1, ntree = 10),
                  "randomForest")
   } else {
-    rf_fit <- bioLeak:::.guard_rf_impute_train(X, maxiter = 1, ntree = 10, seed = 1)
+    rf_fit <- suppressWarnings(bioLeak:::.guard_rf_impute_train(X, maxiter = 1,
+                                                                ntree = 10, seed = 1))
     expect_equal(dim(rf_fit$imp), dim(X))
-    out <- bioLeak:::.guard_rf_impute_new(X, rf_fit$models, rf_fit$med)
+    out <- suppressWarnings(bioLeak:::.guard_rf_impute_new(X, rf_fit$models, rf_fit$med))
     expect_equal(dim(out), dim(X))
   }
 })

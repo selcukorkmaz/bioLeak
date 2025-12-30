@@ -17,16 +17,17 @@ test_that("guard_fit produces a GuardFit pipeline with median imputation", {
 
 test_that("guard_fit warns on impute none with missing values", {
   X <- data.frame(a = c(1, NA, 3), b = c(4, 5, NA))
-  expect_warning({
-    fit <- bioLeak:::.guard_fit(
+  fit <- expect_warning_match(
+    bioLeak:::.guard_fit(
       X, y = c(1, 0, 1),
       steps = list(impute = list(method = "none"),
                    normalize = list(method = "none"),
                    filter = list(var_thresh = 0, iqr_thresh = 0),
                    fs = list(method = "none")),
       task = "binomial"
-    )
-  }, "impute\\$method='none'")
+    ),
+    "impute\\$method='none'"
+  )
   out <- fit$transform(X)
   expect_true(any(grepl("__missing", names(out))))
 })
@@ -42,10 +43,9 @@ test_that("guard_fit supports knn imputation and fallback warnings", {
     task = "binomial"
   )
 
-  fit$state$impute$knn_ref <- NULL
-  expect_warning({
-    out <- fit$transform(X)
-  }, "KNN imputation state missing")
+  env <- environment(fit$transform)
+  env$state$impute$knn_ref <- NULL
+  out <- expect_warning_match(fit$transform(X), "KNN imputation state missing")
 })
 
 test_that("guard_fit validates imputation method values", {
@@ -109,21 +109,21 @@ test_that("guard_fit handles missForest when available", {
       task = "binomial"
     ), "randomForest")
   } else {
-    fit <- bioLeak:::.guard_fit(
+    fit <- suppressWarnings(bioLeak:::.guard_fit(
       X, y = c(1, 0, 1),
       steps = list(impute = list(method = "missForest", maxiter = 1, ntree = 5),
                    normalize = list(method = "none"),
                    filter = list(var_thresh = 0, iqr_thresh = 0),
                    fs = list(method = "none")),
       task = "binomial"
-    )
+    ))
     expect_true(inherits(fit, "GuardFit"))
   }
 })
 
 test_that("guard_fit handles lasso feature selection when available", {
   X <- data.frame(a = rnorm(20), b = rnorm(20), c = rnorm(20))
-  y <- factor(sample(c(0, 1), 20, replace = TRUE))
+  y <- factor(rep(c(0, 1), each = 10))
   if (!requireNamespace("glmnet", quietly = TRUE)) {
     expect_error(bioLeak:::.guard_fit(
       X, y = y,
@@ -131,14 +131,14 @@ test_that("guard_fit handles lasso feature selection when available", {
       task = "binomial"
     ), "glmnet")
   } else {
-    fit <- bioLeak:::.guard_fit(
+    fit <- suppressWarnings(bioLeak:::.guard_fit(
       X, y = y,
       steps = list(impute = list(method = "median"),
                    normalize = list(method = "none"),
                    filter = list(var_thresh = 0, iqr_thresh = 0),
                    fs = list(method = "lasso")),
       task = "binomial"
-    )
+    ))
     expect_true(fit$state$fs$method == "lasso")
   }
 })

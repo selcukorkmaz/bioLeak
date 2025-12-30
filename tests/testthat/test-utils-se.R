@@ -17,7 +17,7 @@ test_that("SummarizedExperiment helpers behave for data.frame and matrix inputs"
 test_that("SummarizedExperiment helpers behave for SE inputs", {
   skip_if_not_installed("SummarizedExperiment")
   se <- SummarizedExperiment::SummarizedExperiment(
-    assays = list(counts = matrix(1:12, nrow = 3)),
+    assays = list(counts = matrix(1:9, nrow = 3)),
     colData = data.frame(outcome = c(0, 1, 0))
   )
   expect_true(bioLeak:::.bio_is_se(se))
