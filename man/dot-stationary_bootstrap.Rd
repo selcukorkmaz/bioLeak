@@ -21,11 +21,11 @@ weak temporal dependence while maintaining ergodicity.
 }
 \examples{
 set.seed(1)
-.stationary_bootstrap(1:10, mean_block = 3)
+bioLeak:::.stationary_bootstrap(1:10, mean_block = 3)
 
 }
 \references{
 Politis, D. N., & Romano, J. P. (1994).
-*The stationary bootstrap.* Journal of the American Statistical Association, 89(428), 1303–1313.
+*The stationary bootstrap.* Journal of the American Statistical Association, 89(428), 1303-1313.
 }
 \keyword{internal}

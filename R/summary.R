@@ -70,15 +70,11 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 
   fit <- object@fit
   info <- fit@info
-  utf8_ok <- FALSE
-  if (requireNamespace("cli", quietly = TRUE)) {
-    utf8_ok <- isTRUE(cli::is_utf8_output())
-  } else {
-    loc <- tryCatch(l10n_info(), error = function(e) NULL)
-    if (!is.null(loc) && isTRUE(loc$`UTF-8`)) utf8_ok <- TRUE
-  }
-  warn_sym <- if (utf8_ok) "âš ï¸" else "WARNING:"
-  ok_sym   <- if (utf8_ok) "âœ“" else "OK:"
+  warn_sym <- .bio_symbol("warn")
+  ok_sym   <- .bio_symbol("check")
+  sym_pm <- .bio_symbol("pm")
+  sym_chi <- .bio_symbol("chi_sq")
+  sym_ge <- .bio_symbol("ge")
 
   task <- fit@task %||% NA_character_
   outcome <- fit@outcome %||% NA_character_
@@ -106,8 +102,10 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat("Permutation Significance Test:\n")
     cat(sprintf("  Observed metric: %s\n",
                 formatC(pg$metric_obs, digits = digits, format = "f")))
-    cat(sprintf("  Permuted mean Â± SD: %s Â± %s\n",
+    cat(sprintf("  Permuted mean %s SD: %s %s %s\n",
+                sym_pm,
                 formatC(pg$perm_mean, digits = digits, format = "f"),
+                sym_pm,
                 formatC(pg$perm_sd, digits = digits, format = "f")))
     cat(sprintf("  Gap: %s (larger gap = stronger non-random signal)\n",
                 formatC(pg$gap, digits = digits, format = "f")))
@@ -123,15 +121,17 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat("Batch / Study Association:\n")
     if ("batch_col" %in% names(ba)) {
       for (i in seq_len(nrow(ba))) {
-        cat(sprintf("  %s: Ï‡Â² = %s (df = %s), p = %s\n",
+        cat(sprintf("  %s: %s = %s (df = %s), p = %s\n",
                     ba$batch_col[i],
+                    sym_chi,
                     formatC(ba$stat[i], digits = digits, format = "f"),
                     formatC(ba$df[i], digits = digits, format = "f"),
                     formatC(ba$pval[i], digits = digits, format = "f")))
       }
       cat("\n")
     } else {
-      cat(sprintf("  Ï‡Â² = %s (df = %s), p = %s\n\n",
+      cat(sprintf("  %s = %s (df = %s), p = %s\n\n",
+                  sym_chi,
                   formatC(ba$stat, digits = digits, format = "f"),
                   formatC(ba$df, digits = digits, format = "f"),
                   formatC(ba$pval, digits = digits, format = "f")))
@@ -146,8 +146,9 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     threshold <- object@info$target_threshold %||% 0.9
     flagged <- ta[!is.na(ta$score) & ta$score >= threshold, , drop = FALSE]
     cat("Target Leakage Scan:\n")
-    cat(sprintf("  Features checked: %d | Flagged (score >= %s): %d\n",
+    cat(sprintf("  Features checked: %d | Flagged (score %s %s): %d\n",
                 nrow(ta),
+                sym_ge,
                 formatC(threshold, digits = digits, format = "f"),
                 nrow(flagged)))
     if (nrow(flagged) > 0) {
@@ -168,9 +169,10 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     dd <- object@duplicates
     cat("Near-Duplicate Samples:\n")
     sim_label <- object@info$sim_method %||% "cosine"
-    cat(sprintf("  %d pairs detected above %s â‰¥ %s\n",
+    cat(sprintf("  %d pairs detected above %s %s %s\n",
                 nrow(dd),
                 sim_label,
+                sym_ge,
                 formatC(object@info$duplicate_threshold, digits = digits, format = "f")))
     head_pairs <- utils::head(dd, 5)
     cat("  Example pairs:\n")
@@ -265,6 +267,8 @@ summary.LeakFit <- function(object, digits = 3, ...) {
   cat(" bioLeak Model Fit Summary\n")
   cat("===========================\n\n")
 
+  sym_pm <- .bio_symbol("pm")
+
   # Basic info
   info <- object@info
   cat(sprintf("Task: %s\n", object@task))
@@ -280,7 +284,7 @@ summary.LeakFit <- function(object, digits = 3, ...) {
 
   # Metric summary
   if (nrow(object@metric_summary) > 0) {
-    cat("Cross-validated metrics (mean Â± SD):\n")
+    cat(sprintf("Cross-validated metrics (mean %s SD):\n", sym_pm))
     ms <- object@metric_summary
     metrics_fmt <- as.data.frame(ms)
     num_cols <- vapply(metrics_fmt, is.numeric, logical(1))

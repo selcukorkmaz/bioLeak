@@ -22,7 +22,7 @@
   sweep(M, 1, mu, "-")
 }
 
-# Safe χ² with Cramér's V
+# Safe chi^2 with Cramer's V
 .chisq_assoc <- function(tab) {
   if (is.null(tab) || length(tab) == 0) {
     return(list(stat = NA_real_, df = NA_integer_, pval = NA_real_, cramer_v = NA_real_))

@@ -58,6 +58,7 @@ make_splits_quiet <- function(...) {
 
 fit_resample_quiet <- function(...) {
   out <- NULL
+  err <- NULL
   suppress_patterns <- c(
     "glm.fit",
     "algorithm did not converge",
@@ -68,7 +69,13 @@ fit_resample_quiet <- function(...) {
   seen_warnings <- character()
   capture.output({
     out <- withCallingHandlers(
-      fit_resample(...),
+      tryCatch(
+        fit_resample(...),
+        error = function(e) {
+          err <<- e
+          NULL
+        }
+      ),
       warning = function(w) {
         seen_warnings <<- c(seen_warnings, conditionMessage(w))
         invokeRestart("muffleWarning")
@@ -87,6 +94,9 @@ fit_resample_quiet <- function(...) {
         warning(msg, call. = FALSE)
       }
     }
+  }
+  if (!is.null(err)) {
+    stop(err)
   }
   out
 }
@@ -113,4 +123,3 @@ expect_warning_match <- function(expr, pattern, all = FALSE) {
   }
   value
 }
-

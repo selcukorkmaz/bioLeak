@@ -21,7 +21,7 @@ block-permuted surrogates that preserve short-range temporal structure.
 }
 \examples{
 set.seed(1)
-.circular_block_permute(1:10, block_len = 3)
+bioLeak:::.circular_block_permute(1:10, block_len = 3)
 
 }
 \keyword{internal}

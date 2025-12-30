@@ -13,7 +13,7 @@
 #'
 #' @examples
 #' set.seed(1)
-#' .circular_block_permute(1:10, block_len = 3)
+#' bioLeak:::.circular_block_permute(1:10, block_len = 3)
 #'
 #' @keywords internal
 .circular_block_permute <- function(idx, block_len) {
@@ -47,11 +47,11 @@
 #'
 #' @references
 #' Politis, D. N., & Romano, J. P. (1994).
-#' *The stationary bootstrap.* Journal of the American Statistical Association, 89(428), 1303–1313.
+#' *The stationary bootstrap.* Journal of the American Statistical Association, 89(428), 1303-1313.
 #'
 #' @examples
 #' set.seed(1)
-#' .stationary_bootstrap(1:10, mean_block = 3)
+#' bioLeak:::.stationary_bootstrap(1:10, mean_block = 3)
 #'
 #' @keywords internal
 .stationary_bootstrap <- function(idx, mean_block) {

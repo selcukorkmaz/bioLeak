@@ -679,13 +679,13 @@ fit_resample <- function(x, outcome, splits,
   if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
     out <- future.apply::future_lapply(seq_along(folds), function(i) {
       fold <- folds[[i]]
-      fold$fold <- i  # fold numarasını ekle
+      fold$fold <- i  # add fold number
       progress_wrap(fold)
     }, future.seed = TRUE)
   } else {
     out <- lapply(seq_along(folds), function(i) {
       fold <- folds[[i]]
-      fold$fold <- i  # fold numarasını ekle
+      fold$fold <- i  # add fold number
       progress_wrap(fold)
     })
   }

@@ -299,7 +299,7 @@
   # Coerce to data.frame for flexible handling
   if (is.matrix(X)) X <- as.data.frame(X, check.names = FALSE)
   stopifnot(is.data.frame(X))
-  # --- Karakter tipli sütunları sayısala çevir (eğer sayısal görünümlüyse) ---
+  # --- Coerce character columns to numeric when they look numeric ---
   for (nm in names(X)) {
     if (is.character(X[[nm]])) {
       nz <- X[[nm]][!is.na(X[[nm]])]
@@ -329,7 +329,7 @@
     if (!ncol(X)) stop("Input X has no columns after preprocessing.")
     encoding_levels <- prep$levels
     mf <- stats::model.frame(~ . , data = as.data.frame(X), na.action = stats::na.pass)
-    mm <- stats::model.matrix(~ . - 1, data = mf)  # satır sayısı korunur
+    mm <- stats::model.matrix(~ . - 1, data = mf)  # preserve row count
     X <- as.data.frame(mm, check.names = FALSE)
     p_after_encode <- ncol(X)
   }

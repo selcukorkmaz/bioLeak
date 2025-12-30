@@ -6,6 +6,9 @@
 \usage{
 \S4method{show}{LeakSplits}(object)
 }
+\arguments{
+\item{object}{LeakSplits object.}
+}
 \description{
 Prints fold counts, sizes, and hash metadata for quick inspection.
 }

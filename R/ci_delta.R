@@ -1,4 +1,4 @@
-# Gap statistic Δ = observed - mean(perm) standard errors ----------------------
+# Gap statistic Delta = observed - mean(perm) standard errors ------------------
 .se_ci_delta <- function(delta, se_obs, perm_values, level = 0.95) {
   perm_values <- perm_values[is.finite(perm_values)]
   if (!length(perm_values)) {

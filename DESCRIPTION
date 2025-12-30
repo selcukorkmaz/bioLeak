@@ -9,7 +9,7 @@ Description: Tools to prevent and detect information leakage in biomedical machi
  guarded preprocessing (train-only imputation, normalization, filtering, feature selection),
  cross-validated fitting with common learners, permutation-gap auditing, batch/fold association tests,
  duplicate detection, and a one-click HTML audit report. Accepts SummarizedExperiment or plain matrices.
-License: GPL-3
+License: GPL-3 + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Depends: R (>= 4.3)
@@ -18,24 +18,26 @@ Imports:
     methods,
     stats,
     utils,
-    Matrix,
     SummarizedExperiment,
-    BiocGenerics,
     graphics,
-    grDevices,
     hardhat,
     parsnip
 Suggests:
     BiocParallel,
     cli,
+    FNN,
+    future,
     future.apply,
     ggplot2,
     glmnet,
     mice,
     missForest,
+    pkgload,
     ranger,
+    randomForest,
     RANN,
     VIM,
+    xgboost,
     pROC,
     PRROC,
     survival,

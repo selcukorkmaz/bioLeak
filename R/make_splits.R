@@ -91,7 +91,7 @@ make_splits <- function(x, outcome = NULL,
   if (mode == "subject_grouped") {
     if (is.null(group)) {
       group <- "row_id"  # auto-assign for plain CV
-      message("No 'group' column provided → using sample-wise CV (each sample = its own group).")
+      message("No 'group' column provided -> using sample-wise CV (each sample = its own group).")
     }
     .need_col(group, "group")
   }
@@ -396,6 +396,7 @@ make_splits <- function(x, outcome = NULL,
 
 #' @title Display summary for LeakSplits objects
 #' @description Prints fold counts, sizes, and hash metadata for quick inspection.
+#' @param object LeakSplits object.
 #' @examples
 #' \dontrun{
 #' df <- data.frame(
@@ -408,6 +409,7 @@ make_splits <- function(x, outcome = NULL,
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' show(splits)
 #' }
+#' @importMethodsFrom methods show
 #' @export
 setMethod("show", "LeakSplits", function(object) {
   cat(sprintf("LeakSplits object (mode = %s, v = %d, repeats = %d)\n",
