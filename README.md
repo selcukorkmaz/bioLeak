@@ -166,4 +166,4 @@ Intended audience: biomedical ML researchers, biostatisticians, and methodologis
 - Include both guarded and leaky comparator results when used.
 
 ## License
-GPL-3
+MIT
