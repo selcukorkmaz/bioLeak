@@ -42,18 +42,20 @@ Non-obvious dependencies:
 library(bioLeak)
 
 set.seed(1)
-n_subject <- 30
-rep_per_subject <- 2
+n_subject <- 40
+rep_per_subject <- 3
 n <- n_subject * rep_per_subject
 
 subject <- rep(seq_len(n_subject), each = rep_per_subject)
 batch <- rep(seq_len(6), length.out = n)
-x1 <- rnorm(n)
+
+# Subject-level latent risk creates dependence across repeated measures
+subj_risk <- rnorm(n_subject, sd = 1)
+x1 <- subj_risk[subject] + rnorm(n, sd = 0.5)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-linpred <- 0.7 * x1 - 0.4 * x2 + rnorm(n, sd = 0.6)
-p <- stats::plogis(linpred)
-outcome <- factor(ifelse(runif(n) < p, "case", "control"),
+p_subj <- stats::plogis(1.5 * subj_risk)
+outcome <- factor(ifelse(runif(n) < p_subj[subject], "case", "control"),
                   levels = c("control", "case"))
 
 df <- data.frame(subject, batch, outcome, x1, x2, x3)
@@ -110,17 +112,20 @@ fit_leaky <- fit_resample(
   seed = 1
 )
 
+# Use unstratified permutations here to avoid warnings in small grouped data
 audit_guarded <- audit_leakage(
   fit_guarded,
   metric = "auc",
-  B = 50,
+  B = 30,
+  perm_stratify = FALSE,
   X_ref = df[, c("x1", "x2", "x3")]
 )
 
 audit_leaky <- audit_leakage(
   fit_leaky,
   metric = "auc",
-  B = 50,
+  B = 30,
+  perm_stratify = FALSE,
   X_ref = df_leaky[, c("x1", "x2", "x3", "leak_subject")]
 )
 
@@ -131,7 +136,7 @@ summary(audit_leaky)
 ```
 
 Interpretation notes:
-- If the leaky comparator shows higher AUC and the target leakage scan flags `leak_subject`, the performance gap is likely inflated by leakage.
+- If the leaky comparator shows higher AUC and `leak_subject` ranks near the top of the target leakage scan, the performance gap is likely inflated by leakage.
 - Similar guarded and leaky results do not prove the absence of leakage; they only reduce specific risks tested by the audit.
 
 ## Methodological assumptions
