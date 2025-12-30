@@ -9,7 +9,7 @@ Description: Tools to prevent and detect information leakage in biomedical machi
  guarded preprocessing (train-only imputation, normalization, filtering, feature selection),
  cross-validated fitting with common learners, permutation-gap auditing, batch/fold association tests,
  duplicate detection, and a one-click HTML audit report. Accepts SummarizedExperiment or plain matrices.
-License: GPL-3 + file LICENSE
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Depends: R (>= 4.3)

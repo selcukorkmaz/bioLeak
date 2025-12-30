@@ -4,3 +4,5 @@
 ^\.DS_Store$
 ^\.Rhistory$
 ^example\.R$
+^doc$
+^Meta$
