@@ -439,7 +439,8 @@
 #'
 #' audit <- audit_leakage(fit, metric = "auc", B = 10,
 #'                        X_ref = df[, c("x1", "x2")])
-#' audit@permutation_gap#' @export
+#'
+#' @export
 audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "rmse", "cindex"),
                           B = 1000,
@@ -1179,4 +1180,3 @@ print.LeakAuditList <- function(x, digits = 3, ...) {
     values
   }
 }
-

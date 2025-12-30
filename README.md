@@ -1,274 +1,164 @@
-# bioLeak: Leakage-Safe Modeling and Auditing for Omics and Clinical Data
+# bioLeak: Data Leakage Diagnostics for Biomedical ML
 
-`bioLeak` is an R toolkit for building trustworthy predictive models with
-biomedical data. It helps prevent data leakage during preprocessing,
-resampling, and evaluation, and provides diagnostics to quantify residual
-leakage risk.
+`bioLeak` is an R package for detecting, quantifying, and diagnosing data leakage in biomedical machine-learning workflows. It focuses on leakage introduced by preprocessing, dependent samples, and resampling violations in cross-validation and related evaluation settings.
 
-The core question it helps answer is: "Is my model benefitting from real
-signal, or from information that leaked across folds, batches, or duplicates?"
+## Purpose and scope
+In scope:
+- Preprocessing leakage: global imputation, scaling, filtering, or feature selection applied before resampling.
+- Dependence leakage: repeated measures, subject-level grouping, batch/site/study effects, and near-duplicate samples.
+- Resampling violations: group overlap, study holdout, and time-ordered evaluation.
+- Diagnostic evidence: permutation-based performance gaps, batch/fold association tests, target leakage scans, and duplicate detection.
 
----
+Out of scope:
+- Proving the absence of leakage or guaranteeing unbiased performance.
+- Hyperparameter tuning frameworks or production deployment tooling.
+- Multiclass classification, survival analysis, and unsupervised learning (not currently supported).
+- Calibration assessment and general data-quality diagnostics.
 
-## Highlights
+## Why bioLeak is needed
+Standard cross-validation assumes independent samples and exchangeable labels. Biomedical datasets often violate these assumptions due to repeated measures, site effects, batch structure, and temporal dependence. These violations can inflate performance metrics even when a model does not generalize. `bioLeak` enforces leakage-aware resampling and provides post-hoc diagnostics that estimate how much apparent performance could be driven by leakage or confounding.
 
-- Leakage-aware resampling for grouped, batch, study, and time series data
-- Guarded preprocessing (train-only imputation, scaling, filtering, selection)
-- Cross-validated fitting for common learners and custom learners
-- Leakage audits: permutation gap, batch association, and duplicate detection
-- One-click HTML audit report
-- S4 objects with provenance for reproducibility
-
----
+## Core functionality
+- Leakage-aware splitting (`make_splits`): subject-grouped, batch-blocked, study leave-out, and time-series splits with reproducible metadata.
+- Guarded preprocessing and fitting (`fit_resample`): train-only imputation, normalization, filtering, and feature selection; excludes split-defining columns from predictors; supports parsnip specs and built-in learners; returns per-fold metrics and predictions for instability checks.
+- Guarded vs leaky comparisons: run the same model with an intentionally leaky comparator (for example, global preprocessing or leaky features) to estimate performance inflation risk.
+- Leakage diagnostics (`audit_leakage`): permutation gap for signal vs permuted labels, batch/study association tests, target leakage scan on `X_ref`, and near-duplicate detection.
+- Reporting (`audit_report`): HTML summary of audit results for sharing and review.
 
 ## Installation
-
-Install the development version from GitHub:
+Requires R >= 4.3.
 
 ```r
+install.packages("remotes")
 remotes::install_github("selcukorkmaz/bioLeak")
 ```
 
-Optional dependencies are used when you call the relevant functionality.
-You may be prompted to install:
+Non-obvious dependencies:
+- `SummarizedExperiment` and `BiocGenerics` are Bioconductor packages (installed automatically by `remotes`, but can be installed manually with `BiocManager::install()` if needed).
+- Optional packages enable specific features: `glmnet`, `ranger`, `pROC`, `PRROC`, `survival`, `future.apply`, `RANN`, `rmarkdown`.
 
-- Modeling: `glmnet`, `ranger`
-- Metrics: `pROC`, `PRROC`, `survival`
-- Imputation: `VIM`, `mice`, `missForest`
-- Parallel: `future.apply`
-- Duplicate detection: `RANN`
-- HTML report: `rmarkdown` (requires Pandoc)
-
----
-
-## Quick start
-
+## Minimal working example
 ```r
 library(bioLeak)
 
-# Example data.frame with outcome and subject ids
+set.seed(1)
+n_subject <- 30
+rep_per_subject <- 2
+n <- n_subject * rep_per_subject
+
+subject <- rep(seq_len(n_subject), each = rep_per_subject)
+batch <- rep(seq_len(6), length.out = n)
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+x3 <- rnorm(n)
+linpred <- 0.7 * x1 - 0.4 * x2 + rnorm(n, sd = 0.6)
+p <- stats::plogis(linpred)
+outcome <- factor(ifelse(runif(n) < p, "case", "control"),
+                  levels = c("control", "case"))
+
+df <- data.frame(subject, batch, outcome, x1, x2, x3)
+
+# Leakage-aware splits (subjects do not cross folds)
 splits <- make_splits(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
-  group = "subject_id",
+  group = "subject",
+  v = 5,
   stratify = TRUE,
-  v = 5
+  seed = 1
 )
 
-fit <- fit_resample(
+# Guarded pipeline (train-only preprocessing)
+spec <- parsnip::logistic_reg(mode = "classification") |>
+  parsnip::set_engine("glm")
+
+fit_guarded <- fit_resample(
   df,
   outcome = "outcome",
   splits = splits,
+  learner = spec,
+  metrics = "auc",
   preprocess = list(
     impute = list(method = "median"),
-    normalize = list(method = "zscore")
+    normalize = list(method = "zscore"),
+    filter = list(var_thresh = 0),
+    fs = list(method = "none")
   ),
-  learner = "glmnet",
-  metrics = c("auc", "pr_auc", "accuracy")
+  refit = FALSE,
+  seed = 1
 )
 
-summary(fit)
+# Leaky comparator: add a leakage feature computed on the full dataset
+df_leaky <- within(df, {
+  leak_subject <- ave(as.numeric(outcome == "case"), subject, FUN = mean)
+})
 
-audit <- audit_leakage(fit, metric = "auc", B = 100)
-summary(audit)
-
-audit_report(audit, output_dir = ".")
-```
-
----
-
-## Core capabilities
-
-### 1) Leakage-resistant splitting
-
-`make_splits()` supports common biomedical scenarios:
-
-| Mode              | Use case |
-|-------------------|----------|
-| `subject_grouped` | Multiple samples per individual; keep each subject in one fold |
-| `batch_blocked`   | Batch or platform effects; isolate batches across folds |
-| `study_loocv`     | Leave-one-study-out validation |
-| `time_series`     | Rolling origin folds with optional horizon |
-
-Splits are stored in a `LeakSplits` object with metadata, seed, and hash.
-For large datasets, use `compact = TRUE` to store fold assignments instead of
-explicit train/test indices.
-
-### 2) Guarded preprocessing and fitting
-
-`fit_resample()` orchestrates guarded preprocessing and model training:
-
-- Imputation, scaling, filtering, and feature selection are fit on training
-  samples only, then applied to test samples.
-- Supports `glmnet` and `ranger` out of the box.
-- Supports custom learners via `custom_learners`.
-- For data.frame/matrix inputs, columns used for splitting (outcome, group,
-  batch, study, time) are excluded from predictors to avoid ID leakage.
-
-Custom learner example:
-
-```r
-custom <- list(
-  glm = list(
-    fit = function(x, y, task, weights, ...) {
-      stats::glm(y ~ ., data = as.data.frame(x),
-                 family = stats::binomial(), weights = weights)
-    },
-    predict = function(object, newdata, task, ...) {
-      as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
-                                type = "response"))
-    }
-  )
-)
-
-fit2 <- fit_resample(
-  df,
+fit_leaky <- fit_resample(
+  df_leaky,
   outcome = "outcome",
   splits = splits,
-  learner = "glm",
-  custom_learners = custom,
-  metrics = "accuracy"
+  learner = spec,
+  metrics = "auc",
+  preprocess = list(
+    impute = list(method = "none"),
+    normalize = list(method = "none"),
+    filter = list(var_thresh = 0),
+    fs = list(method = "none")
+  ),
+  refit = FALSE,
+  seed = 1
 )
-```
 
-Parsnip model_spec example:
-
-```r
-spec <- parsnip::boost_tree(mode = "classification", trees = 200) |>
-  parsnip::set_engine("xgboost")
-fit3 <- fit_resample(df, outcome = "outcome", splits = splits,
-                     learner = spec, metrics = "auc")
-```
-
-### 3) Leakage auditing
-
-`audit_leakage()` quantifies residual leakage risk:
-
-- Permutation significance test: observed metric vs permuted null
-- Batch association: chi-square tests with Cramer V
-- Duplicate detection: cosine or Pearson similarity
-
-Duplicate detection requires a reference feature matrix:
-
-```r
-audit <- audit_leakage(
-  fit,
+audit_guarded <- audit_leakage(
+  fit_guarded,
   metric = "auc",
-  B = 100,
-  X_ref = df[, c("x1", "x2")],
-  sim_method = "pearson",
-  sim_threshold = 0.99
+  B = 50,
+  X_ref = df[, c("x1", "x2", "x3")]
 )
-```
 
-### 4) HTML audit report
-
-`audit_report()` renders a shareable HTML summary:
-
-```r
-# from a LeakAudit
-audit_report(audit, output_dir = ".")
-
-# or directly from a LeakFit
-audit_report(fit, metric = "auc", B = 100, output_dir = ".")
-```
-
-### 5) Per-learner audits
-
-If you fit multiple learners, audit each one separately:
-
-```r
-audits <- audit_leakage_by_learner(fit, metric = "auc", B = 100)
-audits
-```
-
-### 6) Standalone guarded imputation
-
-`impute_guarded()` wraps the guarded preprocessing used by `fit_resample()` and
-returns the transformed feature matrices (categorical variables are one-hot
-encoded):
-
-```r
-imp <- impute_guarded(train_df, test_df,
-                      method = "median",
-                      winsor = TRUE,
-                      winsor_thresh = 3)
-train_clean <- imp$train
-test_clean  <- imp$test
-```
-
----
-
-## Data types
-
-- `data.frame` and `matrix` inputs are supported.
-- `SummarizedExperiment` inputs are supported; metadata are read from `colData`.
-
----
-
-## Simulation suite
-
-`simulate_leakage_suite()` runs Monte Carlo simulations to validate leakage
-signals across modes and leakage types.
-
-```r
-res <- simulate_leakage_suite(
-  n = 300, p = 10, mode = "subject_grouped",
-  learner = "ranger", leakage = "subject_overlap",
-  seeds = 1:3, parallel = FALSE
+audit_leaky <- audit_leakage(
+  fit_leaky,
+  metric = "auc",
+  B = 50,
+  X_ref = df_leaky[, c("x1", "x2", "x3", "leak_subject")]
 )
-head(res)
+
+summary(fit_guarded)
+summary(fit_leaky)
+summary(audit_guarded)
+summary(audit_leaky)
 ```
 
----
+Interpretation notes:
+- If the leaky comparator shows higher AUC and the target leakage scan flags `leak_subject`, the performance gap is likely inflated by leakage.
+- Similar guarded and leaky results do not prove the absence of leakage; they only reduce specific risks tested by the audit.
 
-## Reproducibility
+## Methodological assumptions
+- The split mode matches the true dependence structure (subject, batch, study, or time).
+- Leakage is inferred from performance gaps and diagnostic signals, not proven or ruled out.
+- Permutation gaps assume the chosen resampling scheme reflects the intended evaluation setting.
+- Target leakage scans are univariate; they can miss multivariate leakage or proxy features not included in `X_ref`.
 
-- Splits include hashes and metadata for auditing.
-- Guarded preprocessing stores fold-level state.
-- Audit objects include a provenance trail.
+## Interpretation guidance
+- Permutation gap: large positive gaps indicate non-random signal; they do not by themselves indicate or refute leakage.
+- Batch/study association warnings indicate that folds align with metadata; this can reflect leakage or study design constraints.
+- Target leakage flags identify features overly aligned with the outcome; inspect data provenance before removing them.
+- Duplicate detection flags near-identical samples in `X_ref`; review duplicates for data leakage or labeling artifacts.
 
----
+Common misinterpretations:
+- "Non-significant permutation test means no leakage": false.
+- "High AUC implies good generalization": false if resampling is violated.
+- "No flagged features means no leakage": false; audits are limited to available metadata and `X_ref`.
 
-## Performance notes
+## Project status and intended audience
+Status: experimental (version 0.1.0). APIs and defaults may change.
+Intended audience: biomedical ML researchers, biostatisticians, and methodologists reviewing cross-validation and leakage risk.
 
-- Duplicate detection on large cohorts can be accelerated by `RANN` and a
-  higher `sim_threshold`.
-- Permutation tests (`B`) can be expensive; reduce `B` for quick checks and
-  increase for final reporting.
-- Parallel resampling uses `future.apply` if available.
-
----
-
-## Limitations
-
-- Built-in learners are `glmnet` and `ranger`. Use `custom_learners` for others.
-- Classification supports binary outcomes; multiclass is not supported yet.
-- `cindex` is implemented for regression-style concordance, not survival data.
-
----
-
-## Testing
-
-Run tests locally:
-
-```r
-testthat::test_dir("tests/testthat")
-```
-
-CI uses GitHub Actions (`.github/workflows/R-CMD-check.yaml`).
-
----
-
-## Getting help
-
-- See function docs in `man/` or `?fit_resample`.
-- Open issues with reproducible examples.
-- Contributions are welcome.
-
----
+## Citation and reproducibility
+- Use `citation("bioLeak")` after installation or cite the GitHub repository with version and commit hash.
+- Report split mode, grouping columns, random seeds, preprocessing steps, learner specification, metrics, and audit settings (B, target threshold, similarity method).
+- Include both guarded and leaky comparator results when used.
 
 ## License
-
 GPL-3

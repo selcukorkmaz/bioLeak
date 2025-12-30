@@ -203,5 +203,5 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 
 audit <- audit_leakage(fit, metric = "auc", B = 10,
                        X_ref = df[, c("x1", "x2")])
-audit@permutation_gap#' @export
+
 }
