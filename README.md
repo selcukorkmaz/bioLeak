@@ -12,7 +12,7 @@ In scope:
 Out of scope:
 - Proving the absence of leakage or guaranteeing unbiased performance.
 - Hyperparameter tuning frameworks or production deployment tooling.
-- Multiclass classification, survival analysis, and unsupervised learning (not currently supported).
+- Unsupervised learning (not currently supported).
 - Calibration assessment and general data-quality diagnostics.
 
 ## Why bioLeak is needed
@@ -21,6 +21,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 ## Core functionality
 - Leakage-aware splitting (`make_splits`): subject-grouped, batch-blocked, study leave-out, and time-series splits with reproducible metadata.
 - Guarded preprocessing and fitting (`fit_resample`): train-only imputation, normalization, filtering, and feature selection; excludes split-defining columns from predictors; supports parsnip specs and built-in learners; returns per-fold metrics and predictions for instability checks.
+- Multiclass and survival modeling support in `fit_resample` with task-appropriate metrics (accuracy/macro-F1/log-loss; C-index).
 - Guarded vs leaky comparisons: run the same model with an intentionally leaky comparator (for example, global preprocessing or leaky features) to estimate performance inflation risk.
 - Leakage diagnostics (`audit_leakage`): permutation gap for signal vs permuted labels, batch/study association tests, target leakage scan on `X_ref`, and near-duplicate detection.
 - Reporting (`audit_report`): HTML summary of audit results for sharing and review.
@@ -138,6 +139,37 @@ summary(audit_leaky)
 Interpretation notes:
 - If the leaky comparator shows higher AUC and `leak_subject` ranks near the top of the target leakage scan, the performance gap is likely inflated by leakage.
 - Similar guarded and leaky results do not prove the absence of leakage; they only reduce specific risks tested by the audit.
+
+## Tidymodels interoperability
+`bioLeak` supports several tidymodels abstractions for resampling, preprocessing, and metrics:
+- `fit_resample()` accepts `rsample` rset/rsplit objects as `splits`.
+- `as_rsample()` converts `LeakSplits` to an `rsample` rset.
+- `preprocess` can be a `recipes::recipe` (prepped on training folds, baked on test folds).
+- `learner` can be a `workflows::workflow`.
+- `metrics` accepts `yardstick::metric_set` objects.
+Note: When using recipes/workflows, the built-in guarded preprocessing list is not applied; ensure your recipe is leakage-safe.
+
+Example (rsample + recipes + yardstick):
+```r
+if (requireNamespace("rsample", quietly = TRUE) &&
+    requireNamespace("recipes", quietly = TRUE) &&
+    requireNamespace("yardstick", quietly = TRUE)) {
+  rs <- rsample::vfold_cv(df, v = 5)
+  rec <- recipes::recipe(outcome ~ ., data = df) |>
+    recipes::step_normalize(recipes::all_numeric_predictors())
+  ys <- yardstick::metric_set(yardstick::roc_auc, yardstick::accuracy)
+
+  fit_rs <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = rs,
+    learner = spec,
+    preprocess = rec,
+    metrics = ys,
+    refit = FALSE
+  )
+}
+```
 
 ## Methodological assumptions
 - The split mode matches the true dependence structure (subject, batch, study, or time).

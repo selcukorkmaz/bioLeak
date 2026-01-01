@@ -284,7 +284,7 @@
 #' @param X matrix/data.frame of predictors (training).
 #' @param y Optional outcome for supervised feature selection.
 #' @param steps List of configuration options (see Details).
-#' @param task "binomial" or "gaussian".
+#' @param task "binomial", "multiclass", "gaussian", or "survival".
 #' @return An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.
 #' @seealso [predict_guard()]
 #' @examples
@@ -294,7 +294,8 @@
 #'                   task = "gaussian")
 #' fit$transform(x)
 #' @export
-.guard_fit <- function(X, y = NULL, steps = list(), task = c("binomial","gaussian")) {
+.guard_fit <- function(X, y = NULL, steps = list(),
+                       task = c("binomial", "multiclass", "gaussian", "survival")) {
   task <- match.arg(task)
   # Coerce to data.frame for flexible handling
   if (is.matrix(X)) X <- as.data.frame(X, check.names = FALSE)
@@ -551,23 +552,37 @@
   } else if (fs_method == "lasso") {
     if (!requireNamespace("glmnet", quietly = TRUE))
       stop("Package 'glmnet' is required for fs='lasso'.", call. = FALSE)
-    fam <- if (task == "binomial") "binomial" else "gaussian"
+    fam <- if (task == "binomial") "binomial"
+    else if (task == "multiclass") "multinomial"
+    else if (task == "survival") "cox"
+    else "gaussian"
 
     # guard against constant columns
     nonconst <- vapply(X, stats::sd, numeric(1)) > 1e-8
     if (!all(nonconst)) X <- X[, nonconst, drop = FALSE]
 
     fit0 <- glmnet::glmnet(as.matrix(X), y, family = fam, alpha = 1, standardize = FALSE)
-    beta <- as.matrix(fit0$beta)
-    # use lambda.1se if cv available; otherwise last column
-    # (we didn't run cv.glmnet to keep speed/dep light)
-    take <- ncol(beta)
-    nz <- which(beta[, take] != 0)
-    if (length(nz) == 0) {
-      # fall back: take top |beta| coefficients
-      nz <- order(rowSums(abs(beta)), decreasing = TRUE)[1:min(50, nrow(beta))]
+    if (identical(fam, "multinomial") && is.list(fit0$beta)) {
+      beta_list <- fit0$beta
+      take <- ncol(beta_list[[1]])
+      scores <- Reduce(`+`, lapply(beta_list, function(b) {
+        abs(b[, take, drop = FALSE])
+      }))
+      scores <- as.numeric(scores)
+      nz <- which(scores != 0)
+      if (!length(nz)) {
+        nz <- order(scores, decreasing = TRUE)[1:min(50, length(scores))]
+      }
+      selected <- nz
+    } else {
+      beta <- as.matrix(fit0$beta)
+      take <- ncol(beta)
+      nz <- which(beta[, take] != 0)
+      if (length(nz) == 0) {
+        nz <- order(rowSums(abs(beta)), decreasing = TRUE)[1:min(50, nrow(beta))]
+      }
+      selected <- nz
     }
-    selected <- nz
     X <- X[, selected, drop = FALSE]
     state$fs <- list(method = "lasso", sel = selected)
 

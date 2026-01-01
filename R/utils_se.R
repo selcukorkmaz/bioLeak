@@ -37,11 +37,34 @@
 .bio_get_y <- function(x, outcome) {
   if (.bio_is_se(x)) {
     cd <- SummarizedExperiment::colData(x)
+    if (is.character(outcome) && length(outcome) == 2L) {
+      if (!all(outcome %in% colnames(cd))) stop("Outcome columns not in colData.")
+      if (!requireNamespace("survival", quietly = TRUE)) {
+        stop("Package 'survival' is required for time/event outcomes.")
+      }
+      time <- cd[[outcome[[1]]]]
+      event <- cd[[outcome[[2]]]]
+      return(survival::Surv(time = time, event = event))
+    }
     if (!(outcome %in% colnames(cd))) stop("Outcome column not in colData.")
     cd[[outcome]]
   } else {
     if (is.null(outcome))
       stop("Provide outcome column name when x is not a SummarizedExperiment.")
+    if (is.character(outcome) && length(outcome) == 2L) {
+      if (!all(outcome %in% colnames(x))) stop("Outcome columns not found in data.")
+      if (!requireNamespace("survival", quietly = TRUE)) {
+        stop("Package 'survival' is required for time/event outcomes.")
+      }
+      if (is.matrix(x)) {
+        time <- x[, outcome[[1]]]
+        event <- x[, outcome[[2]]]
+      } else {
+        time <- x[[outcome[[1]]]]
+        event <- x[[outcome[[2]]]]
+      }
+      return(survival::Surv(time = time, event = event))
+    }
     if (is.character(outcome) && outcome %in% colnames(x)) {
       if (is.data.frame(x)) {
         x[[outcome]]
@@ -75,9 +98,17 @@
   paste0("h", sprintf("%08X", as.integer(sum(unlist(idx)) %% .Machine$integer.max)))
 }
 
-.bio_is_classification <- function(y) is.factor(y) || (is.numeric(y) && length(unique(y)) <= 10)
+.bio_is_survival <- function(y) inherits(y, "Surv")
+.bio_is_classification <- function(y) {
+  if (.bio_is_survival(y)) return(FALSE)
+  is.factor(y) || (is.numeric(y) && length(unique(y)) <= 10)
+}
+.bio_is_multiclass <- function(y) {
+  is.factor(y) && nlevels(y) > 2
+}
 .bio_is_regression <- function(y) is.numeric(y) && !.bio_is_binomial(y)
 .bio_is_binomial <- function(y) {
+  if (.bio_is_survival(y)) return(FALSE)
   if (is.factor(y)) return(nlevels(y) == 2)
   if (is.numeric(y)) {
     u <- sort(unique(y))

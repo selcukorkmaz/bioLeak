@@ -6,7 +6,7 @@
 \usage{
 audit_leakage_by_learner(
   fit,
-  metric = c("auc", "pr_auc", "rmse", "cindex"),
+  metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
   learners = NULL,
   parallel_learners = FALSE,
   mc.cores = NULL,
@@ -18,8 +18,9 @@ audit_leakage_by_learner(
 predictions and split metadata. Learner IDs must be present in predictions
 to audit multiple models.}
 
-\item{metric}{Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
-`"cindex"`. Controls which metric is audited for each learner.}
+\item{metric}{Character scalar. One of `"auc"`, `"pr_auc"`, `"accuracy"`,
+`"macro_f1"`, `"log_loss"`, `"rmse"`, or `"cindex"`. Controls which metric
+is audited for each learner.}
 
 \item{learners}{Character vector or NULL. If NULL (default), audits all
 learners found in predictions. If provided, must match learner IDs stored in

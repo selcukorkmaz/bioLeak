@@ -101,6 +101,16 @@ make_splits <- function(x, outcome = NULL,
 
   if (isTRUE(stratify) && (is.null(outcome) || !outcome %in% names(cd)))
     warning("Stratification requested but 'outcome' not found; proceeding unstratified.")
+  if (isTRUE(stratify) && !is.null(outcome) && length(outcome) == 2L) {
+    warning("Stratification ignored for time/event outcomes; proceeding unstratified.")
+    stratify <- FALSE
+  }
+  if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
+    if (inherits(cd[[outcome]], "Surv")) {
+      warning("Stratification ignored for survival outcomes; proceeding unstratified.")
+      stratify <- FALSE
+    }
+  }
 
   # Utilities
   .as_factor <- function(z) as.factor(z)

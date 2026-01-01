@@ -24,15 +24,19 @@ fit_resample(
 \arguments{
 \item{x}{SummarizedExperiment or matrix/data.frame}
 
-\item{outcome}{outcome column (if x is SE)}
+\item{outcome}{outcome column name (if x is SE or data.frame), or a length-2
+character vector of time/event column names for survival outcomes.}
 
-\item{splits}{LeakSplits object from make_splits()}
+\item{splits}{LeakSplits object from make_splits(), or an `rsample` rset/rsplit.}
 
-\item{preprocess}{list(impute, normalize, filter=list(...), fs)}
+\item{preprocess}{list(impute, normalize, filter=list(...), fs) or a
+`recipes::recipe` object. When a recipe is supplied, the guarded preprocessing
+pipeline is bypassed and the recipe is prepped on training data only.}
 
 \item{learner}{parsnip model_spec (or list of model_spec objects) describing
-the model(s) to fit. For legacy use, a character vector of learner names
-(e.g., "glmnet", "ranger") or custom learner IDs is still supported.}
+the model(s) to fit, or a `workflows::workflow`. For legacy use, a character
+vector of learner names (e.g., "glmnet", "ranger") or custom learner IDs is
+still supported.}
 
 \item{learner_args}{list of additional arguments passed to legacy learners
 (ignored when `learner` is a parsnip model_spec).}
@@ -42,11 +46,17 @@ with legacy character learners. Each entry
 must contain \code{fit} and \code{predict} functions. The \code{fit} function
 should accept \code{x}, \code{y}, \code{task}, and \code{weights}, and return
 a model object. The \code{predict} function should accept \code{object},
-\code{newdata}, and \code{task}, and return numeric predictions.}
+\code{newdata}, and \code{task}. For binomial/regression/survival tasks it
+should return a numeric vector; for multiclass tasks it should return either
+class labels or a matrix/data.frame of class probabilities.}
 
-\item{metrics}{named list of metric functions or vector of metric names}
+\item{metrics}{named list of metric functions, vector of metric names, or a
+`yardstick::metric_set`. When a yardstick metric set (or list of yardstick
+metric functions) is supplied, metrics are computed using yardstick with the
+positive class set to the second factor level.}
 
-\item{class_weights}{optional named numeric vector of weights for binomial outcomes}
+\item{class_weights}{optional named numeric vector of weights for binomial or
+multiclass outcomes}
 
 \item{positive_class}{optional value indicating the positive class for binomial outcomes.
 When set, the outcome levels are reordered so that \code{positive_class} is treated
@@ -68,6 +78,8 @@ leakage-protected preprocessing (.guard_fit) and user-specified learners.
 \details{
 Preprocessing is fit on the training fold and applied to the test fold,
 preventing leakage from global imputation, scaling, or feature selection.
+When a `recipes::recipe` or `workflows::workflow` is supplied, the recipe is
+prepped on the training fold and baked on the test fold.
 For data.frame or matrix inputs, columns used to define splits
 (outcome, group, batch, study, time) are excluded from the predictor matrix.
 Use \code{learner_args} to pass model-specific arguments, either as a named
@@ -76,7 +88,8 @@ learners, \code{learner_args[[name]]} may be a list with \code{fit} and
 \code{predict} sublists to pass distinct arguments to each stage. For binomial
 tasks, predictions and metrics assume the positive class is the second factor
 level; use \code{positive_class} to control this. Parsnip learners must support
-probability predictions for binomial metrics (AUC/PR-AUC/accuracy).
+probability predictions for binomial metrics (AUC/PR-AUC/accuracy) and
+multiclass log-loss when requested.
 }
 \examples{
 \dontrun{

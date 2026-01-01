@@ -26,6 +26,21 @@ make_regression_df <- function(n = 20) {
   )
 }
 
+make_multiclass_df <- function(n = 30, k = 3) {
+  stopifnot(n >= 6, k >= 3)
+  classes <- factor(rep(seq_len(k), length.out = n))
+  data.frame(
+    subject = rep(seq_len(ceiling(n / 2)), each = 2)[seq_len(n)],
+    batch = rep(letters[1:3], length.out = n),
+    study = rep(LETTERS[1:4], length.out = n),
+    time = seq_len(n),
+    outcome = classes,
+    x1 = rnorm(n),
+    x2 = rnorm(n),
+    stringsAsFactors = FALSE
+  )
+}
+
 make_custom_learners <- function() {
   list(
     glm = list(

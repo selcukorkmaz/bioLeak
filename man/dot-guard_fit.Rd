@@ -4,7 +4,12 @@
 \alias{.guard_fit}
 \title{Fit leakage-safe preprocessing pipeline}
 \usage{
-.guard_fit(X, y = NULL, steps = list(), task = c("binomial", "gaussian"))
+.guard_fit(
+  X,
+  y = NULL,
+  steps = list(),
+  task = c("binomial", "multiclass", "gaussian", "survival")
+)
 }
 \arguments{
 \item{X}{matrix/data.frame of predictors (training).}
@@ -13,7 +18,7 @@
 
 \item{steps}{List of configuration options (see Details).}
 
-\item{task}{"binomial" or "gaussian".}
+\item{task}{"binomial", "multiclass", "gaussian", or "survival".}
 }
 \value{
 An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.

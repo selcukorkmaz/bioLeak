@@ -136,7 +136,11 @@ simulate_leakage_suite <- function(
     )
 
     # Automatically select metric based on outcome type
-    metrics <- if (is.factor(sim$data$y)) "auc" else "rmse"
+    metrics <- if (is.factor(sim$data$y)) {
+      if (nlevels(sim$data$y) > 2) "accuracy" else "auc"
+    } else {
+      "rmse"
+    }
 
     fit <- fit_resample(
       sim$data, outcome = "y", splits = splits,

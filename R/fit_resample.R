@@ -4,12 +4,16 @@
 #' leakage-protected preprocessing (.guard_fit) and user-specified learners.
 #'
 #' @param x SummarizedExperiment or matrix/data.frame
-#' @param outcome outcome column (if x is SE)
-#' @param splits LeakSplits object from make_splits()
-#' @param preprocess list(impute, normalize, filter=list(...), fs)
+#' @param outcome outcome column name (if x is SE or data.frame), or a length-2
+#'   character vector of time/event column names for survival outcomes.
+#' @param splits LeakSplits object from make_splits(), or an `rsample` rset/rsplit.
+#' @param preprocess list(impute, normalize, filter=list(...), fs) or a
+#'   `recipes::recipe` object. When a recipe is supplied, the guarded preprocessing
+#'   pipeline is bypassed and the recipe is prepped on training data only.
 #' @param learner parsnip model_spec (or list of model_spec objects) describing
-#'   the model(s) to fit. For legacy use, a character vector of learner names
-#'   (e.g., "glmnet", "ranger") or custom learner IDs is still supported.
+#'   the model(s) to fit, or a `workflows::workflow`. For legacy use, a character
+#'   vector of learner names (e.g., "glmnet", "ranger") or custom learner IDs is
+#'   still supported.
 #' @param learner_args list of additional arguments passed to legacy learners
 #'   (ignored when `learner` is a parsnip model_spec).
 #' @param custom_learners named list of custom learner definitions used only
@@ -17,9 +21,15 @@
 #'   must contain \code{fit} and \code{predict} functions. The \code{fit} function
 #'   should accept \code{x}, \code{y}, \code{task}, and \code{weights}, and return
 #'   a model object. The \code{predict} function should accept \code{object},
-#'   \code{newdata}, and \code{task}, and return numeric predictions.
-#' @param metrics named list of metric functions or vector of metric names
-#' @param class_weights optional named numeric vector of weights for binomial outcomes
+#'   \code{newdata}, and \code{task}. For binomial/regression/survival tasks it
+#'   should return a numeric vector; for multiclass tasks it should return either
+#'   class labels or a matrix/data.frame of class probabilities.
+#' @param metrics named list of metric functions, vector of metric names, or a
+#'   `yardstick::metric_set`. When a yardstick metric set (or list of yardstick
+#'   metric functions) is supplied, metrics are computed using yardstick with the
+#'   positive class set to the second factor level.
+#' @param class_weights optional named numeric vector of weights for binomial or
+#'   multiclass outcomes
 #' @param positive_class optional value indicating the positive class for binomial outcomes.
 #'   When set, the outcome levels are reordered so that \code{positive_class} is treated
 #'   as the positive class (level 2). If NULL, the second factor level is used.
@@ -30,6 +40,8 @@
 #' @details
 #' Preprocessing is fit on the training fold and applied to the test fold,
 #' preventing leakage from global imputation, scaling, or feature selection.
+#' When a `recipes::recipe` or `workflows::workflow` is supplied, the recipe is
+#' prepped on the training fold and baked on the test fold.
 #' For data.frame or matrix inputs, columns used to define splits
 #' (outcome, group, batch, study, time) are excluded from the predictor matrix.
 #' Use \code{learner_args} to pass model-specific arguments, either as a named
@@ -38,7 +50,8 @@
 #' \code{predict} sublists to pass distinct arguments to each stage. For binomial
 #' tasks, predictions and metrics assume the positive class is the second factor
 #' level; use \code{positive_class} to control this. Parsnip learners must support
-#' probability predictions for binomial metrics (AUC/PR-AUC/accuracy).
+#' probability predictions for binomial metrics (AUC/PR-AUC/accuracy) and
+#' multiclass log-loss when requested.
 #' @examples
 #' \dontrun{
 #' set.seed(1)
@@ -121,11 +134,20 @@ fit_resample <- function(x, outcome, splits,
   }
 
   is_parsnip_spec <- function(obj) inherits(obj, "model_spec")
+  is_workflow <- function(obj) inherits(obj, "workflow")
   use_parsnip <- FALSE
+  use_workflow <- FALSE
   learner_specs <- NULL
   learner_names <- NULL
 
-  if (is_parsnip_spec(learner)) {
+  if (is_workflow(learner)) {
+    use_workflow <- TRUE
+    learner_specs <- list(learner)
+  } else if (is.list(learner) && length(learner) &&
+             all(vapply(learner, is_workflow, logical(1)))) {
+    use_workflow <- TRUE
+    learner_specs <- learner
+  } else if (is_parsnip_spec(learner)) {
     use_parsnip <- TRUE
     learner_specs <- list(learner)
   } else if (is.list(learner) && length(learner) &&
@@ -134,7 +156,24 @@ fit_resample <- function(x, outcome, splits,
     learner_specs <- learner
   }
 
-  if (use_parsnip) {
+  if (use_workflow) {
+    if (!requireNamespace("workflows", quietly = TRUE)) {
+      stop("Package 'workflows' is required when passing a workflow to learner.")
+    }
+    if (length(custom_learners)) {
+      warning("custom_learners ignored when learner is a workflow.")
+    }
+    if (length(learner_args)) {
+      warning("learner_args ignored when learner is a workflow.")
+    }
+    learner_names <- names(learner_specs)
+    if (is.null(learner_names)) learner_names <- rep("", length(learner_specs))
+    missing_names <- !nzchar(learner_names)
+    if (any(missing_names)) {
+      fallback <- paste0("workflow_", seq_along(learner_specs))
+      learner_names[missing_names] <- fallback[missing_names]
+    }
+  } else if (use_parsnip) {
     if (!requireNamespace("parsnip", quietly = TRUE)) {
       stop("Package 'parsnip' is required when passing a model_spec to learner.")
     }
@@ -173,13 +212,40 @@ fit_resample <- function(x, outcome, splits,
     builtin_learners <- c("glmnet", "ranger")
     all_learners <- c(builtin_learners, names(custom_learners))
     if (!is.character(learner)) {
-      stop("learner must be a character vector of legacy learners or a parsnip model_spec.")
+      stop("learner must be a character vector of legacy learners, a parsnip model_spec, or a workflow.")
     }
     learner <- match.arg(learner, choices = all_learners, several.ok = TRUE)
     learner_names <- learner
   }
+  use_recipe <- .bio_is_recipe(preprocess)
+  if (use_recipe && !requireNamespace("recipes", quietly = TRUE)) {
+    stop("Package 'recipes' is required when preprocess is a recipe.")
+  }
+  if (use_workflow && isTRUE(use_recipe)) {
+    warning("Recipe preprocess ignored when learner is a workflow.")
+    use_recipe <- FALSE
+  }
+  preprocess_mode <- if (use_workflow) "workflow" else if (use_recipe) "recipe" else "guard"
+
   Xall <- .bio_get_x(x)
   yall <- .bio_get_y(x, outcome)
+
+  if (!inherits(splits, "LeakSplits")) {
+    if (.bio_is_rsample(splits)) {
+      coldata <- if (.bio_is_se(x)) {
+        as.data.frame(SummarizedExperiment::colData(x))
+      } else if (is.data.frame(x)) {
+        x
+      } else if (is.matrix(x)) {
+        data.frame(row_id = seq_len(nrow(Xall)))
+      } else {
+        NULL
+      }
+      splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(Xall), coldata = coldata)
+    } else {
+      stop("splits must be a LeakSplits or rsample rset/rsplit.")
+    }
+  }
   drop_cols <- outcome
   if (inherits(splits, "LeakSplits")) {
     split_info <- splits@info
@@ -232,10 +298,13 @@ fit_resample <- function(x, outcome, splits,
     }
     time_vec <- split_coldata[[split_time]]
   }
-  task <- if (.bio_is_binomial(yall)) "binomial"
+  task <- if (.bio_is_survival(yall)) "survival"
+  else if (.bio_is_binomial(yall)) "binomial"
+  else if (.bio_is_multiclass(yall)) "multiclass"
   else if (.bio_is_regression(yall)) "gaussian"
   else if (is.factor(yall) && nlevels(yall) == 2) "binomial"
-  else stop("Unsupported outcome type: require binomial (2-class) or numeric regression outcome.")
+  else if (is.factor(yall) && nlevels(yall) > 2) "multiclass"
+  else stop("Unsupported outcome type: require binomial/multiclass factor, numeric regression, or survival outcome.")
 
   if (task == "binomial") {
     if (!is.factor(yall)) yall <- factor(yall)
@@ -273,7 +342,31 @@ fit_resample <- function(x, outcome, splits,
       }
       class_weights <- class_weights[class_levels]
     }
-  } else {
+  } else if (task == "multiclass") {
+    if (!is.factor(yall)) yall <- factor(yall)
+    yall <- droplevels(yall)
+    if (nlevels(yall) < 3) {
+      stop("Multiclass task requires 3 or more outcome levels after preprocessing.")
+    }
+    class_levels <- levels(yall)
+    if (!is.null(class_weights)) {
+      if (!is.numeric(class_weights)) stop("class_weights must be numeric.")
+      if (is.null(names(class_weights))) {
+        if (length(class_weights) != length(class_levels)) {
+          stop("class_weights must align with outcome levels.")
+        }
+        names(class_weights) <- class_levels[seq_along(class_weights)]
+      }
+      missing_cw <- setdiff(class_levels, names(class_weights))
+      if (length(missing_cw)) {
+        stop(sprintf("class_weights missing levels: %s", paste(missing_cw, collapse = ", ")))
+      }
+      class_weights <- class_weights[class_levels]
+    }
+    if (!is.null(positive_class)) {
+      warning("positive_class is ignored for multiclass tasks.")
+    }
+  } else if (task == "gaussian") {
     if (!is.numeric(yall)) {
       yall <- as.numeric(yall)
       if (anyNA(yall)) stop("Gaussian task requires numeric outcome values.")
@@ -285,36 +378,89 @@ fit_resample <- function(x, outcome, splits,
     if (!is.null(positive_class)) {
       warning("positive_class is ignored for gaussian tasks.")
     }
+  } else {
+    class_levels <- NULL
+    if (!inherits(yall, "Surv")) {
+      stop("Survival task requires a Surv outcome.")
+    }
+    if (!is.null(class_weights)) {
+      warning("class_weights is ignored for survival tasks.")
+    }
+    if (!is.null(positive_class)) {
+      warning("positive_class is ignored for survival tasks.")
+    }
+  }
+
+  if (use_workflow && task == "binomial" && !is.null(class_weights)) {
+    warning("class_weights are ignored for workflow learners unless explicitly handled in the workflow.")
+  }
+  if (use_workflow && task == "multiclass" && !is.null(class_weights)) {
+    warning("class_weights are ignored for workflow learners unless explicitly handled in the workflow.")
   }
 
   metrics_input <- metrics
-  if (is.null(metrics)) {
-    metrics <- if (task == "binomial") c("auc", "pr_auc", "accuracy") else c("rmse")
+  metric_mode <- "legacy"
+  yardstick_set <- NULL
+  yardstick_metrics <- NULL
+
+  if (!is.null(metrics) && inherits(metrics, "metric_set")) {
+    metric_mode <- "yardstick"
+    yardstick_set <- metrics
+  } else if (!is.null(metrics) && .bio_is_yardstick_metric(metrics)) {
+    metric_mode <- "yardstick"
+    yardstick_metrics <- list(metrics)
+  } else if (is.list(metrics) && length(metrics) &&
+             all(vapply(metrics, .bio_is_yardstick_metric, logical(1)))) {
+    metric_mode <- "yardstick"
+    yardstick_metrics <- metrics
   }
 
-  if (is.character(metrics)) {
-    allowed <- if (task == "binomial") c("auc", "pr_auc", "accuracy") else c("rmse", "cindex")
-    invalid <- setdiff(metrics, allowed)
-    if (length(invalid)) {
-      warning(sprintf("Dropping metrics not applicable to %s task: %s", task,
-                      paste(invalid, collapse = ", ")))
-      metrics <- setdiff(metrics, invalid)
+  if (identical(metric_mode, "yardstick")) {
+    if (!requireNamespace("yardstick", quietly = TRUE)) {
+      stop("Package 'yardstick' is required when metrics are a yardstick set.", call. = FALSE)
     }
-    if (!length(metrics)) {
-      metrics <- if (task == "binomial") c("auc", "pr_auc", "accuracy") else c("rmse")
+    if (is.null(yardstick_set)) {
+      yardstick_set <- do.call(yardstick::metric_set, yardstick_metrics)
     }
+    metric_labels <- character(0)
+  } else {
+    if (is.null(metrics)) {
+      metrics <- if (task == "binomial") c("auc", "pr_auc", "accuracy")
+      else if (task == "multiclass") c("accuracy", "macro_f1")
+      else if (task == "survival") c("cindex")
+      else c("rmse")
+    }
+
+    if (is.character(metrics)) {
+      allowed <- if (task == "binomial") c("auc", "pr_auc", "accuracy")
+      else if (task == "multiclass") c("accuracy", "macro_f1", "log_loss")
+      else if (task == "survival") c("cindex")
+      else c("rmse", "cindex")
+      invalid <- setdiff(metrics, allowed)
+      if (length(invalid)) {
+        warning(sprintf("Dropping metrics not applicable to %s task: %s", task,
+                        paste(invalid, collapse = ", ")))
+        metrics <- setdiff(metrics, invalid)
+      }
+      if (!length(metrics)) {
+        metrics <- if (task == "binomial") c("auc", "pr_auc", "accuracy")
+        else if (task == "multiclass") c("accuracy", "macro_f1")
+        else if (task == "survival") c("cindex")
+        else c("rmse")
+      }
+    }
+
+    metrics <- if (is.list(metrics)) metrics else as.list(metrics)
+    metric_labels <- vapply(seq_along(metrics), function(i) {
+      nm <- names(metrics)[i]
+      if (!is.null(nm) && !is.na(nm) && nzchar(nm)) return(nm)
+      mi <- metrics[[i]]
+      if (is.character(mi) && length(mi) == 1) return(mi)
+      paste0("metric_", i)
+    }, character(1))
   }
 
-  metrics <- if (is.list(metrics)) metrics else as.list(metrics)
-  metric_labels <- vapply(seq_along(metrics), function(i) {
-    nm <- names(metrics)[i]
-    if (!is.null(nm) && !is.na(nm) && nzchar(nm)) return(nm)
-    mi <- metrics[[i]]
-    if (is.character(mi) && length(mi) == 1) return(mi)
-    paste0("metric_", i)
-  }, character(1))
-
-  learner_objs <- if (use_parsnip) learner_specs else as.list(learner_names)
+  learner_objs <- if (use_parsnip || use_workflow) learner_specs else as.list(learner_names)
 
   # helper: safe metric computation -------------------------------------------
   compute_metric <- function(name, y, pred) {
@@ -347,7 +493,72 @@ fit_resample <- function(x, outcome, splits,
       return(sqrt(mean((as.numeric(y) - pred)^2)))
     if (name == "cindex" && task == "gaussian")
       return(.cindex_pairwise(pred, y))
+    if (name == "cindex" && task == "survival")
+      return(.cindex_survival(pred, y))
     NA_real_
+  }
+
+  compute_yardstick <- function(y, pred, pred_class, prob = NULL) {
+    if (task == "survival") {
+      stop("Yardstick metrics are not supported for survival tasks.", call. = FALSE)
+    }
+    if (task == "multiclass") {
+      df <- data.frame(truth = y, pred_class = pred_class, stringsAsFactors = FALSE)
+      if (!is.null(prob)) {
+        prob <- as.data.frame(prob, check.names = FALSE)
+        prob_cols <- paste0(".pred_", make.names(class_levels))
+        if (ncol(prob) == length(class_levels)) {
+          names(prob) <- prob_cols
+        }
+        df <- cbind(df, prob)
+      }
+      pred_cols <- grep("^\\.pred_", names(df), value = TRUE)
+      args <- list(df, truth = quote(truth), estimate = quote(pred_class))
+      for (col in pred_cols) {
+        args[[col]] <- as.name(col)
+      }
+      res <- try(do.call(yardstick_set, args), silent = TRUE)
+    } else if (task == "binomial") {
+      df <- data.frame(truth = y, .pred = as.numeric(pred), stringsAsFactors = FALSE)
+      if (!is.null(pred_class)) df$.pred_class <- pred_class
+      res <- try(yardstick_set(df, truth = truth, estimate = .pred_class,
+                               .pred, event_level = "second"),
+                 silent = TRUE)
+    } else {
+      df <- data.frame(truth = y, .pred = as.numeric(pred), stringsAsFactors = FALSE)
+      res <- try(yardstick_set(df, truth = truth, estimate = .pred),
+                 silent = TRUE)
+    }
+    if (inherits(res, "try-error")) {
+      err_msg <- attr(res, "condition")$message
+      stop(sprintf("Yardstick metrics failed: %s", err_msg), call. = FALSE)
+    }
+    stats::setNames(res$.estimate, res$.metric)
+  }
+
+  align_probabilities <- function(prob, class_levels) {
+    prob_mat <- if (is.data.frame(prob)) as.matrix(prob) else as.matrix(prob)
+    if (is.null(colnames(prob_mat))) {
+      if (ncol(prob_mat) != length(class_levels)) {
+        stop("Probability predictions do not match class levels.", call. = FALSE)
+      }
+      colnames(prob_mat) <- class_levels
+      return(prob_mat)
+    }
+    exp_cols <- paste0(".pred_", make.names(class_levels))
+    if (all(exp_cols %in% colnames(prob_mat))) {
+      prob_mat <- prob_mat[, exp_cols, drop = FALSE]
+    } else if (all(class_levels %in% colnames(prob_mat))) {
+      prob_mat <- prob_mat[, class_levels, drop = FALSE]
+    } else if (all(make.names(class_levels) %in% colnames(prob_mat))) {
+      prob_mat <- prob_mat[, make.names(class_levels), drop = FALSE]
+    } else if (ncol(prob_mat) == length(class_levels)) {
+      prob_mat <- prob_mat[, seq_len(ncol(prob_mat)), drop = FALSE]
+    } else {
+      stop("Probability predictions do not align with class levels.", call. = FALSE)
+    }
+    colnames(prob_mat) <- class_levels
+    prob_mat
   }
 
   # --- Robust design matrix builder ------------------------------------------
@@ -395,7 +606,7 @@ fit_resample <- function(x, outcome, splits,
   }
 
   resolve_weights <- function(y, weights_spec) {
-    if (is.null(weights_spec) || task != "binomial") return(NULL)
+    if (is.null(weights_spec) || !task %in% c("binomial", "multiclass")) return(NULL)
     if (!is.numeric(weights_spec)) stop("class_weights must be numeric.")
     cw <- weights_spec
     if (is.null(names(cw))) {
@@ -447,7 +658,13 @@ fit_resample <- function(x, outcome, splits,
         }
         weights <- hardhat::frequency_weights(weights)
       }
-      y_for_fit <- if (task == "binomial") factor(ytr, levels = class_levels) else as.numeric(ytr)
+      y_for_fit <- if (task %in% c("binomial", "multiclass")) {
+        factor(ytr, levels = class_levels)
+      } else if (task == "survival") {
+        ytr
+      } else {
+        as.numeric(ytr)
+      }
       fit <- if (is.null(weights)) {
         parsnip::fit_xy(learner_obj, x = Xtrg, y = y_for_fit)
       } else {
@@ -472,11 +689,45 @@ fit_resample <- function(x, outcome, splits,
           }
         }
         pred <- as.numeric(prob_df[[pos_col]])
+        pred_class <- factor(ifelse(pred >= 0.5, class_levels[2], class_levels[1]),
+                             levels = class_levels)
+        return(list(pred = pred, pred_class = pred_class, fit = fit))
+      }
+      if (task == "multiclass") {
+        prob <- try(stats::predict(fit, new_data = Xteg, type = "prob"), silent = TRUE)
+        if (inherits(prob, "try-error")) {
+          err_msg <- attr(prob, "condition")$message
+          stop(sprintf("Parsnip learner '%s' failed to predict: %s",
+                       learner_label, err_msg))
+        }
+        prob_mat <- align_probabilities(prob, class_levels)
+        class_pred <- try(stats::predict(fit, new_data = Xteg, type = "class"), silent = TRUE)
+        if (inherits(class_pred, "try-error")) {
+          err_msg <- attr(class_pred, "condition")$message
+          stop(sprintf("Parsnip learner '%s' failed to predict classes: %s",
+                       learner_label, err_msg))
+        }
+        class_df <- as.data.frame(class_pred)
+        pred_class <- factor(as.character(class_df[[1]]), levels = class_levels)
+        return(list(pred = pred_class, pred_class = pred_class, prob = prob_mat, fit = fit))
+      }
+      if (task == "survival") {
+        pred_df <- try(stats::predict(fit, new_data = Xteg, type = "numeric"), silent = TRUE)
+        if (inherits(pred_df, "try-error")) {
+          pred_df <- try(stats::predict(fit, new_data = Xteg, type = "risk"), silent = TRUE)
+        }
+        if (inherits(pred_df, "try-error")) {
+          err_msg <- attr(pred_df, "condition")$message
+          stop(sprintf("Parsnip learner '%s' failed to predict: %s",
+                       learner_label, err_msg))
+        }
+        pred <- as.numeric(as.data.frame(pred_df)[[1]])
+        return(list(pred = pred, fit = fit))
       } else {
         pred_df <- stats::predict(fit, new_data = Xteg, type = "numeric")
         pred <- as.numeric(pred_df[[1]])
+        return(list(pred = pred, fit = fit))
       }
-      return(list(pred = pred, fit = fit))
     }
     if (learner_obj %in% names(custom_learners)) {
       def <- custom_learners[[learner_obj]]
@@ -485,6 +736,24 @@ fit_resample <- function(x, outcome, splits,
       model <- do.call(def$fit, fit_args)
       pred_args <- c(list(object = model, newdata = Xteg, task = task), args$predict)
       pred <- do.call(def$predict, pred_args)
+      if (task == "multiclass") {
+        if (is.data.frame(pred) || is.matrix(pred)) {
+          prob_mat <- align_probabilities(pred, class_levels)
+          pred_class <- factor(class_levels[max.col(prob_mat, ties.method = "first")],
+                               levels = class_levels)
+          return(list(pred = pred_class, pred_class = pred_class, prob = prob_mat, fit = model))
+        }
+        if (is.factor(pred) || is.character(pred)) {
+          pred_class <- factor(as.character(pred), levels = class_levels)
+          if (length(pred_class) != nrow(Xteg)) {
+            stop(sprintf("Custom learner '%s' returned %d predictions for %d rows.",
+                         learner_obj, length(pred_class), nrow(Xteg)))
+          }
+          return(list(pred = pred_class, pred_class = pred_class, fit = model))
+        }
+        stop(sprintf("Custom learner '%s' must return class labels or class probabilities for multiclass tasks.",
+                     learner_obj))
+      }
       pred <- as.numeric(pred)
       if (length(pred) != nrow(Xteg)) {
         stop(sprintf("Custom learner '%s' returned %d predictions for %d rows.",
@@ -494,12 +763,19 @@ fit_resample <- function(x, outcome, splits,
     }
     if (learner_obj == "glmnet") {
       if (!requireNamespace("glmnet", quietly = TRUE)) stop("Install 'glmnet'.")
-      fam <- if (task == "binomial") "binomial" else "gaussian"
+      fam <- if (task == "binomial") "binomial"
+      else if (task == "multiclass") "multinomial"
+      else if (task == "survival") "cox"
+      else "gaussian"
       la  <- resolve_args("glmnet", list(alpha = 0.9, standardize = FALSE))
       Xtr_design <- make_design_matrix(Xtrg)
       Xte_design <- make_design_matrix(Xteg, ref_cols = Xtr_design$columns)
       y_for_fit <- if (task == "binomial") {
         as.numeric(factor(ytr, levels = class_levels)) - 1
+      } else if (task == "multiclass") {
+        factor(ytr, levels = class_levels)
+      } else if (task == "survival") {
+        ytr
       } else {
         as.numeric(ytr)
       }
@@ -511,29 +787,127 @@ fit_resample <- function(x, outcome, splits,
                         weights = weights),
                    la[setdiff(names(la), c("alpha", "standardize"))])
       cvfit <- do.call(glmnet::cv.glmnet, cv_args)
+      if (task == "multiclass") {
+        pred_arr <- predict(cvfit, Xte_design$matrix, s = "lambda.min", type = "response")
+        if (length(dim(pred_arr)) == 3L) {
+          prob_mat <- pred_arr[, , 1, drop = FALSE][,,1]
+        } else {
+          prob_mat <- pred_arr
+        }
+        prob_mat <- align_probabilities(prob_mat, class_levels)
+        pred_class <- factor(class_levels[max.col(prob_mat, ties.method = "first")],
+                             levels = class_levels)
+        return(list(pred = pred_class, pred_class = pred_class, prob = prob_mat, fit = cvfit))
+      }
+      pred_type <- if (task == "survival") "link" else "response"
       pred  <- as.numeric(predict(cvfit, Xte_design$matrix, s = "lambda.min",
-                                  type = "response"))
+                                  type = pred_type))
 
       return(list(pred = pred, fit = cvfit))
     }
     if (learner_obj == "ranger") {
       if (!requireNamespace("ranger", quietly = TRUE)) stop("Install 'ranger'.")
-      y_for_fit <- if (task == "binomial") factor(ytr, levels = class_levels) else as.numeric(ytr)
+      if (task == "survival") {
+        stop("Learner 'ranger' does not support survival tasks in bioLeak; use parsnip/workflow or a custom learner.")
+      }
+      y_for_fit <- if (task %in% c("binomial", "multiclass")) {
+        factor(ytr, levels = class_levels)
+      } else {
+        as.numeric(ytr)
+      }
       dftr <- data.frame(y = y_for_fit, Xtrg, check.names = FALSE)
       frm  <- stats::as.formula("y ~ .")
       rng_args <- resolve_args("ranger", list())
-      if (task == "binomial") {
+      if (task %in% c("binomial", "multiclass")) {
         rng_args$class.weights <- rng_args$class.weights %||% class_weights
       }
       rg   <- do.call(ranger::ranger, c(list(formula = frm, data = dftr,
-                                             probability = (task == "binomial")),
+                                             probability = (task %in% c("binomial", "multiclass"))),
                                         rng_args))
       dfte <- data.frame(Xteg, check.names = FALSE)
       pr   <- predict(rg, dfte)
-      pred <- if (task == "binomial") pr$predictions[, 2] else pr$predictions
+      if (task == "binomial") {
+        pred <- pr$predictions[, 2]
+        pred_class <- factor(ifelse(pred >= 0.5, class_levels[2], class_levels[1]),
+                             levels = class_levels)
+        return(list(pred = pred, pred_class = pred_class, fit = rg))
+      }
+      if (task == "multiclass") {
+        prob_mat <- pr$predictions
+        prob_mat <- align_probabilities(prob_mat, class_levels)
+        pred_class <- factor(class_levels[max.col(prob_mat, ties.method = "first")],
+                             levels = class_levels)
+        return(list(pred = pred_class, pred_class = pred_class, prob = prob_mat, fit = rg))
+      }
+      pred <- pr$predictions
       return(list(pred = pred, fit = rg))
     }
     stop("Unsupported learner.")
+  }
+
+  train_one_workflow <- function(learner_obj, learner_label, dftr, dfte, weights = NULL) {
+    if (!requireNamespace("workflows", quietly = TRUE)) {
+      stop("Package 'workflows' is required when learner is a workflow.")
+    }
+    fit <- try(workflows::fit(learner_obj, data = dftr), silent = TRUE)
+    if (inherits(fit, "try-error")) {
+      err_msg <- attr(fit, "condition")$message
+      stop(sprintf("Workflow learner '%s' failed to fit: %s", learner_label, err_msg))
+    }
+    if (task == "binomial") {
+      prob <- try(stats::predict(fit, new_data = dfte, type = "prob"), silent = TRUE)
+      if (inherits(prob, "try-error")) {
+        err_msg <- attr(prob, "condition")$message
+        stop(sprintf("Workflow learner '%s' failed to predict: %s", learner_label, err_msg))
+      }
+      prob_df <- as.data.frame(prob)
+      pos_col <- paste0(".pred_", make.names(class_levels[2]))
+      if (!pos_col %in% names(prob_df)) {
+        if (ncol(prob_df) >= 2L) {
+          pos_col <- names(prob_df)[2]
+        } else {
+          stop(sprintf("Workflow learner '%s' did not return class probabilities.",
+                       learner_label))
+        }
+      }
+      pred <- as.numeric(prob_df[[pos_col]])
+      pred_class <- factor(ifelse(pred >= 0.5, class_levels[2], class_levels[1]),
+                           levels = class_levels)
+      return(list(pred = pred, pred_class = pred_class, fit = fit))
+    }
+    if (task == "multiclass") {
+      prob <- try(stats::predict(fit, new_data = dfte, type = "prob"), silent = TRUE)
+      if (inherits(prob, "try-error")) {
+        err_msg <- attr(prob, "condition")$message
+        stop(sprintf("Workflow learner '%s' failed to predict: %s", learner_label, err_msg))
+      }
+      prob_mat <- align_probabilities(prob, class_levels)
+      class_pred <- try(stats::predict(fit, new_data = dfte, type = "class"), silent = TRUE)
+      if (inherits(class_pred, "try-error")) {
+        err_msg <- attr(class_pred, "condition")$message
+        stop(sprintf("Workflow learner '%s' failed to predict classes: %s",
+                     learner_label, err_msg))
+      }
+      class_df <- as.data.frame(class_pred)
+      pred_class <- factor(as.character(class_df[[1]]), levels = class_levels)
+      return(list(pred = pred_class, pred_class = pred_class, prob = prob_mat, fit = fit))
+    }
+    if (task == "survival") {
+      pred_df <- try(stats::predict(fit, new_data = dfte, type = "numeric"), silent = TRUE)
+      if (inherits(pred_df, "try-error")) {
+        pred_df <- try(stats::predict(fit, new_data = dfte, type = "risk"), silent = TRUE)
+      }
+      if (inherits(pred_df, "try-error")) {
+        err_msg <- attr(pred_df, "condition")$message
+        stop(sprintf("Workflow learner '%s' failed to predict: %s", learner_label, err_msg))
+      }
+      pred <- as.numeric(as.data.frame(pred_df)[[1]])
+      return(list(pred = pred, fit = fit))
+    } else {
+      pred_df <- stats::predict(fit, new_data = dfte, type = "numeric")
+      pred <- as.numeric(pred_df[[1]])
+      return(list(pred = pred, fit = fit))
+    }
   }
 
   resolve_fold_indices <- function(fold) {
@@ -568,6 +942,25 @@ fit_resample <- function(x, outcome, splits,
     list(train = train, test = test, fold = fold$fold, repeat_id = fold$repeat_id)
   }
 
+  make_fold_df <- function(X, y) {
+    df <- as.data.frame(X, check.names = FALSE)
+    if (length(outcome) == 2L) {
+      if (!inherits(y, "Surv")) {
+        stop("Survival tasks require a Surv outcome when building fold data.")
+      }
+      y_mat <- as.matrix(y)
+      if (ncol(y_mat) < 2L) {
+        stop("Survival outcome must include time and event columns.")
+      }
+      df[[outcome[[1]]]] <- y_mat[, 1]
+      df[[outcome[[2]]]] <- y_mat[, ncol(y_mat)]
+      df <- df[, c(outcome, setdiff(names(df), outcome)), drop = FALSE]
+      return(df)
+    }
+    df[[outcome]] <- y
+    df[, c(outcome, setdiff(names(df), outcome)), drop = FALSE]
+  }
+
   # fold-level function -------------------------------------------------------
   do_fold <- function(fold) {
     fold_full <- resolve_fold_indices(fold)
@@ -580,12 +973,16 @@ fit_resample <- function(x, outcome, splits,
     ytr <- yall[tr]
     yte <- yall[te]
 
-    if (task == "binomial") {
+    if (task %in% c("binomial", "multiclass")) {
       ytr <- factor(ytr, levels = class_levels)
       yte <- factor(yte, levels = class_levels)
       if (nlevels(droplevels(ytr)) < 2) {
         warning(sprintf("Fold %s skipped: only one class in training data", fold$fold))
-        empty_metrics <- setNames(rep(NA_real_, length(metrics)), metric_labels)
+        empty_metrics <- if (identical(metric_mode, "yardstick")) {
+          numeric(0)
+        } else {
+          setNames(rep(NA_real_, length(metrics)), metric_labels)
+        }
         skipped <- lapply(learner_names, function(ln) {
           list(
             metrics = empty_metrics,
@@ -606,53 +1003,148 @@ fit_resample <- function(x, outcome, splits,
         return(skipped)
       }
       fold_weights <- resolve_weights(ytr, class_weights)
+    } else if (task == "survival") {
+      fold_weights <- NULL
     } else {
       ytr <- as.numeric(ytr)
       yte <- as.numeric(yte)
       fold_weights <- NULL
     }
 
-    # --- Continue preprocessing and training ---
-    guard <- .guard_fit(
-      X = Xtr,
-      y = ytr,
-      steps = if (exists("preprocess") &&
-                  is.list(preprocess))
-        preprocess
-      else
-        list(),
-      task  = task
-    )
+    preprocess_state <- NULL
+    Xtrg <- Xtr
+    Xteg <- Xte
+    dftr <- NULL
+    dfte <- NULL
 
-    Xtrg <- guard$transform(Xtr)
-    Xteg <- guard$transform(Xte)
-    colnames(Xtrg) <- make.names(colnames(Xtrg))
-    colnames(Xteg) <- make.names(colnames(Xteg))
+    if (identical(preprocess_mode, "guard")) {
+      guard <- .guard_fit(
+        X = Xtr,
+        y = ytr,
+        steps = if (exists("preprocess") && is.list(preprocess)) preprocess else list(),
+        task  = task
+      )
+      Xtrg <- guard$transform(Xtr)
+      Xteg <- guard$transform(Xte)
+      preprocess_state <- guard$state
+      colnames(Xtrg) <- make.names(colnames(Xtrg))
+      colnames(Xteg) <- make.names(colnames(Xteg))
+    } else if (identical(preprocess_mode, "recipe")) {
+      dftr <- make_fold_df(Xtr, ytr)
+      dfte <- make_fold_df(Xte, yte)
+      recipe_prep <- recipes::prep(preprocess, training = dftr, retain = TRUE)
+      Xtrg <- as.data.frame(recipes::juice(recipe_prep, recipes::all_predictors()),
+                            check.names = FALSE)
+      Xteg <- as.data.frame(recipes::bake(recipe_prep, new_data = dfte,
+                                          recipes::all_predictors()),
+                            check.names = FALSE)
+      if (!ncol(Xtrg)) stop("All predictors have zero variance after preprocessing.")
+      preprocess_state <- list(type = "recipe", recipe = recipe_prep)
+      colnames(Xtrg) <- make.names(colnames(Xtrg))
+      colnames(Xteg) <- make.names(colnames(Xteg))
+    } else {
+      dftr <- make_fold_df(Xtr, ytr)
+      dfte <- make_fold_df(Xte, yte)
+      preprocess_state <- list(type = "workflow")
+    }
 
     results <- list()
     for (i in seq_along(learner_names)) {
       ln <- learner_names[[i]]
       learner_obj <- learner_objs[[i]]
       # Train one learner; ensure consistent level matching
-      model <- train_one_learner(learner_obj, ln, Xtrg, ytr, Xteg, yte, weights = fold_weights)
+      if (identical(preprocess_mode, "workflow")) {
+        dfte_pred <- dfte[, setdiff(names(dfte), outcome), drop = FALSE]
+        model <- train_one_workflow(learner_obj, ln, dftr, dfte_pred, weights = fold_weights)
+        feat_names <- setdiff(names(dftr), outcome)
+      } else {
+        model <- train_one_learner(learner_obj, ln, Xtrg, ytr, Xteg, yte, weights = fold_weights)
+        feat_names <- colnames(Xtrg)
+      }
 
-      ms <- vapply(seq_along(metrics), function(idx) {
-        compute_metric(metrics[[idx]], yte, model$pred)
-      }, numeric(1))
-      names(ms) <- metric_labels
-      results[[ln]] <- list(
-        metrics = ms,
-        pred = data.frame(
+      pred_class <- if (task == "binomial") {
+        if (!is.null(model$pred_class)) {
+          model$pred_class
+        } else if (is.factor(model$pred) || is.character(model$pred)) {
+          factor(as.character(model$pred), levels = class_levels)
+        } else {
+          factor(ifelse(model$pred >= 0.5, class_levels[2], class_levels[1]),
+                 levels = class_levels)
+        }
+      } else if (task == "multiclass") {
+        model$pred_class %||% {
+          if (is.factor(model$pred) || is.character(model$pred)) {
+            factor(as.character(model$pred), levels = class_levels)
+          } else {
+            NULL
+          }
+        }
+      } else {
+        NULL
+      }
+
+      prob_mat <- model$prob %||% NULL
+
+      ms <- if (identical(metric_mode, "yardstick")) {
+        compute_yardstick(yte, model$pred, pred_class, prob = prob_mat)
+      } else if (task == "multiclass") {
+        vals <- vapply(seq_along(metrics), function(idx) {
+          mname <- metrics[[idx]]
+          if (is.function(mname)) return(mname(yte, pred_class))
+          if (identical(mname, "accuracy")) return(.multiclass_accuracy(yte, pred_class))
+          if (identical(mname, "macro_f1")) return(.multiclass_macro_f1(yte, pred_class))
+          if (identical(mname, "log_loss")) {
+            if (is.null(prob_mat)) {
+              stop("log_loss requires class probability predictions for multiclass tasks.")
+            }
+            return(.multiclass_log_loss(yte, prob_mat))
+          }
+          NA_real_
+        }, numeric(1))
+        names(vals) <- metric_labels
+        vals
+      } else {
+        vals <- vapply(seq_along(metrics), function(idx) {
+          compute_metric(metrics[[idx]], yte, model$pred)
+        }, numeric(1))
+        names(vals) <- metric_labels
+        vals
+      }
+      pred_tbl <- if (task == "survival") {
+        yte_mat <- as.matrix(yte)
+        time_col <- if ("time" %in% colnames(yte_mat)) "time" else colnames(yte_mat)[1]
+        status_col <- if ("status" %in% colnames(yte_mat)) "status" else colnames(yte_mat)[ncol(yte_mat)]
+        data.frame(
+          id = ids[te],
+          truth_time = yte_mat[, time_col],
+          truth_event = yte_mat[, status_col],
+          pred = model$pred,
+          fold = fold_full$fold,
+          learner = ln,
+          stringsAsFactors = FALSE
+        )
+      } else {
+        data.frame(
           id = ids[te],
           truth = yte,
           pred = model$pred,
-              fold = fold_full$fold,
+          fold = fold_full$fold,
           learner = ln,
           stringsAsFactors = FALSE
-        ),
-        guard = guard$state,
+        )
+      }
+      if (!is.null(pred_class)) pred_tbl$pred_class <- pred_class
+      if (!is.null(prob_mat) && task == "multiclass") {
+        prob_df <- as.data.frame(prob_mat, check.names = FALSE)
+        names(prob_df) <- paste0(".pred_", make.names(class_levels))
+        pred_tbl <- cbind(pred_tbl, prob_df)
+      }
+      results[[ln]] <- list(
+        metrics = ms,
+        pred = pred_tbl,
+        guard = preprocess_state,
         learner = model$fit,
-        feat_names = colnames(Xtrg)
+        feat_names = feat_names
       )
     }
 
@@ -733,6 +1225,8 @@ fit_resample <- function(x, outcome, splits,
                               !is.null(res$guard$filter) &&
                               !is.null(res$guard$filter$keep)) {
           sum(res$guard$filter$keep)
+        } else if (!is.null(res$feat_names)) {
+          length(res$feat_names)
         } else NA_integer_,
         row.names = NULL
       )
@@ -745,6 +1239,7 @@ fit_resample <- function(x, outcome, splits,
 
   met_df <- do.call(rbind, met_rows)
   audit_df <- do.call(rbind, audit_rows)
+  metrics_used <- setdiff(colnames(met_df), c("fold", "learner"))
 
   # summarize metrics ---------------------------------------------------------
   metric_summary <- aggregate(. ~ learner, data = met_df[, -1, drop = FALSE],
@@ -756,14 +1251,30 @@ fit_resample <- function(x, outcome, splits,
   final_model <- NULL
   final_guard <- NULL
   if (refit) {
-    guard_full <- .guard_fit(Xall, yall, preprocess, task)
-    Xfullg <- guard_full$transform(Xall)
     ln <- learner_names[[1]]
     learner_obj <- learner_objs[[1]]
-    full_weights <- if (task == "binomial") resolve_weights(yall, class_weights) else NULL
-    final_model <- train_one_learner(learner_obj, ln, Xfullg, yall, Xfullg, yall,
-                                     weights = full_weights)$fit
-    final_guard <- guard_full$state
+    full_weights <- if (task %in% c("binomial", "multiclass")) resolve_weights(yall, class_weights) else NULL
+    if (identical(preprocess_mode, "guard")) {
+      guard_full <- .guard_fit(Xall, yall, preprocess, task)
+      Xfullg <- guard_full$transform(Xall)
+      colnames(Xfullg) <- make.names(colnames(Xfullg))
+      final_model <- train_one_learner(learner_obj, ln, Xfullg, yall, Xfullg, yall,
+                                       weights = full_weights)$fit
+      final_guard <- guard_full$state
+    } else if (identical(preprocess_mode, "recipe")) {
+      df_full <- make_fold_df(Xall, yall)
+      recipe_prep <- recipes::prep(preprocess, training = df_full, retain = TRUE)
+      Xfullg <- as.data.frame(recipes::juice(recipe_prep, recipes::all_predictors()),
+                              check.names = FALSE)
+      colnames(Xfullg) <- make.names(colnames(Xfullg))
+      final_model <- train_one_learner(learner_obj, ln, Xfullg, yall, Xfullg, yall,
+                                       weights = full_weights)$fit
+      final_guard <- list(type = "recipe", recipe = recipe_prep)
+    } else {
+      df_full <- make_fold_df(Xall, yall)
+      final_model <- workflows::fit(learner_obj, data = df_full)
+      final_guard <- list(type = "workflow")
+    }
   }
 
   # assemble LeakFit object ---------------------------------------------------
@@ -780,7 +1291,7 @@ fit_resample <- function(x, outcome, splits,
       feature_names = featn,
       info = list(hash = .bio_hash_indices(folds),
                   metrics_requested = metrics_input,
-                  metrics_used = metric_labels,
+                  metrics_used = metrics_used,
                   class_weights = class_weights,
                   positive_class = if (task == "binomial") class_levels[2] else NULL,
                   sample_ids = ids,

@@ -129,6 +129,11 @@
 
   y01 <- NULL
   y_num <- NULL
+  y_fac <- NULL
+  if (task == "survival") {
+    warning("Target leakage scan is not available for survival outcomes.", call. = FALSE)
+    return(data.frame())
+  }
   if (task == "binomial") {
     y01 <- y
     if (is.factor(y01)) {
@@ -149,6 +154,8 @@
         y01 <- as.numeric(factor(y01, levels = uniq)) - 1
       }
     }
+  } else if (task == "multiclass") {
+    y_fac <- as.factor(y)
   } else {
     y_num <- as.numeric(y)
   }
@@ -166,6 +173,26 @@
         ok <- !is.na(x_fac) & !is.na(y01)
         x_ok <- droplevels(x_fac[ok])
         y_ok <- y01[ok]
+        if (length(x_ok) < 2L || length(unique(x_ok)) < 2L || length(unique(y_ok)) < 2L) {
+          return(NULL)
+        }
+        tab <- table(x_ok, y_ok)
+        assoc <- .chisq_assoc_soft(tab)
+        data.frame(
+          feature = col_names[j],
+          type = "categorical",
+          metric = "cramer_v",
+          value = assoc$cramer_v,
+          score = assoc$cramer_v,
+          p_value = assoc$pval,
+          n = length(y_ok),
+          n_levels = nlevels(x_ok),
+          stringsAsFactors = FALSE
+        )
+      } else if (task == "multiclass") {
+        ok <- !is.na(x_fac) & !is.na(y_fac)
+        x_ok <- droplevels(x_fac[ok])
+        y_ok <- droplevels(y_fac[ok])
         if (length(x_ok) < 2L || length(unique(x_ok)) < 2L || length(unique(y_ok)) < 2L) {
           return(NULL)
         }
@@ -226,6 +253,29 @@
           n_levels = NA_integer_,
           stringsAsFactors = FALSE
         )
+      } else if (task == "multiclass") {
+        ok <- is.finite(x_num) & !is.na(y_fac)
+        x_ok <- x_num[ok]
+        y_ok <- droplevels(y_fac[ok])
+        if (length(x_ok) < 3L || length(unique(y_ok)) < 2L) return(NULL)
+        if (stats::sd(x_ok) == 0) return(NULL)
+        fit <- try(stats::lm(x_ok ~ y_ok), silent = TRUE)
+        if (inherits(fit, "try-error")) return(NULL)
+        an <- stats::anova(fit)
+        ss_total <- sum(an$`Sum Sq`, na.rm = TRUE)
+        eta_sq <- if (is.finite(ss_total) && ss_total > 0) an$`Sum Sq`[1] / ss_total else NA_real_
+        p_val <- an$`Pr(>F)`[1]
+        data.frame(
+          feature = col_names[j],
+          type = "numeric",
+          metric = "eta_sq",
+          value = eta_sq,
+          score = eta_sq,
+          p_value = p_val,
+          n = length(y_ok),
+          n_levels = nlevels(y_ok),
+          stringsAsFactors = FALSE
+        )
       } else {
         ok <- is.finite(x_num) & is.finite(y_num)
         x_ok <- x_num[ok]
@@ -259,9 +309,61 @@
 }
 
 # Compute metric from predictions
-.metric_value <- function(metric, task, truth, pred) {
+.metric_value <- function(metric, task, truth, pred, pred_df = NULL) {
+  if (task == "survival") {
+    if (!inherits(truth, "Surv") && !is.null(pred_df)) {
+      if (!requireNamespace("survival", quietly = TRUE)) return(NA_real_)
+      if (all(c("truth_time", "truth_event") %in% names(pred_df))) {
+        truth <- survival::Surv(pred_df$truth_time, pred_df$truth_event)
+      } else if (all(c("time", "status") %in% names(pred_df))) {
+        truth <- survival::Surv(pred_df$time, pred_df$status)
+      }
+    }
+  }
   if (metric == "rmse") {
     return(sqrt(mean((as.numeric(truth) - pred)^2)))
+  }
+  if (metric == "accuracy" && task %in% c("binomial", "multiclass")) {
+    pred_class <- if (!is.null(pred_df) && "pred_class" %in% names(pred_df)) {
+      pred_df$pred_class
+    } else if (is.factor(pred) || is.character(pred)) {
+      pred
+    } else {
+      if (task == "binomial") {
+        if (is.factor(truth)) {
+          factor(ifelse(pred >= 0.5, levels(truth)[2], levels(truth)[1]),
+                 levels = levels(truth))
+        } else {
+          ifelse(pred >= 0.5, 1, 0)
+        }
+      } else {
+        pred
+      }
+    }
+    return(.multiclass_accuracy(truth, pred_class))
+  }
+  if (metric == "macro_f1" && task == "multiclass") {
+    pred_class <- if (!is.null(pred_df) && "pred_class" %in% names(pred_df)) {
+      pred_df$pred_class
+    } else {
+      pred
+    }
+    return(.multiclass_macro_f1(truth, pred_class))
+  }
+  if (metric == "log_loss" && task == "multiclass") {
+    prob <- NULL
+    if (!is.null(pred_df)) {
+      prob_cols <- grep("^\\.pred_", names(pred_df), value = TRUE)
+      if (length(prob_cols)) {
+        prob <- as.matrix(pred_df[, prob_cols, drop = FALSE])
+      }
+    }
+    return(.multiclass_log_loss(truth, prob))
+  }
+  if (metric == "log_loss" && task == "binomial") {
+    yb <- if (is.factor(truth)) as.numeric(truth) - 1 else as.numeric(truth)
+    p <- pmin(pmax(as.numeric(pred), 1e-15), 1 - 1e-15)
+    return(-mean(yb * log(p) + (1 - yb) * log(1 - p), na.rm = TRUE))
   }
   if (metric == "auc") {
     if (requireNamespace("pROC", quietly = TRUE)) {
@@ -286,6 +388,9 @@
     return(NA_real_)
   }
   if (metric == "cindex") {
+    if (task == "survival") {
+      return(.cindex_survival(pred, truth))
+    }
     return(.cindex_pairwise(pred, truth))
   }
   NA_real_
@@ -311,8 +416,9 @@
 #'   predictions and split metadata. If predictions include learner IDs for
 #'   multiple models, you must supply `learner` to select one; if learner IDs are
 #'   absent, the audit uses all predictions and may mix learners.
-#' @param metric Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
-#'   `"cindex"`. Defaults to `"auc"`. This controls the observed performance
+#' @param metric Character scalar. One of `"auc"`, `"pr_auc"`, `"accuracy"`,
+#'   `"macro_f1"`, `"log_loss"`, `"rmse"`, or `"cindex"`. Defaults to `"auc"`.
+#'   This controls the observed performance
 #'   statistic, the permutation null, and the sign of the reported gap.
 #' @param B Integer scalar. Number of permutations used to build the null
 #'   distribution (default 1000). Larger values reduce Monte Carlo error but
@@ -360,7 +466,8 @@
 #'   row names, sample ids, or row order; misalignment disables these checks.
 #' @param target_scan Logical scalar. If TRUE (default), computes per-feature
 #'   outcome associations on `X_ref` and flags proxy features; if FALSE, or if
-#'   `X_ref`/outcomes are unavailable, `target_assoc` is empty.
+#'   `X_ref`/outcomes are unavailable, `target_assoc` is empty. Not available
+#'   for survival outcomes.
 #' @param target_threshold Numeric scalar in (0,1). Threshold applied to the
 #'   association score used to flag proxy features. Higher values are stricter.
 #'   Default is 0.9.
@@ -390,13 +497,14 @@
 #' The `permutation_gap` slot reports `metric_obs`, `perm_mean`, `perm_sd`,
 #' `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as
 #' `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
-#' C-index) and `perm_mean - metric_obs` for RMSE.
+#' accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
 #'
 #' `batch_assoc` contains chi-square tests between fold assignment and each
 #' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
 #' reports feature-wise outcome associations on `X_ref`; numeric features use
-#' AUC (binomial) or correlation (gaussian), while categorical features use
-#' Cramer's V (binomial) or `eta_sq` from a one-way ANOVA (gaussian). The
+#' AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
+#' categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
+#' one-way ANOVA (gaussian). The
 #' `score` column is the scaled effect size used for flagging
 #' (`flag = score >= target_threshold`).
 #'
@@ -442,7 +550,7 @@
 #'
 #' @export
 audit_leakage <- function(fit,
-                          metric = c("auc", "pr_auc", "rmse", "cindex"),
+                          metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
                           B = 1000,
                           perm_stratify = TRUE,
                           time_block = c("circular", "stationary"),
@@ -490,6 +598,15 @@ audit_leakage <- function(fit,
 
   # --- Reconstruct main metric from CV predictions --------------------------
   task <- fit@task
+  valid_metrics <- switch(task,
+                          binomial = c("auc", "pr_auc", "accuracy", "log_loss"),
+                          multiclass = c("accuracy", "macro_f1", "log_loss"),
+                          gaussian = c("rmse", "cindex"),
+                          survival = c("cindex"),
+                          c("auc", "pr_auc", "rmse", "cindex"))
+  if (!metric %in% valid_metrics) {
+    stop(sprintf("Metric '%s' is not supported for %s tasks.", metric, task))
+  }
   folds <- fit@splits@indices
   compact <- isTRUE(fit@splits@info$compact)
   fold_assignments <- fit@splits@info$fold_assignments
@@ -511,6 +628,11 @@ audit_leakage <- function(fit,
   }
   outcome_col <- fit@splits@info$outcome
   if (is.null(outcome_col)) outcome_col <- fit@outcome
+  if (length(outcome_col) != 1L || identical(task, "survival")) outcome_col <- NULL
+  if (isTRUE(target_scan) && identical(task, "survival")) {
+    warning("Target leakage scan is not available for survival outcomes.", call. = FALSE)
+    target_scan <- FALSE
+  }
 
   pred_list_raw <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
   pred_df <- if (length(pred_list_raw)) do.call(rbind, pred_list_raw) else NULL
@@ -564,7 +686,7 @@ audit_leakage <- function(fit,
 
   all_pred <- do.call(rbind, pred_list)
 
-  metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred)
+  metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred, pred_df = all_pred)
 
   delta <- NA_real_
   perm_mean <- NA_real_
@@ -591,7 +713,7 @@ audit_leakage <- function(fit,
     }
   }
 
-  higher_better <- metric %in% c("auc", "pr_auc", "cindex")
+  higher_better <- metric %in% c("auc", "pr_auc", "cindex", "accuracy", "macro_f1")
 
   # --- Permutations ----------------------------------------------------------
   perm_source <- NULL
@@ -610,7 +732,18 @@ audit_leakage <- function(fit,
   }
   if (is.null(perm_source)) {
     perm_source <- function(b) {
-      lapply(pred_list, function(df) sample(df$truth))
+      lapply(pred_list, function(df) {
+        if (identical(task, "survival")) {
+          if (!requireNamespace("survival", quietly = TRUE)) {
+            stop("Package 'survival' is required for survival permutations.")
+          }
+          if (all(c("truth_time", "truth_event") %in% names(df))) {
+            idx <- sample(seq_len(nrow(df)))
+            return(survival::Surv(df$truth_time[idx], df$truth_event[idx]))
+          }
+        }
+        sample(df$truth)
+      })
     }
   }
 
@@ -624,18 +757,28 @@ audit_leakage <- function(fit,
     }
     new_preds <- Map(function(df, tr, fold_idx) {
       if (!nrow(df)) return(df)
-      if (length(tr) != nrow(df)) {
+      tr_len <- if (inherits(tr, "Surv")) nrow(tr) else length(tr)
+      if (tr_len != nrow(df)) {
         stop(
-          "Permutation truth length (", length(tr),
+          "Permutation truth length (", tr_len,
           ") does not match predictions (", nrow(df),
           ") for fold ", fold_idx, "."
         )
       }
-      df$truth <- .coerce_truth_like(df$truth, tr)
+      if (identical(task, "survival") &&
+          all(c("truth_time", "truth_event") %in% names(df))) {
+        tr_mat <- as.matrix(tr)
+        time_col <- if ("time" %in% colnames(tr_mat)) "time" else colnames(tr_mat)[1]
+        status_col <- if ("status" %in% colnames(tr_mat)) "status" else colnames(tr_mat)[ncol(tr_mat)]
+        df$truth_time <- tr_mat[, time_col]
+        df$truth_event <- tr_mat[, status_col]
+      } else {
+        df$truth <- .coerce_truth_like(df$truth, tr)
+      }
       df
     }, pred_list, truths, seq_along(pred_list))
     agg <- do.call(rbind, new_preds)
-    .metric_value(metric, task, agg$truth, agg$pred)
+    .metric_value(metric, task, agg$truth, agg$pred, pred_df = agg)
   }
 
   if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
@@ -933,8 +1076,9 @@ audit_leakage <- function(fit,
 #' @param fit A [LeakFit] object produced by [fit_resample()]. It must contain
 #'   predictions and split metadata. Learner IDs must be present in predictions
 #'   to audit multiple models.
-#' @param metric Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
-#'   `"cindex"`. Controls which metric is audited for each learner.
+#' @param metric Character scalar. One of `"auc"`, `"pr_auc"`, `"accuracy"`,
+#'   `"macro_f1"`, `"log_loss"`, `"rmse"`, or `"cindex"`. Controls which metric
+#'   is audited for each learner.
 #' @param learners Character vector or NULL. If NULL (default), audits all
 #'   learners found in predictions. If provided, must match learner IDs stored in
 #'   the predictions. Supplying more than one learner requires learner IDs.
@@ -991,7 +1135,7 @@ audit_leakage <- function(fit,
 #' }
 #' @export
 audit_leakage_by_learner <- function(fit,
-                                     metric = c("auc", "pr_auc", "rmse", "cindex"),
+                                     metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
                                      learners = NULL,
                                      parallel_learners = FALSE,
                                      mc.cores = NULL,
@@ -1170,7 +1314,9 @@ print.LeakAuditList <- function(x, digits = 3, ...) {
 }
 
 .coerce_truth_like <- function(template, values) {
-  if (is.factor(template)) {
+  if (inherits(template, "Surv")) {
+    values
+  } else if (is.factor(template)) {
     factor(values, levels = levels(template))
   } else if (is.logical(template)) {
     as.logical(values)

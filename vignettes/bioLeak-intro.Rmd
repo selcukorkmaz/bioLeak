@@ -423,7 +423,8 @@ model fitting. It supports:
 - multiple metrics, class weights, and a positive class override
 
 Assumptions and misuse to avoid:
-- outcome must be binary (classification) or numeric (regression)
+- outcome must be binary or multiclass (factor) for classification, numeric for regression,
+  or a survival outcome (a `Surv` column or time/event columns)
 - `positive_class` must be a single value that exists in the outcome levels
 - if you supply a matrix without metadata, you must remove leakage columns
   yourself (group, batch, study, time)

@@ -58,15 +58,18 @@ plot_perm_distribution <- function(audit) {
   ))
 }
 
-#' Plot fold balance of positives/negatives per fold
+#' Plot fold balance of class counts per fold
 #'
-#' Displays a bar chart of class counts per fold and overlays the positive
-#' proportion to diagnose stratification issues. The positive class is taken
-#' from \code{fit@info$positive_class} when available; otherwise the second
-#' factor level is used. Requires ggplot2.
+#' Displays a bar chart of class counts per fold. For binomial tasks, it also
+#' overlays the positive proportion to diagnose stratification issues. The
+#' positive class is taken from \code{fit@info$positive_class} when available;
+#' otherwise the second factor level is used. For multiclass tasks, the plot
+#' shows per-class counts without a proportion line. Only available for
+#' classification tasks. Requires ggplot2.
 #'
 #' @param fit LeakFit.
-#' @return A list containing the fold summary, positive class, and a ggplot object.
+#' @return A list containing the fold summary, positive class (if binomial),
+#'   and a ggplot object.
 #' @examples
 #' \dontrun{
 #' # fit <- fit_resample(...)
@@ -75,9 +78,53 @@ plot_perm_distribution <- function(audit) {
 #' @export
 plot_fold_balance <- function(fit) {
   stopifnot(inherits(fit, "LeakFit"))
+  if (!fit@task %in% c("binomial", "multiclass")) {
+    stop("plot_fold_balance is only available for classification tasks.", call. = FALSE)
+  }
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required for plotting. Install it to use plot_fold_balance().",
          call. = FALSE)
+  }
+  if (fit@task == "multiclass") {
+    class_levels <- NULL
+    for (df in fit@predictions) {
+      if (is.factor(df$truth)) {
+        class_levels <- levels(df$truth)
+        break
+      }
+    }
+    if (is.null(class_levels)) {
+      class_levels <- sort(unique(unlist(lapply(fit@predictions, function(df) {
+        as.character(df$truth)
+      }))))
+    }
+    if (!length(class_levels)) {
+      stop("No class labels available for plotting.", call. = FALSE)
+    }
+    tab <- lapply(seq_along(fit@predictions), function(i) {
+      df <- fit@predictions[[i]]
+      y <- factor(as.character(df$truth), levels = class_levels)
+      counts <- table(y)
+      data.frame(
+        fold = i,
+        class = factor(names(counts), levels = class_levels),
+        count = as.numeric(counts),
+        stringsAsFactors = FALSE
+      )
+    })
+    tab <- do.call(rbind, tab)
+    p <- ggplot2::ggplot(tab, ggplot2::aes(x = fold, y = count, fill = class)) +
+      ggplot2::geom_col(width = 0.7, color = "white") +
+      ggplot2::scale_x_continuous(breaks = unique(tab$fold)) +
+      ggplot2::labs(title = "Fold class balance", x = "Fold", y = "Count", fill = "Class") +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(legend.position = "top")
+    print(p)
+    return(invisible(list(
+      fold_summary = tab,
+      positive_class = NA_character_,
+      plot = p
+    )))
   }
   pos_class <- fit@info$positive_class
   if (length(pos_class) != 1L) pos_class <- NULL
@@ -309,7 +356,8 @@ plot_overlap_checks <- function(fit, column = NULL) {
 #' Plot ACF of test predictions for time-series leakage checks
 #'
 #' Uses the autocorrelation function of out-of-fold predictions to detect
-#' temporal dependence that may indicate leakage. Requires ggplot2.
+#' temporal dependence that may indicate leakage. Requires numeric predictions
+#' (regression or survival). Requires ggplot2.
 #'
 #' @param fit LeakFit.
 #' @param lag.max maximum lag to show.
@@ -328,6 +376,9 @@ plot_time_acf <- function(fit, lag.max = 20) {
          call. = FALSE)
   }
   pred <- all_pred$pred
+  if (!is.numeric(pred)) {
+    stop("plot_time_acf requires numeric predictions (regression or survival).", call. = FALSE)
+  }
   pred <- pred[is.finite(pred)]
   if (length(pred) < 2) {
     stop("Not enough finite predictions for ACF plotting.", call. = FALSE)

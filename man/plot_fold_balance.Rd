@@ -2,7 +2,7 @@
 % Please edit documentation in R/plotting_audit.R
 \name{plot_fold_balance}
 \alias{plot_fold_balance}
-\title{Plot fold balance of positives/negatives per fold}
+\title{Plot fold balance of class counts per fold}
 \usage{
 plot_fold_balance(fit)
 }
@@ -10,13 +10,16 @@ plot_fold_balance(fit)
 \item{fit}{LeakFit.}
 }
 \value{
-A list containing the fold summary, positive class, and a ggplot object.
+A list containing the fold summary, positive class (if binomial),
+  and a ggplot object.
 }
 \description{
-Displays a bar chart of class counts per fold and overlays the positive
-proportion to diagnose stratification issues. The positive class is taken
-from \code{fit@info$positive_class} when available; otherwise the second
-factor level is used. Requires ggplot2.
+Displays a bar chart of class counts per fold. For binomial tasks, it also
+overlays the positive proportion to diagnose stratification issues. The
+positive class is taken from \code{fit@info$positive_class} when available;
+otherwise the second factor level is used. For multiclass tasks, the plot
+shows per-class counts without a proportion line. Only available for
+classification tasks. Requires ggplot2.
 }
 \examples{
 \dontrun{

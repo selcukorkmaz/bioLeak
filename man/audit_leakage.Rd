@@ -6,7 +6,7 @@
 \usage{
 audit_leakage(
   fit,
-  metric = c("auc", "pr_auc", "rmse", "cindex"),
+  metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
   B = 1000,
   perm_stratify = TRUE,
   time_block = c("circular", "stationary"),
@@ -36,8 +36,9 @@ predictions and split metadata. If predictions include learner IDs for
 multiple models, you must supply `learner` to select one; if learner IDs are
 absent, the audit uses all predictions and may mix learners.}
 
-\item{metric}{Character scalar. One of `"auc"`, `"pr_auc"`, `"rmse"`, or
-`"cindex"`. Defaults to `"auc"`. This controls the observed performance
+\item{metric}{Character scalar. One of `"auc"`, `"pr_auc"`, `"accuracy"`,
+`"macro_f1"`, `"log_loss"`, `"rmse"`, or `"cindex"`. Defaults to `"auc"`.
+This controls the observed performance
 statistic, the permutation null, and the sign of the reported gap.}
 
 \item{B}{Integer scalar. Number of permutations used to build the null
@@ -99,7 +100,8 @@ row names, sample ids, or row order; misalignment disables these checks.}
 
 \item{target_scan}{Logical scalar. If TRUE (default), computes per-feature
 outcome associations on `X_ref` and flags proxy features; if FALSE, or if
-`X_ref`/outcomes are unavailable, `target_assoc` is empty.}
+`X_ref`/outcomes are unavailable, `target_assoc` is empty. Not available
+for survival outcomes.}
 
 \item{target_threshold}{Numeric scalar in (0,1). Threshold applied to the
 association score used to flag proxy features. Higher values are stricter.
@@ -153,13 +155,14 @@ leakage or its absence.
 The `permutation_gap` slot reports `metric_obs`, `perm_mean`, `perm_sd`,
 `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as
 `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
-C-index) and `perm_mean - metric_obs` for RMSE.
+accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
 
 `batch_assoc` contains chi-square tests between fold assignment and each
 `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
 reports feature-wise outcome associations on `X_ref`; numeric features use
-AUC (binomial) or correlation (gaussian), while categorical features use
-Cramer's V (binomial) or `eta_sq` from a one-way ANOVA (gaussian). The
+AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
+categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
+one-way ANOVA (gaussian). The
 `score` column is the scaled effect size used for flagging
 (`flag = score >= target_threshold`).
 
