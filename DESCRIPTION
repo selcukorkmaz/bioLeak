@@ -25,6 +25,7 @@ Imports:
 Suggests:
     BiocParallel,
     cli,
+    dials,
     FNN,
     future,
     future.apply,
@@ -38,6 +39,7 @@ Suggests:
     recipes,
     RANN,
     rsample,
+    tune,
     VIM,
     workflows,
     xgboost,

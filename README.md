@@ -11,7 +11,7 @@ In scope:
 
 Out of scope:
 - Proving the absence of leakage or guaranteeing unbiased performance.
-- Hyperparameter tuning frameworks or production deployment tooling.
+- Production deployment tooling.
 - Unsupervised learning (not currently supported).
 - Calibration assessment and general data-quality diagnostics.
 
@@ -22,6 +22,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 - Leakage-aware splitting (`make_splits`): subject-grouped, batch-blocked, study leave-out, and time-series splits with reproducible metadata.
 - Guarded preprocessing and fitting (`fit_resample`): train-only imputation, normalization, filtering, and feature selection; excludes split-defining columns from predictors; supports parsnip specs and built-in learners; returns per-fold metrics and predictions for instability checks.
 - Multiclass and survival modeling support in `fit_resample` with task-appropriate metrics (accuracy/macro-F1/log-loss; C-index).
+- Leak-safe hyperparameter tuning (`tune_resample`): nested CV with tidymodels tune/dials using leakage-aware splits.
 - Guarded vs leaky comparisons: run the same model with an intentionally leaky comparator (for example, global preprocessing or leaky features) to estimate performance inflation risk.
 - Leakage diagnostics (`audit_leakage`): permutation gap for signal vs permuted labels, batch/study association tests, target leakage scan on `X_ref`, and near-duplicate detection.
 - Reporting (`audit_report`): HTML summary of audit results for sharing and review.
@@ -36,7 +37,7 @@ remotes::install_github("selcukorkmaz/bioLeak")
 
 Non-obvious dependencies:
 - `SummarizedExperiment` and `BiocGenerics` are Bioconductor packages (installed automatically by `remotes`, but can be installed manually with `BiocManager::install()` if needed).
-- Optional packages enable specific features: `glmnet`, `ranger`, `pROC`, `PRROC`, `survival`, `future.apply`, `RANN`, `rmarkdown`.
+- Optional packages enable specific features: `glmnet`, `ranger`, `pROC`, `PRROC`, `survival`, `future.apply`, `RANN`, `rmarkdown`, `tune`, `dials`.
 
 ## Minimal working example
 ```r
