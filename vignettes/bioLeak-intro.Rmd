@@ -702,12 +702,15 @@ fit_resample(
 - `plot_fold_balance()` shows class balance per fold.  
 - `plot_overlap_checks()` highlights train/test overlap for a metadata column.  
 - `plot_time_acf()` checks autocorrelation in time-series predictions.
+- `plot_calibration()` shows reliability of binomial probabilities.  
+- `plot_confounder_sensitivity()` summarizes performance by batch/study strata.
 
 **Misuse to avoid**
 
 - Plotting without predictions (fits with no successful folds).  
 - Using `plot_overlap_checks()` when the column is not present in the split metadata.  
 - Using `plot_time_acf()` for non-temporal data.
+- Using `plot_calibration()` or `plot_confounder_sensitivity()` for non-classification tasks.
 
 For classification, `plot_fold_balance()` uses the positive class recorded in `fit@info$positive_class`, or defaults to the second factor level if this is not set.
 
@@ -722,6 +725,27 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 The bar chart shows the counts of Positives (blue) and Negatives (tan) in each fold. The dashed blue line represents the proportion of the positive class.
 
 In this stratified fit, the line remains relatively stable, hovering around 40%, indicating that the class ratio is preserved across folds. Large fluctuations in this line would indicate poor stratification, which can lead to unstable fold-level performance estimates.
+
+```{r plot-calibration}
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_calibration(fit_safe, bins = 10)
+} else {
+  cat("ggplot2 not installed; skipping calibration plot.\n")
+}
+```
+
+Calibration curves compare predicted probabilities to observed event rates. Large deviations from the diagonal indicate miscalibration.
+
+```{r plot-confounder-sensitivity}
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  plot_confounder_sensitivity(fit_safe, confounders = c("batch", "study"),
+                              metric = "auc", min_n = 3)
+} else {
+  cat("ggplot2 not installed; skipping confounder sensitivity plot.\n")
+}
+```
+
+Confounder sensitivity plots highlight whether performance varies substantially across batch or study strata.
 
 
 ```{r plot-overlap}

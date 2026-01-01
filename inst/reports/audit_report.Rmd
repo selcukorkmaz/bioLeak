@@ -20,6 +20,26 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 summary(aud)
 ```
 
+## Model performance summary
+
+```{r perf-summary}
+ms <- aud@fit@metric_summary
+if (!is.null(ms) && nrow(ms) > 0) {
+  knitr::kable(ms)
+} else {
+  cat("No metric summary available.")
+}
+```
+
+```{r perf-by-fold}
+mf <- aud@fit@metrics
+if (!is.null(mf) && nrow(mf) > 0) {
+  knitr::kable(utils::head(mf, 50))
+} else {
+  cat("No per-fold metrics available.")
+}
+```
+
 ## Permutation significance test
 
 Note: This test assesses whether predictions are better than random. It does NOT diagnose
@@ -51,6 +71,49 @@ if (!is.null(ba) && nrow(ba) > 0) {
   knitr::kable(ba)
 } else {
   cat("No batch or study association results available.")
+}
+```
+
+## Confounder sensitivity
+
+```{r confounder-sensitivity}
+metric_name <- if (!is.null(aud@trail$metric)) aud@trail$metric else NULL
+cs <- try(confounder_sensitivity(aud@fit, metric = metric_name), silent = TRUE)
+if (inherits(cs, "try-error") || is.null(cs) || nrow(cs) == 0) {
+  cat("No confounder sensitivity results available.")
+} else {
+  knitr::kable(utils::head(cs, 50))
+}
+```
+
+```{r confounder-plot}
+cs_plot <- try(plot_confounder_sensitivity(aud@fit, metric = metric_name), silent = TRUE)
+if (inherits(cs_plot, "try-error")) {
+  cat("Confounder sensitivity plot not available.")
+}
+```
+
+## Calibration checks
+
+```{r calibration-table}
+if (identical(aud@fit@task, "binomial")) {
+  cal <- try(calibration_summary(aud@fit, bins = 10), silent = TRUE)
+  if (inherits(cal, "try-error")) {
+    cat("Calibration summary not available.")
+  } else {
+    knitr::kable(cal$metrics)
+  }
+} else {
+  cat("Calibration checks are available for binomial tasks only.")
+}
+```
+
+```{r calibration-plot}
+if (identical(aud@fit@task, "binomial")) {
+  cal_plot <- try(plot_calibration(aud@fit, bins = 10), silent = TRUE)
+  if (inherits(cal_plot, "try-error")) {
+    cat("Calibration plot not available.")
+  }
 }
 ```
 

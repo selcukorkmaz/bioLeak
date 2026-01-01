@@ -407,3 +407,94 @@ plot_time_acf <- function(fit, lag.max = 20) {
   print(p)
   invisible(list(acf = acf_res, lag.max = lag.max, plot = p))
 }
+
+#' Plot calibration curve for binomial predictions
+#'
+#' Visualizes observed outcome rates versus predicted probabilities across
+#' bins to diagnose calibration (binomial tasks only). Requires ggplot2.
+#'
+#' @param fit LeakFit.
+#' @param bins Number of probability bins to use.
+#' @param min_bin_n Minimum samples per bin shown in the plot.
+#' @return A list containing the calibration curve, metrics, and a ggplot object.
+#' @examples
+#' \dontrun{
+#' # fit <- fit_resample(...)
+#' plot_calibration(fit, bins = 10)
+#' }
+#' @export
+plot_calibration <- function(fit, bins = 10, min_bin_n = 5) {
+  stopifnot(inherits(fit, "LeakFit"))
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' is required for plotting. Install it to use plot_calibration().",
+         call. = FALSE)
+  }
+  cal <- calibration_summary(fit, bins = bins, min_bin_n = min_bin_n)
+  df <- cal$curve
+  df <- df[is.finite(df$pred_mean) & is.finite(df$obs_rate), , drop = FALSE]
+  df_plot <- df[df$n >= min_bin_n, , drop = FALSE]
+  if (!nrow(df_plot)) {
+    stop("Not enough data for calibration plotting.", call. = FALSE)
+  }
+  p <- ggplot2::ggplot(df_plot, ggplot2::aes(x = pred_mean, y = obs_rate)) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+                         color = "grey50") +
+    ggplot2::geom_line(color = "steelblue") +
+    ggplot2::geom_point(ggplot2::aes(size = n), color = "steelblue") +
+    ggplot2::scale_size_continuous(range = c(2, 6)) +
+    ggplot2::labs(title = "Calibration curve",
+                  x = "Mean predicted probability",
+                  y = "Observed event rate",
+                  size = "Bin n") +
+    ggplot2::theme_minimal()
+  print(p)
+  invisible(list(curve = df, metrics = cal$metrics, plot = p))
+}
+
+#' Plot confounder sensitivity
+#'
+#' Shows performance metrics across confounder strata to assess sensitivity to
+#' batch/study effects. Requires ggplot2.
+#'
+#' @param fit LeakFit.
+#' @param confounders Character vector of columns in `coldata` to evaluate.
+#' @param metric Metric name to compute within each stratum.
+#' @param min_n Minimum samples per stratum to display.
+#' @param coldata Optional data.frame of sample metadata.
+#' @param numeric_bins Number of quantile bins for numeric confounders.
+#' @return A list containing the sensitivity table and a ggplot object.
+#' @examples
+#' \dontrun{
+#' # fit <- fit_resample(...)
+#' plot_confounder_sensitivity(fit, confounders = c("batch", "study"))
+#' }
+#' @export
+plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
+                                        min_n = 10, coldata = NULL, numeric_bins = 4) {
+  stopifnot(inherits(fit, "LeakFit"))
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' is required for plotting. Install it to use plot_confounder_sensitivity().",
+         call. = FALSE)
+  }
+  df <- confounder_sensitivity(fit, confounders = confounders, metric = metric,
+                               min_n = min_n, coldata = coldata,
+                               numeric_bins = numeric_bins)
+  if (is.null(df) || !nrow(df)) {
+    stop("No confounder sensitivity results available for plotting.", call. = FALSE)
+  }
+  df_plot <- df[is.finite(df$value) & df$n >= min_n, , drop = FALSE]
+  if (!nrow(df_plot)) {
+    stop("No strata meet the minimum size for plotting.", call. = FALSE)
+  }
+  direction <- df_plot$direction[1] %||% "higher"
+  p <- ggplot2::ggplot(df_plot, ggplot2::aes(x = level, y = value)) +
+    ggplot2::geom_col(fill = "steelblue") +
+    ggplot2::facet_wrap(~ confounder, scales = "free_x") +
+    ggplot2::coord_flip() +
+    ggplot2::labs(title = "Confounder sensitivity",
+                  subtitle = sprintf("%s (better is %s)", df_plot$metric[1], direction),
+                  x = NULL, y = "Metric value") +
+    ggplot2::theme_minimal()
+  print(p)
+  invisible(list(data = df, plot = p))
+}

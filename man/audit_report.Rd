@@ -53,11 +53,13 @@ Path to the generated HTML report.
 \description{
 Creates an HTML report that summarizes a leakage audit for a resampled model.
 The report is built from a [LeakAudit] (or created from a [LeakFit]) and
-presents: permutation-based significance of the chosen performance metric,
-batch or study association tests between metadata and predictions, a target
-leakage scan based on feature-outcome similarity, and duplicate detection
-across training and test folds. The output is a self-contained HTML file with
-tables and plots for these checks plus the audit parameters used.
+presents: cross-validated metric summaries, permutation-based significance of
+the chosen performance metric, batch or study association tests between
+metadata and predictions, confounder sensitivity plots, calibration checks
+for binomial tasks, a target leakage scan based on feature-outcome
+similarity, and duplicate detection across training and test folds. The
+output is a self-contained HTML file with tables and plots for these checks
+plus the audit parameters used.
 }
 \details{
 The report does not refit models or reprocess data; it only inspects the

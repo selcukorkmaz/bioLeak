@@ -25,6 +25,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 - Leak-safe hyperparameter tuning (`tune_resample`): nested CV with tidymodels tune/dials using leakage-aware splits.
 - Guarded vs leaky comparisons: run the same model with an intentionally leaky comparator (for example, global preprocessing or leaky features) to estimate performance inflation risk.
 - Leakage diagnostics (`audit_leakage`): permutation gap for signal vs permuted labels, batch/study association tests, target leakage scan on `X_ref`, and near-duplicate detection.
+- Diagnostics polish: calibration checks (`calibration_summary`, `plot_calibration`) and confounder sensitivity (`confounder_sensitivity`, `plot_confounder_sensitivity`).
 - Reporting (`audit_report`): HTML summary of audit results for sharing and review.
 
 ## Installation
