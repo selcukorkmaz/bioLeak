@@ -4,7 +4,7 @@
 \alias{calibration_summary}
 \title{Calibration diagnostics for binomial predictions}
 \usage{
-calibration_summary(fit, bins = 10, min_bin_n = 5)
+calibration_summary(fit, bins = 10, min_bin_n = 5, learner = NULL)
 }
 \arguments{
 \item{fit}{A [LeakFit] object from [fit_resample()].}
@@ -13,6 +13,9 @@ calibration_summary(fit, bins = 10, min_bin_n = 5)
 
 \item{min_bin_n}{Minimum samples per bin used in plotting; bins smaller than
 this are retained in the output but can be filtered by the caller.}
+
+\item{learner}{Optional character scalar. When predictions include multiple
+learners, selects the learner to summarize.}
 }
 \value{
 A list with a `curve` data.frame and a one-row `metrics` data.frame

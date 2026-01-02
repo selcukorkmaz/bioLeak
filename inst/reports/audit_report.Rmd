@@ -11,6 +11,7 @@ params:
 ```{r report-setup, include=FALSE}
 stopifnot(inherits(params$audit, "LeakAudit"))
 aud <- params$audit
+learner_name <- if (!is.null(aud@trail$learner)) aud@trail$learner else NULL
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
@@ -40,18 +41,22 @@ if (!is.null(mf) && nrow(mf) > 0) {
 }
 ```
 
-## Permutation significance test
+## Label-permutation association test
 
-Note: This test assesses whether predictions are better than random. It does NOT diagnose
+Note: By default, this test keeps predictions fixed and permutes labels, so the p-value
+quantifies prediction-label association rather than a full refit null. It does NOT diagnose
 information leakage. Use the Batch Association, Target Leakage Scan, and Duplicate Detection
 sections to check for leakage.
 
 ```{r perm-significance}
 pg <- aud@permutation_gap
 if (!is.null(pg) && nrow(pg) > 0) {
+  perm_method <- if (!is.null(aud@info$perm_method)) aud@info$perm_method else "fixed"
+  cat(sprintf("Permutation method: %s\n\n",
+              if (identical(perm_method, "refit")) "refit per permutation" else "fixed predictions"))
   knitr::kable(pg)
 } else {
-  cat("No permutation significance results available.")
+  cat("No permutation results available.")
 }
 ```
 
@@ -78,7 +83,7 @@ if (!is.null(ba) && nrow(ba) > 0) {
 
 ```{r confounder-sensitivity}
 metric_name <- if (!is.null(aud@trail$metric)) aud@trail$metric else NULL
-cs <- try(confounder_sensitivity(aud@fit, metric = metric_name), silent = TRUE)
+cs <- try(confounder_sensitivity(aud@fit, metric = metric_name, learner = learner_name), silent = TRUE)
 if (inherits(cs, "try-error") || is.null(cs) || nrow(cs) == 0) {
   cat("No confounder sensitivity results available.")
 } else {
@@ -87,7 +92,8 @@ if (inherits(cs, "try-error") || is.null(cs) || nrow(cs) == 0) {
 ```
 
 ```{r confounder-plot}
-cs_plot <- try(plot_confounder_sensitivity(aud@fit, metric = metric_name), silent = TRUE)
+cs_plot <- try(plot_confounder_sensitivity(aud@fit, metric = metric_name, learner = learner_name),
+               silent = TRUE)
 if (inherits(cs_plot, "try-error")) {
   cat("Confounder sensitivity plot not available.")
 }
@@ -97,7 +103,7 @@ if (inherits(cs_plot, "try-error")) {
 
 ```{r calibration-table}
 if (identical(aud@fit@task, "binomial")) {
-  cal <- try(calibration_summary(aud@fit, bins = 10), silent = TRUE)
+  cal <- try(calibration_summary(aud@fit, bins = 10, learner = learner_name), silent = TRUE)
   if (inherits(cal, "try-error")) {
     cat("Calibration summary not available.")
   } else {
@@ -110,7 +116,7 @@ if (identical(aud@fit@task, "binomial")) {
 
 ```{r calibration-plot}
 if (identical(aud@fit@task, "binomial")) {
-  cal_plot <- try(plot_calibration(aud@fit, bins = 10), silent = TRUE)
+  cal_plot <- try(plot_calibration(aud@fit, bins = 10, learner = learner_name), silent = TRUE)
   if (inherits(cal_plot, "try-error")) {
     cat("Calibration plot not available.")
   }
@@ -137,6 +143,9 @@ if (!is.null(ta) && nrow(ta) > 0) {
 ```{r duplicates}
 dd <- aud@duplicates
 if (!is.null(dd) && nrow(dd) > 0) {
+  scope <- if (!is.null(aud@info$duplicate_scope)) aud@info$duplicate_scope else "all"
+  scope_label <- if (identical(scope, "train_test")) "train/test only" else "all pairs"
+  cat(sprintf("Scope: %s\n\n", scope_label))
   knitr::kable(utils::head(dd, 50))
 } else {
   cat("No duplicates detected or no duplicate check performed.")

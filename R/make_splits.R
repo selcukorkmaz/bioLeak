@@ -309,12 +309,14 @@ make_splits <- function(x, outcome = NULL,
     ord <- order(tt)
     Xidx <- seq_len(n)[ord]
 
-    fold_size <- max(1L, floor(n / v))
+    block_ids <- cut(seq_along(Xidx), breaks = v, include.lowest = TRUE, labels = FALSE)
+    blocks <- split(Xidx, block_ids)
     if (isTRUE(compact)) {
       fold_assign <- rep(NA_integer_, n)
     }
     for (k in seq_len(v)) {
-      test <- Xidx[max(1, (k - 1) * fold_size + 1):min(n, k * fold_size)]
+      test <- blocks[[k]]
+      if (!length(test)) next
       tmin <- min(tt[test])
       if (horizon == 0) {
         train <- Xidx[tt[Xidx] < tmin]

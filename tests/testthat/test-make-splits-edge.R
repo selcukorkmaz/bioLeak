@@ -70,6 +70,15 @@ test_that("make_splits errors when no valid folds are produced", {
                "No valid folds generated")
 })
 
+test_that("make_splits time_series includes tail samples when n not divisible by v", {
+  df <- make_class_df(10)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "time_series", time = "time",
+                              v = 3, horizon = 0, seed = 1)
+  test_idx <- sort(unique(unlist(lapply(splits@indices, `[[`, "test"))))
+  expect_true(max(test_idx) == nrow(df))
+})
+
 test_that("make_splits supports matrix and SummarizedExperiment inputs", {
   mat <- matrix(rnorm(20), nrow = 10)
   expect_message({

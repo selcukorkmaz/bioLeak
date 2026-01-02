@@ -2,8 +2,8 @@
 
 #' Plot permutation distribution for a LeakAudit object
 #'
-#' Visualizes the permutation metric distribution and marks the observed and
-#' permuted-mean values to help assess leakage signals. Requires ggplot2.
+#' Visualizes the label-permutation metric distribution and marks the observed
+#' and permuted-mean values to help assess leakage signals. Requires ggplot2.
 #'
 #' @param audit LeakAudit.
 #' @return A list containing the observed value, permuted mean, permutation values,
@@ -303,8 +303,10 @@ plot_overlap_checks <- function(fit, column = NULL) {
   if (is.null(cd) || is.null(column) || !column %in% names(cd)) {
     stop("Column not available in metadata.")
   }
+  n <- nrow(cd)
   counts <- lapply(seq_along(fit@splits@indices), function(i) {
     idx <- fit@splits@indices[[i]]
+    idx <- .bio_resolve_fold_indices(fit@splits, idx, n = n, data = cd)
     tr <- unique(cd[[column]][idx$train])
     te <- unique(cd[[column]][idx$test])
     data.frame(fold = i, overlap = length(intersect(tr, te)),
@@ -416,6 +418,8 @@ plot_time_acf <- function(fit, lag.max = 20) {
 #' @param fit LeakFit.
 #' @param bins Number of probability bins to use.
 #' @param min_bin_n Minimum samples per bin shown in the plot.
+#' @param learner Optional character scalar. When predictions include multiple
+#'   learners, selects the learner to summarize.
 #' @return A list containing the calibration curve, metrics, and a ggplot object.
 #' @examples
 #' \dontrun{
@@ -423,13 +427,13 @@ plot_time_acf <- function(fit, lag.max = 20) {
 #' plot_calibration(fit, bins = 10)
 #' }
 #' @export
-plot_calibration <- function(fit, bins = 10, min_bin_n = 5) {
+plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required for plotting. Install it to use plot_calibration().",
          call. = FALSE)
   }
-  cal <- calibration_summary(fit, bins = bins, min_bin_n = min_bin_n)
+  cal <- calibration_summary(fit, bins = bins, min_bin_n = min_bin_n, learner = learner)
   df <- cal$curve
   df <- df[is.finite(df$pred_mean) & is.finite(df$obs_rate), , drop = FALSE]
   df_plot <- df[df$n >= min_bin_n, , drop = FALSE]
@@ -462,6 +466,8 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5) {
 #' @param min_n Minimum samples per stratum to display.
 #' @param coldata Optional data.frame of sample metadata.
 #' @param numeric_bins Number of quantile bins for numeric confounders.
+#' @param learner Optional character scalar. When predictions include multiple
+#'   learners, selects the learner to summarize.
 #' @return A list containing the sensitivity table and a ggplot object.
 #' @examples
 #' \dontrun{
@@ -470,7 +476,8 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5) {
 #' }
 #' @export
 plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
-                                        min_n = 10, coldata = NULL, numeric_bins = 4) {
+                                        min_n = 10, coldata = NULL, numeric_bins = 4,
+                                        learner = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required for plotting. Install it to use plot_confounder_sensitivity().",
@@ -478,7 +485,7 @@ plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
   }
   df <- confounder_sensitivity(fit, confounders = confounders, metric = metric,
                                min_n = min_n, coldata = coldata,
-                               numeric_bins = numeric_bins)
+                               numeric_bins = numeric_bins, learner = learner)
   if (is.null(df) || !nrow(df)) {
     stop("No confounder sensitivity results available for plotting.", call. = FALSE)
   }

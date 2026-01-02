@@ -183,6 +183,22 @@ test_that("fit_resample errors for compact time_series without time metadata", {
                "time_series compact splits")
 })
 
+test_that("fit_resample handles compact splits with repeats", {
+  df <- make_class_df(30)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped",
+                              group = "subject",
+                              v = 3, repeats = 2,
+                              compact = TRUE, seed = 1)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "auc", refit = FALSE, seed = 1)
+  pred_df <- do.call(rbind, fit@predictions)
+  fold_counts <- table(pred_df$fold)
+  expect_equal(length(fold_counts), length(splits@indices))
+  expect_true(all(fold_counts > 0))
+})
+
 test_that("fit_resample supports parsnip learners when available", {
   skip_if_not_installed("parsnip")
   df <- make_class_df(12)

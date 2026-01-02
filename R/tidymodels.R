@@ -7,6 +7,38 @@
 .bio_is_workflow <- function(x) inherits(x, "workflow")
 .bio_is_yardstick_metric <- function(x) inherits(x, "metric") || inherits(x, "metric_function")
 
+.bio_rsample_col_name <- function(val) {
+  if (is.null(val) || is.logical(val)) return(NULL)
+  if (is.character(val)) {
+    val <- val[!is.na(val) & nzchar(val)]
+    return(if (length(val)) val else NULL)
+  }
+  if (inherits(val, "quosure")) {
+    if (!requireNamespace("rlang", quietly = TRUE)) return(NULL)
+    val <- rlang::quo_get_expr(val)
+  }
+  if (inherits(val, "formula")) {
+    vars <- all.vars(val)
+    return(if (length(vars)) vars else NULL)
+  }
+  if (is.name(val)) return(as.character(val))
+  if (is.call(val)) {
+    vars <- all.vars(val)
+    return(if (length(vars)) vars else NULL)
+  }
+  NULL
+}
+
+.bio_rsample_split_cols <- function(splits) {
+  grab <- function(nm) .bio_rsample_col_name(attr(splits, nm, exact = TRUE))
+  list(
+    group = grab("group") %||% grab("groups"),
+    batch = grab("batch"),
+    study = grab("study"),
+    time = grab("time") %||% grab("index") %||% grab("date")
+  )
+}
+
 .bio_rsplit_indices <- function(split, n = NULL) {
   if (!inherits(split, "rsplit")) {
     stop("Expected an rsample rsplit object.", call. = FALSE)
@@ -65,6 +97,8 @@
     repeat_map <- as.integer(factor(split_ids2, levels = unique(split_ids2)))
   }
 
+  rsample_cols <- .bio_rsample_split_cols(splits)
+
   indices <- vector("list", length(split_list))
   summary_rows <- vector("list", length(split_list))
   for (i in seq_along(split_list)) {
@@ -91,10 +125,10 @@
     repeats = length(unique(repeat_map)),
     seed = NA_integer_,
     mode = "rsample",
-    group = NULL,
-    batch = NULL,
-    study = NULL,
-    time = NULL,
+    group = rsample_cols$group,
+    batch = rsample_cols$batch,
+    study = rsample_cols$study,
+    time = rsample_cols$time,
     stratify = NA,
     nested = FALSE,
     horizon = 0,
@@ -229,5 +263,11 @@ as_rsample.LeakSplits <- function(x, data = NULL) {
   if (!is.null(ids2) && "ids2" %in% names(formals(manual_rset))) {
     args$ids2 <- ids2
   }
-  do.call(manual_rset, args)
+  rset <- do.call(manual_rset, args)
+  info <- x@info
+  if (!is.null(info$group)) attr(rset, "group") <- info$group
+  if (!is.null(info$batch)) attr(rset, "batch") <- info$batch
+  if (!is.null(info$study)) attr(rset, "study") <- info$study
+  if (!is.null(info$time)) attr(rset, "time") <- info$time
+  rset
 }

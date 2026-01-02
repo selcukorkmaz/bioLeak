@@ -107,6 +107,54 @@ test_that("audit_leakage warns when observed metric is non-finite", {
   expect_true(is.na(audit@permutation_gap$metric_obs[1]))
 })
 
+test_that("audit_leakage warns on misaligned coldata for permutations", {
+  df <- make_class_df(12)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 3, seed = 1)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "auc", refit = FALSE, seed = 1)
+
+  bad_cd <- df
+  rownames(bad_cd) <- paste0("id_", seq_len(nrow(bad_cd)))
+  expect_warning_match(
+    audit_leakage(fit, metric = "auc", B = 5, coldata = bad_cd,
+                  perm_stratify = TRUE),
+    "restricted permutations disabled"
+  )
+})
+
+test_that("audit_leakage duplicate_scope filters within-fold duplicates", {
+  df <- make_class_df(12)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 3, seed = 1)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "auc", refit = FALSE, seed = 1)
+
+  X_ref <- df[, c("x1", "x2")]
+  for (sid in unique(df$subject)) {
+    idx <- which(df$subject == sid)
+    if (length(idx) > 1) {
+      X_ref[idx[2], ] <- X_ref[idx[1], ]
+    }
+  }
+
+  audit_tt <- audit_leakage(fit, metric = "auc", B = 3,
+                            X_ref = X_ref, sim_threshold = 0.999,
+                            perm_stratify = FALSE)
+  expect_equal(nrow(audit_tt@duplicates), 0)
+
+  audit_all <- audit_leakage(fit, metric = "auc", B = 3,
+                             X_ref = X_ref, sim_threshold = 0.999,
+                             perm_stratify = FALSE, duplicate_scope = "all")
+  expect_true(nrow(audit_all@duplicates) > 0)
+  expect_true("cross_fold" %in% names(audit_all@duplicates))
+  expect_true(all(audit_all@duplicates$cross_fold == FALSE))
+})
+
 # test_that("audit_leakage warns on misaligned coldata", {
 #   df <- make_class_df(12)
 #   splits <- make_splits_quiet(df, outcome = "outcome",

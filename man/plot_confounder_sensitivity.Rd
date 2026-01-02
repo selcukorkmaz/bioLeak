@@ -10,7 +10,8 @@ plot_confounder_sensitivity(
   metric = NULL,
   min_n = 10,
   coldata = NULL,
-  numeric_bins = 4
+  numeric_bins = 4,
+  learner = NULL
 )
 }
 \arguments{
@@ -25,6 +26,9 @@ plot_confounder_sensitivity(
 \item{coldata}{Optional data.frame of sample metadata.}
 
 \item{numeric_bins}{Number of quantile bins for numeric confounders.}
+
+\item{learner}{Optional character scalar. When predictions include multiple
+learners, selects the learner to summarize.}
 }
 \value{
 A list containing the sensitivity table and a ggplot object.

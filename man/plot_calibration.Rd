@@ -4,7 +4,7 @@
 \alias{plot_calibration}
 \title{Plot calibration curve for binomial predictions}
 \usage{
-plot_calibration(fit, bins = 10, min_bin_n = 5)
+plot_calibration(fit, bins = 10, min_bin_n = 5, learner = NULL)
 }
 \arguments{
 \item{fit}{LeakFit.}
@@ -12,6 +12,9 @@ plot_calibration(fit, bins = 10, min_bin_n = 5)
 \item{bins}{Number of probability bins to use.}
 
 \item{min_bin_n}{Minimum samples per bin shown in the plot.}
+
+\item{learner}{Optional character scalar. When predictions include multiple
+learners, selects the learner to summarize.}
 }
 \value{
 A list containing the calibration curve, metrics, and a ggplot object.

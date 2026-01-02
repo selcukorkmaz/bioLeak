@@ -1,5 +1,51 @@
 # Additional diagnostic helpers ----------------------------------------------
 
+.select_predictions_for_diagnostics <- function(fit, context, learner = NULL) {
+  pred_df <- if (length(fit@predictions)) {
+    do.call(rbind, lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE)))
+  } else {
+    NULL
+  }
+  if (is.null(pred_df) || !nrow(pred_df)) {
+    stop(sprintf("No predictions available for %s.", context), call. = FALSE)
+  }
+
+  has_learner <- "learner" %in% names(pred_df)
+  if (has_learner) {
+    pred_df$learner <- as.character(pred_df$learner)
+    learner_vals <- unique(pred_df$learner)
+    if (is.null(learner)) {
+      if (length(learner_vals) == 1L) {
+        learner <- learner_vals[[1]]
+      } else {
+        stop("Multiple learners found in predictions; specify `learner` to select a single model.",
+             call. = FALSE)
+      }
+    } else {
+      if (length(learner) != 1L) stop("learner must be a single value.", call. = FALSE)
+      if (!learner %in% learner_vals) {
+        stop(sprintf("Learner '%s' not found in predictions. Available: %s",
+                     learner, paste(learner_vals, collapse = ", ")),
+             call. = FALSE)
+      }
+    }
+    pred_df <- pred_df[pred_df$learner == learner, , drop = FALSE]
+    if (!nrow(pred_df)) {
+      stop(sprintf("No predictions available for learner '%s'.", learner), call. = FALSE)
+    }
+  } else {
+    if (!is.null(learner)) {
+      warning("`learner` ignored: predictions do not include learner IDs.", call. = FALSE)
+    } else if (!is.null(fit@metrics) && "learner" %in% names(fit@metrics) &&
+               length(unique(fit@metrics$learner)) > 1L) {
+      warning("Multiple learners were fit but predictions lack learner IDs; diagnostics may mix learners. Refit with updated bioLeak.",
+              call. = FALSE)
+    }
+  }
+
+  pred_df
+}
+
 #' Calibration diagnostics for binomial predictions
 #'
 #' Computes reliability curve summaries and calibration metrics for a
@@ -9,6 +55,8 @@
 #' @param bins Integer number of probability bins for the calibration curve.
 #' @param min_bin_n Minimum samples per bin used in plotting; bins smaller than
 #'   this are retained in the output but can be filtered by the caller.
+#' @param learner Optional character scalar. When predictions include multiple
+#'   learners, selects the learner to summarize.
 #' @return A list with a `curve` data.frame and a one-row `metrics` data.frame
 #'   containing ECE, MCE, and Brier score.
 #' @examples
@@ -18,7 +66,7 @@
 #' cal$metrics
 #' }
 #' @export
-calibration_summary <- function(fit, bins = 10, min_bin_n = 5) {
+calibration_summary <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
   if (!identical(fit@task, "binomial")) {
     stop("calibration_summary is only available for binomial tasks.", call. = FALSE)
@@ -32,14 +80,7 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5) {
     stop("min_bin_n must be an integer >= 1.", call. = FALSE)
   }
 
-  pred_df <- if (length(fit@predictions)) {
-    do.call(rbind, lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE)))
-  } else {
-    NULL
-  }
-  if (is.null(pred_df) || !nrow(pred_df)) {
-    stop("No predictions available for calibration.", call. = FALSE)
-  }
+  pred_df <- .select_predictions_for_diagnostics(fit, "calibration", learner = learner)
   if (!"pred" %in% names(pred_df)) {
     stop("Predictions missing 'pred' column for calibration.", call. = FALSE)
   }
@@ -122,6 +163,8 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5) {
 #'   `fit@splits@info$coldata` when available.
 #' @param numeric_bins Integer number of quantile bins for numeric confounders
 #'   with many unique values.
+#' @param learner Optional character scalar. When predictions include multiple
+#'   learners, selects the learner to summarize.
 #' @return A data.frame with per-confounder, per-level metrics and counts.
 #' @examples
 #' \dontrun{
@@ -130,16 +173,10 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5) {
 #' }
 #' @export
 confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
-                                   min_n = 10, coldata = NULL, numeric_bins = 4) {
+                                   min_n = 10, coldata = NULL, numeric_bins = 4,
+                                   learner = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
-  pred_df <- if (length(fit@predictions)) {
-    do.call(rbind, lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE)))
-  } else {
-    NULL
-  }
-  if (is.null(pred_df) || !nrow(pred_df)) {
-    stop("No predictions available for confounder sensitivity.", call. = FALSE)
-  }
+  pred_df <- .select_predictions_for_diagnostics(fit, "confounder sensitivity", learner = learner)
   if (!"id" %in% names(pred_df)) {
     stop("Predictions are missing sample ids; confounder sensitivity unavailable.", call. = FALSE)
   }

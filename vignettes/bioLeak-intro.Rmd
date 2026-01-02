@@ -773,7 +773,7 @@ The overlap line remains flat at zero across all folds. This confirms that `subj
 - permutation gap: tests whether model signal is non-random
 - batch or study association with folds (chi-square and Cramers V)
 - target leakage scan: feature-wise outcome association to flag proxy columns
-- duplicate and near-duplicate detection using feature similarity
+- duplicate and near-duplicate detection across train/test (by default) using feature similarity
 
 Assumptions and misuse to avoid:
 
@@ -782,16 +782,18 @@ Assumptions and misuse to avoid:
 - `plot_perm_distribution()` requires `return_perm = TRUE`
 - `target_threshold` should be set high enough to flag only strong proxies
 
-**Interpretation Note:** The **Permutation Significance Test** determines if your model's
-performance is statistically distinguishable from random guessing. A large gap means your
-model found a signal. To determine if that signal is *real* or *leaked*, check the
-**Batch Association** (confounding), **Target Leakage Scan** (proxy features),
-and **Duplicate Detection** (memorization) tables.
+**Interpretation Note:** The label-permutation test keeps predictions fixed by default, so
+the p-value quantifies prediction-label association rather than a full refit null. A large
+gap indicates a non-random association. To determine if that signal is *real* or *leaked*,
+check the **Batch Association** (confounding), **Target Leakage Scan** (proxy features),
+and **Duplicate Detection** (memorization) tables. Use `perm_refit = TRUE` with
+`perm_refit_spec` for a refit-based null when needed.
 
 Use `feature_space = "rank"` to compare samples by rank profiles, and
 `sim_method` (`cosine` or `pearson`) to control similarity. For large `n`, `nn_k`
-and `max_pairs` limit duplicate searches. Use `ci_method = "bootstrap"` with
-`boot_B` if you want a confidence interval for the permutation gap.
+and `max_pairs` limit duplicate searches. Use `duplicate_scope = "all"` to
+include within-fold duplicates (data-quality checks). Use `ci_method = "bootstrap"`
+with `boot_B` if you want a confidence interval for the permutation gap.
 
 **Leakage-aware audit**
 
@@ -843,9 +845,9 @@ The batch association table reports chi-square statistics. Here, the p-values (0
 
 The target scan table lists features with the strongest associations with the outcome. For numeric features, the score is \(|\mathrm{AUC} - 0.5| \times 2\) for classification or the absolute correlation for regression. For categorical features, the score is Cramér’s V or eta-squared. Scores closer to 1 indicate stronger outcome association. In this result, `x1` has the highest score (0.356), which is expected since it drives the outcome, but it remains far below the 0.90 threshold that would trigger a leakage warning.
 
-The duplicate table lists pairs of samples with near-identical profiles. Notably, the top row flags the pair (1, 5) with a similarity score of 1.0.
+The duplicate table lists pairs of samples with near-identical profiles that cross train/test folds (by default). Notably, the top row flags the pair (1, 5) with a similarity score of 1.0.
 
-This confirms that the audit successfully detected the artificial duplicate injected during setup (`X_ref[c(1, 5), ] <- X_ref[1, ]`).
+This confirms that the audit successfully detected the artificial duplicate injected during setup (`X_ref[c(1, 5), ] <- X_ref[1, ]`). Use `duplicate_scope = "all"` to include within-fold duplicates.
 
 ```{r plot-perm}
 if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -1042,7 +1044,7 @@ if (requireNamespace("glmnet", quietly = TRUE)) {
 
 Each row corresponds to one simulation seed.
 
-- `metric_obs` is the observed performance (AUC). The consistently high values (≈0.85–0.87) indicate that the `subject_overlap` leakage mechanism injected a strong artificial signal.
+- `metric_obs` is the observed performance (AUC). The consistently high values (≈0.85-0.87) indicate that the `subject_overlap` leakage mechanism injected a strong artificial signal.
 
 - `gap` and `p_value` indicate that the leaked signal is statistically distinguishable from random noise.
 

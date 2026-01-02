@@ -939,7 +939,9 @@ fit_resample <- function(x, outcome, splits,
     } else {
       train <- setdiff(seq_len(nrow(Xall)), test)
     }
-    list(train = train, test = test, fold = fold$fold, repeat_id = fold$repeat_id)
+    fold_seq <- fold$fold_seq %||% fold$fold
+    list(train = train, test = test, fold = fold$fold,
+         repeat_id = fold$repeat_id, fold_seq = fold_seq)
   }
 
   make_fold_df <- function(X, y) {
@@ -964,7 +966,8 @@ fit_resample <- function(x, outcome, splits,
   # fold-level function -------------------------------------------------------
   do_fold <- function(fold) {
     fold_full <- resolve_fold_indices(fold)
-    set.seed(seed + fold_full$fold)
+    fold_id <- fold_full$fold_seq %||% fold_full$fold
+    set.seed(seed + fold_id)
     tr <- fold_full$train
     te <- fold_full$test
 
@@ -977,7 +980,7 @@ fit_resample <- function(x, outcome, splits,
       ytr <- factor(ytr, levels = class_levels)
       yte <- factor(yte, levels = class_levels)
       if (nlevels(droplevels(ytr)) < 2) {
-        warning(sprintf("Fold %s skipped: only one class in training data", fold$fold))
+        warning(sprintf("Fold %s skipped: only one class in training data", fold_id))
         empty_metrics <- if (identical(metric_mode, "yardstick")) {
           numeric(0)
         } else {
@@ -1119,7 +1122,7 @@ fit_resample <- function(x, outcome, splits,
           truth_time = yte_mat[, time_col],
           truth_event = yte_mat[, status_col],
           pred = model$pred,
-          fold = fold_full$fold,
+          fold = fold_id,
           learner = ln,
           stringsAsFactors = FALSE
         )
@@ -1128,7 +1131,7 @@ fit_resample <- function(x, outcome, splits,
           id = ids[te],
           truth = yte,
           pred = model$pred,
-          fold = fold_full$fold,
+          fold = fold_id,
           learner = ln,
           stringsAsFactors = FALSE
         )
@@ -1159,8 +1162,9 @@ fit_resample <- function(x, outcome, splits,
   pb <- utils::txtProgressBar(min = 0, max = nfold, style = 3)
   pb_counter <- 0
   progress_wrap <- function(f) {
+    fold_id <- f$fold_seq %||% f$fold
     res <- tryCatch(do_fold(f), error = function(e) {
-      warning(sprintf("Fold %s failed: %s", f$fold, e$message)); NULL
+      warning(sprintf("Fold %s failed: %s", fold_id, e$message)); NULL
     })
     pb_counter <<- pb_counter + 1
     utils::setTxtProgressBar(pb, pb_counter)
@@ -1171,13 +1175,13 @@ fit_resample <- function(x, outcome, splits,
   if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
     out <- future.apply::future_lapply(seq_along(folds), function(i) {
       fold <- folds[[i]]
-      fold$fold <- i  # add fold number
+      fold$fold_seq <- i
       progress_wrap(fold)
     }, future.seed = TRUE)
   } else {
     out <- lapply(seq_along(folds), function(i) {
       fold <- folds[[i]]
-      fold$fold <- i  # add fold number
+      fold$fold_seq <- i
       progress_wrap(fold)
     })
   }
@@ -1196,12 +1200,13 @@ fit_resample <- function(x, outcome, splits,
     fold_res <- out[[fold_idx]]
     if (is.null(fold_res)) next
     fold_info <- resolve_fold_indices(folds[[fold_idx]])
+    fold_id <- fold_idx
     for (ln in names(fold_res)) {
       res <- fold_res[[ln]]
       if (is.null(res)) next
       m <- res$metrics
       if (all(is.na(m))) next
-      metric_row <- c(list(fold = fold_info$fold, learner = ln), as.list(m))
+      metric_row <- c(list(fold = fold_id, learner = ln), as.list(m))
       met_rows[[length(met_rows) + 1]] <- as.data.frame(metric_row,
                                                         row.names = NULL,
                                                         check.names = FALSE)
@@ -1216,7 +1221,7 @@ fit_resample <- function(x, outcome, splits,
       }
       lears[[length(lears) + 1]] <- res$learner
       audit_rows[[length(audit_rows) + 1]] <- data.frame(
-        fold = fold_info$fold,
+        fold = fold_id,
         n_train = length(fold_info$train),
         n_test = length(fold_info$test),
         learner = ln,

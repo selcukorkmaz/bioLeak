@@ -43,9 +43,9 @@ the report contents.}
 when `audit` is a [LeakFit]. These control how the audit is computed and
 therefore change the report. Typical examples include `metric` (character),
 `B` (integer), `perm_stratify` (logical), `batch_cols` (character vector),
-`X_ref` (matrix/data.frame), and `sim_method` (character). When omitted,
-[audit_leakage()] defaults are used. Ignored when `audit` is already a
-[LeakAudit].}
+`X_ref` (matrix/data.frame), `sim_method` (character), and
+`duplicate_scope` (character). When omitted, [audit_leakage()] defaults are
+used. Ignored when `audit` is already a [LeakAudit].}
 }
 \value{
 Path to the generated HTML report.
@@ -53,8 +53,9 @@ Path to the generated HTML report.
 \description{
 Creates an HTML report that summarizes a leakage audit for a resampled model.
 The report is built from a [LeakAudit] (or created from a [LeakFit]) and
-presents: cross-validated metric summaries, permutation-based significance of
-the chosen performance metric, batch or study association tests between
+presents: cross-validated metric summaries, a label-permutation association
+test of the chosen performance metric (fixed predictions by default; optional
+refit-based permutations), batch or study association tests between
 metadata and predictions, confounder sensitivity plots, calibration checks
 for binomial tasks, a target leakage scan based on feature-outcome
 similarity, and duplicate detection across training and test folds. The
@@ -62,8 +63,9 @@ output is a self-contained HTML file with tables and plots for these checks
 plus the audit parameters used.
 }
 \details{
-The report does not refit models or reprocess data; it only inspects the
-predictions and metadata stored in the input. Results are conditional on the
+The report does not refit models or reprocess data unless `perm_refit = TRUE`;
+it otherwise inspects the predictions and metadata stored in the input. Results
+are conditional on the
 provided splits, selected metric, and any feature matrix supplied to
 [audit_leakage()]. A non-significant result does not prove the absence of
 leakage, especially with small `B` or incomplete metadata. Rendering requires

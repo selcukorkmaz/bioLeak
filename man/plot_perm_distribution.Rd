@@ -14,8 +14,8 @@ A list containing the observed value, permuted mean, permutation values,
   and a ggplot object.
 }
 \description{
-Visualizes the permutation metric distribution and marks the observed and
-permuted-mean values to help assess leakage signals. Requires ggplot2.
+Visualizes the label-permutation metric distribution and marks the observed
+and permuted-mean values to help assess leakage signals. Requires ggplot2.
 }
 \examples{
 \dontrun{

@@ -37,14 +37,16 @@ the number of learners.}
 \item{...}{Additional named arguments forwarded to [audit_leakage()] for each
 learner. These control the audit itself. Common options include:
 `B` (integer permutations), `perm_stratify` (logical or `"auto"`),
+`perm_refit` (logical), `perm_refit_spec` (list),
 `time_block` (character), `block_len` (integer or NULL), `include_z`
 (logical), `ci_method` (character), `boot_B` (integer), `parallel`
 (logical), `seed` (integer), `return_perm` (logical), `batch_cols`
 (character vector), `coldata` (data.frame), `X_ref` (matrix/data.frame),
 `target_scan` (logical), `target_threshold` (numeric), `feature_space`
 (character), `sim_method` (character), `sim_threshold` (numeric),
-`nn_k` (integer), and `max_pairs` (integer). See [audit_leakage()] for full
-definitions; changing these values changes each learner's audit.}
+`nn_k` (integer), `max_pairs` (integer), and `duplicate_scope` (character).
+See [audit_leakage()] for full definitions; changing these values changes
+each learner's audit.}
 }
 \value{
 Named list of [LeakAudit] objects, keyed by learner ID.

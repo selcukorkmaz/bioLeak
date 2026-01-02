@@ -10,7 +10,8 @@ confounder_sensitivity(
   metric = NULL,
   min_n = 10,
   coldata = NULL,
-  numeric_bins = 4
+  numeric_bins = 4,
+  learner = NULL
 )
 }
 \arguments{
@@ -29,6 +30,9 @@ first metric used in the fit (or task defaults if unavailable).}
 
 \item{numeric_bins}{Integer number of quantile bins for numeric confounders
 with many unique values.}
+
+\item{learner}{Optional character scalar. When predictions include multiple
+learners, selects the learner to summarize.}
 }
 \value{
 A data.frame with per-confounder, per-level metrics and counts.

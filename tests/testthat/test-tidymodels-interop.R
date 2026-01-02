@@ -8,6 +8,17 @@ test_that("fit_resample accepts rsample splits", {
   expect_true(nrow(fit@metrics) > 0)
 })
 
+test_that("rsample grouped splits drop grouping columns", {
+  skip_if_not_installed("rsample")
+  df <- make_class_df(12)
+  rs <- rsample::group_vfold_cv(df, group = subject, v = 2)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = rs,
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "accuracy", refit = FALSE)
+  expect_true(length(fit@feature_names) > 0)
+  expect_false("subject" %in% fit@feature_names)
+})
+
 test_that("as_rsample converts LeakSplits", {
   skip_if_not_installed("rsample")
   df <- make_class_df(12)
@@ -16,6 +27,7 @@ test_that("as_rsample converts LeakSplits", {
   rs <- as_rsample(splits, data = df)
   expect_true(inherits(rs, "rset"))
   expect_equal(nrow(rs), length(splits@indices))
+  expect_equal(attr(rs, "group"), "subject")
 })
 
 test_that("fit_resample accepts recipe preprocessing", {

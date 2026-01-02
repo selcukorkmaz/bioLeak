@@ -2,21 +2,24 @@
 #'
 #' Prints a concise, human-readable report for a `LeakAudit` object produced by
 #' [audit_leakage()]. The summary surfaces four diagnostics when available:
-#' permutation gap (signal vs. randomized labels), batch/study association tests
-#' (metadata aligned with fold splits), target leakage scan (features strongly
-#' associated with the outcome), and near-duplicate detection (high similarity
-#' in `X_ref`). The output reflects the stored audit results only; it does not
-#' recompute any tests.
+#' label-permutation gap (prediction-label association by default), batch/study
+#' association tests (metadata aligned with fold splits), target leakage scan
+#' (features strongly associated with the outcome), and near-duplicate detection
+#' (high similarity in `X_ref`). The output reflects the stored audit results
+#' only; it does not recompute any tests.
 #'
 #' @details
-#' The permutation test indicates whether model performance exceeds random label
-#' performance; it does not by itself prove or rule out leakage.
+#' The permutation test quantifies prediction-label association when using fixed
+#' predictions; refit-based permutations require `perm_refit = TRUE`. It does
+#' not by itself prove or rule out leakage.
 #' Batch association flags metadata that align with fold assignment; this may
 #' reflect study design rather than leakage.
 #' Target leakage scan uses univariate feature-outcome associations and can miss
 #' multivariate leakage or proxies not present in `X_ref`.
 #' Duplicate detection only considers the provided `X_ref` features and the
-#' similarity threshold used during [audit_leakage()].
+#' similarity threshold used during [audit_leakage()]. By default,
+#' `duplicate_scope = "train_test"` filters to pairs that cross train/test;
+#' set `duplicate_scope = "all"` to include within-fold duplicates.
 #' Sections are reported as "not available" when the corresponding audit
 #' component was not computed.
 #'
@@ -96,10 +99,17 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
               length(indices),
               info$repeats %||% 1))
 
-  # --- Permutation significance test ---
+  # --- Label-permutation association test ---
   if (!is.null(object@permutation_gap) && nrow(object@permutation_gap) > 0) {
     pg <- object@permutation_gap
-    cat("Permutation Significance Test:\n")
+    perm_method <- object@info$perm_method %||% "fixed"
+    perm_label <- if (identical(perm_method, "refit")) {
+      "refit per permutation"
+    } else {
+      "fixed predictions"
+    }
+    cat("Label-Permutation Association Test:\n")
+    cat(sprintf("  Method: %s\n", perm_label))
     cat(sprintf("  Observed metric: %s\n",
                 formatC(pg$metric_obs, digits = digits, format = "f")))
     cat(sprintf("  Permuted mean %s SD: %s %s %s\n",
@@ -109,10 +119,14 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
                 formatC(pg$perm_sd, digits = digits, format = "f")))
     cat(sprintf("  Gap: %s (larger gap = stronger non-random signal)\n",
                 formatC(pg$gap, digits = digits, format = "f")))
-    cat("  Note: This tests if the model signal is non-random. It does NOT diagnose information leakage.\n")
-    cat("  Use the Batch Association, Target Leakage Scan, and Duplicate Detection sections to check for leakage.\n\n")
+    if (!identical(perm_method, "refit")) {
+      cat("  Note: Fixed-prediction label permutations quantify prediction-label association.\n")
+      cat("  They do NOT refit models and are not a full null test of no signal.\n")
+    }
+    cat("  This test does NOT diagnose information leakage. Use the Batch Association,\n")
+    cat("  Target Leakage Scan, and Duplicate Detection sections to check for leakage.\n\n")
   } else {
-    cat("Permutation Significance Test: not available.\n\n")
+    cat("Label-Permutation Association Test: not available.\n\n")
   }
 
   # --- Batch association ---
@@ -169,6 +183,9 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     dd <- object@duplicates
     cat("Near-Duplicate Samples:\n")
     sim_label <- object@info$sim_method %||% "cosine"
+    dup_scope <- object@info$duplicate_scope %||% "all"
+    scope_label <- if (identical(dup_scope, "train_test")) "train/test only" else "all pairs"
+    cat(sprintf("  Scope: %s\n", scope_label))
     cat(sprintf("  %d pairs detected above %s %s %s\n",
                 nrow(dd),
                 sim_label,

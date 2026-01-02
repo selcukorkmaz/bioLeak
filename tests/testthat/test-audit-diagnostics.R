@@ -52,10 +52,40 @@ test_that("audit_leakage reports batch association and duplicates", {
     perm_stratify = FALSE,
     batch_cols = "batch",
     X_ref = df[, c("x1", "x2")],
-    sim_threshold = 0.999
+    sim_threshold = 0.999,
+    duplicate_scope = "all"
   )
 
   expect_true(nrow(audit@batch_assoc) >= 1)
   expect_true(is.finite(audit@batch_assoc$pval[1]))
   expect_true(nrow(audit@duplicates) >= 1)
+})
+
+test_that("audit_leakage supports refit-based permutations", {
+  df <- make_class_df(20)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 3, seed = 1)
+  custom <- make_custom_learners()
+
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = custom,
+                            metrics = "auc", refit = FALSE, seed = 1)
+
+  audit <- audit_leakage(
+    fit,
+    metric = "auc",
+    B = 2,
+    perm_refit = TRUE,
+    perm_refit_spec = list(
+      x = df,
+      outcome = "outcome",
+      learner = "glm",
+      custom_learners = custom
+    ),
+    perm_stratify = FALSE
+  )
+
+  expect_true(identical(audit@info$perm_method, "refit"))
+  expect_equal(audit@permutation_gap$n_perm[1], 2)
 })

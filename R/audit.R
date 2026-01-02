@@ -400,17 +400,17 @@
 #'
 #' @description
 #' Computes a post-hoc leakage audit for a resampled model fit. The audit
-#' (1) compares observed cross-validated performance to a permutation null to
-#' detect label or split leakage, (2) tests whether fold assignments are
-#' associated with batch or study metadata (confounding by design), (3) scans
-#' features for unusually strong outcome proxies, and (4) flags duplicate or
-#' near-duplicate samples in a reference feature matrix.
+#' (1) compares observed cross-validated performance to a label-permutation
+#' null (by default using fixed predictions), (2) tests whether fold assignments
+#' are associated with batch or study metadata (confounding by design),
+#' (3) scans features for unusually strong outcome proxies, and (4) flags
+#' duplicate or near-duplicate samples in a reference feature matrix.
 #'
-#' The returned [LeakAudit] summarizes these diagnostics. It relies only on the
+#' The returned [LeakAudit] summarizes these diagnostics. It relies on the
 #' stored predictions, splits, and optional metadata; it does not refit models
-#' or alter splits. Results are conditional on the chosen metric and supplied
-#' metadata/features and should be interpreted as diagnostics, not proof of
-#' leakage or its absence.
+#' unless `perm_refit = TRUE`. Results are conditional on the chosen metric
+#' and supplied metadata/features and should be interpreted as diagnostics,
+#' not proof of leakage or its absence.
 #'
 #' @param fit A [LeakFit] object from [fit_resample()] containing cross-validated
 #'   predictions and split metadata. If predictions include learner IDs for
@@ -428,6 +428,17 @@
 #'   into quantiles when enough non-missing values are available). If FALSE, no
 #'   stratification is used. Stratification only applies when `coldata` supplies
 #'   the outcome; otherwise labels are shuffled within each fold.
+#' @param perm_refit Logical scalar. If FALSE (default), permutations keep
+#'   predictions fixed and shuffle labels (association test). If TRUE, each
+#'   permutation refits the model on permuted outcomes using `perm_refit_spec`.
+#'   Refit-based permutations are slower but better approximate a full null
+#'   distribution.
+#' @param perm_refit_spec List of inputs used when `perm_refit = TRUE`.
+#'   Required elements: `x` (data used for fitting) and `learner` (parsnip
+#'   model_spec, workflow, or legacy learner). Optional elements: `outcome`
+#'   (defaults to `fit@outcome`), `preprocess`, `learner_args`,
+#'   `custom_learners`, `class_weights`, `positive_class`, and `parallel`.
+#'   Survival outcomes are not supported for refit-based permutations.
 #' @param time_block Character scalar, `"circular"` or `"stationary"`. Controls
 #'   block permutation for `time_series` splits; ignored for other split modes.
 #'   Default is `"circular"`.
@@ -458,12 +469,13 @@
 #'   to prediction ids via row names, a `row_id` column, or row order. Used to
 #'   build restricted permutations (when the outcome column is present), compute
 #'   batch associations, and supply outcomes for target scans. If NULL, uses
-#'   `fit@splits@info$coldata` when available. Misalignment triggers warnings
-#'   and skips the affected checks.
+#'   `fit@splits@info$coldata` when available. If alignment fails, restricted
+#'   permutations are disabled with a warning.
 #' @param X_ref Optional numeric matrix/data.frame (samples x features). Used for
 #'   duplicate detection and the target leakage scan. If NULL, uses
-#'   `fit@info$X_ref` when available. Rows must align to prediction ids via
-#'   row names, sample ids, or row order; misalignment disables these checks.
+#'   `fit@info$X_ref` when available. Rows must align to sample ids (split order)
+#'   via row names, a `row_id` column, or row order; misalignment disables these
+#'   checks.
 #' @param target_scan Logical scalar. If TRUE (default), computes per-feature
 #'   outcome associations on `X_ref` and flags proxy features; if FALSE, or if
 #'   `X_ref`/outcomes are unavailable, `target_assoc` is empty. Not available
@@ -486,6 +498,10 @@
 #' @param max_pairs Integer scalar. Maximum number of duplicate pairs returned.
 #'   If more pairs are found, only the most similar are kept. This does not
 #'   affect permutation results. Default is 5000.
+#' @param duplicate_scope Character scalar. One of `"train_test"` (default) or
+#'   `"all"`. `"train_test"` retains only near-duplicate pairs that appear in
+#'   train vs test in at least one repeat; `"all"` reports all near-duplicate
+#'   pairs in `X_ref` regardless of fold assignment.
 #' @param learner Optional character scalar. When predictions include multiple
 #'   learner IDs, selects the learner to audit. If NULL and multiple learners
 #'   are present, the function errors; if predictions lack learner IDs, this
@@ -498,6 +514,11 @@
 #' `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as
 #' `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
 #' accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
+#
+#' The default permutation test keeps predictions fixed and shuffles labels,
+#' so p-values quantify prediction-label association rather than a full refit
+#' null. Set `perm_refit = TRUE` with `perm_refit_spec` to refit models under
+#' permuted outcomes.
 #'
 #' `batch_assoc` contains chi-square tests between fold assignment and each
 #' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
@@ -510,10 +531,12 @@
 #'
 #' Duplicate detection compares rows of `X_ref` using the chosen `sim_method`
 #' (cosine on L2-normalized rows, or Pearson via row-centering), optionally after
-#' rank transformation (`feature_space = "rank"`). The `duplicates` slot returns
-#' index pairs and similarity values for near-duplicate samples. Only duplicates
-#' present in `X_ref` can be detected, and checks are skipped if inputs cannot
-#' be aligned to prediction ids.
+#' rank transformation (`feature_space = "rank"`). By default,
+#' `duplicate_scope = "train_test"` filters to pairs that appear in train vs test
+#' in at least one repeat; set `duplicate_scope = "all"` to include within-fold
+#' duplicates. The `duplicates` slot returns index pairs and similarity values
+#' for near-duplicate samples. Only duplicates present in `X_ref` can be
+#' detected, and checks are skipped if inputs cannot be aligned to splits.
 #' @examples
 #' set.seed(1)
 #' df <- data.frame(
@@ -553,6 +576,8 @@ audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
                           B = 1000,
                           perm_stratify = TRUE,
+                          perm_refit = FALSE,
+                          perm_refit_spec = NULL,
                           time_block = c("circular", "stationary"),
                           block_len = NULL,
                           include_z = TRUE,
@@ -571,11 +596,13 @@ audit_leakage <- function(fit,
                           sim_threshold = 0.995,
                           nn_k = 50,
                           max_pairs = 5000,
+                          duplicate_scope = c("train_test", "all"),
                           learner = NULL) {
 
   metric <- match.arg(metric)
   feature_space <- match.arg(feature_space)
   sim_method    <- match.arg(sim_method)
+  duplicate_scope <- match.arg(duplicate_scope)
   time_block <- match.arg(time_block)
   ci_method <- match.arg(ci_method)
 
@@ -585,6 +612,51 @@ audit_leakage <- function(fit,
   }
 
   set.seed(seed)
+  perm_refit <- isTRUE(perm_refit)
+  perm_method <- if (perm_refit) "refit" else "fixed"
+
+  refit_x <- NULL
+  refit_outcome <- NULL
+  refit_learner <- NULL
+  refit_preprocess <- NULL
+  refit_learner_args <- list()
+  refit_custom_learners <- list()
+  refit_class_weights <- NULL
+  refit_positive_class <- NULL
+  refit_parallel <- FALSE
+  refit_coldata <- NULL
+  refit_coldata_supplied <- FALSE
+  default_preprocess <- list(
+    impute = list(method = "median"),
+    normalize = list(method = "zscore"),
+    filter = list(var_thresh = 0, iqr_thresh = 0),
+    fs = list(method = "none")
+  )
+  if (perm_refit) {
+    if (is.null(perm_refit_spec) || !is.list(perm_refit_spec)) {
+      stop("perm_refit=TRUE requires perm_refit_spec as a list with x and learner.")
+    }
+    refit_x <- perm_refit_spec$x %||% NULL
+    if (is.null(refit_x)) {
+      stop("perm_refit_spec$x is required when perm_refit=TRUE.")
+    }
+    refit_outcome <- perm_refit_spec$outcome %||% fit@outcome
+    if (is.null(refit_outcome) || !length(refit_outcome)) {
+      stop("perm_refit_spec$outcome (or fit@outcome) is required when perm_refit=TRUE.")
+    }
+    refit_learner <- perm_refit_spec$learner %||% NULL
+    if (is.null(refit_learner)) {
+      stop("perm_refit_spec$learner is required when perm_refit=TRUE.")
+    }
+    refit_preprocess <- perm_refit_spec$preprocess %||% default_preprocess
+    refit_learner_args <- perm_refit_spec$learner_args %||% list()
+    refit_custom_learners <- perm_refit_spec$custom_learners %||% list()
+    refit_class_weights <- perm_refit_spec$class_weights %||% fit@info$class_weights %||% NULL
+    refit_positive_class <- perm_refit_spec$positive_class %||% fit@info$positive_class %||% NULL
+    refit_parallel <- isTRUE(perm_refit_spec$parallel)
+    refit_coldata_supplied <- !is.null(perm_refit_spec$coldata)
+    refit_coldata <- perm_refit_spec$coldata %||% NULL
+  }
 
   # Trail / provenance
   trail <- list(
@@ -594,6 +666,7 @@ audit_leakage <- function(fit,
     seed = seed
   )
   trail$metric <- metric
+  trail$perm_method <- perm_method
   if (!is.null(fit@info$learner)) trail$learner <- fit@info$learner
 
   # --- Reconstruct main metric from CV predictions --------------------------
@@ -672,6 +745,76 @@ audit_leakage <- function(fit,
     trail$learner <- learner
   }
 
+  resolve_sample_ids <- function(fit_obj, fallback_n = NULL) {
+    ids <- fit_obj@info$sample_ids %||% NULL
+    if (!is.null(ids) && length(ids)) return(as.character(ids))
+    cd_lookup <- fit_obj@splits@info$coldata %||% NULL
+    if (!is.null(cd_lookup)) {
+      rn_cd <- rownames(cd_lookup)
+      if (!is.null(rn_cd) && !anyNA(rn_cd) && all(nzchar(rn_cd)) && !anyDuplicated(rn_cd)) {
+        return(as.character(rn_cd))
+      }
+      if ("row_id" %in% names(cd_lookup)) {
+        rid <- as.character(cd_lookup[["row_id"]])
+        if (length(rid) == nrow(cd_lookup) && !anyNA(rid) &&
+            !anyDuplicated(rid) && all(nzchar(rid))) {
+          return(rid)
+        }
+      }
+    }
+    if (!is.null(fallback_n) && is.finite(fallback_n)) {
+      return(as.character(seq_len(fallback_n)))
+    }
+    NULL
+  }
+
+  align_coldata_for_perm <- function(cd, sample_ids, context) {
+    if (is.null(cd)) return(NULL)
+    if (is.null(sample_ids) || !length(sample_ids)) {
+      warning(sprintf("%s coldata alignment failed (missing sample ids); restricted permutations disabled.", context),
+              call. = FALSE)
+      return(NULL)
+    }
+    cd <- as.data.frame(cd, check.names = FALSE)
+    sample_ids <- as.character(sample_ids)
+    rn <- rownames(cd)
+    if (!is.null(rn) && length(rn)) {
+      if (anyDuplicated(rn)) {
+        warning(sprintf("%s coldata rownames are duplicated; restricted permutations disabled.", context),
+                call. = FALSE)
+        return(NULL)
+      }
+      if (all(sample_ids %in% rn)) {
+        return(cd[match(sample_ids, rn), , drop = FALSE])
+      }
+      warning(sprintf("%s coldata rownames do not match sample ids; restricted permutations disabled.",
+                      context), call. = FALSE)
+      return(NULL)
+    }
+    if ("row_id" %in% names(cd)) {
+      rid <- as.character(cd[["row_id"]])
+      if (anyDuplicated(rid)) {
+        warning(sprintf("%s coldata row_id values are duplicated; restricted permutations disabled.",
+                        context), call. = FALSE)
+        return(NULL)
+      }
+      if (all(sample_ids %in% rid)) {
+        return(cd[match(sample_ids, rid), , drop = FALSE])
+      }
+      warning(sprintf("%s coldata row_id values do not match sample ids; restricted permutations disabled.",
+                      context), call. = FALSE)
+      return(NULL)
+    }
+    if (nrow(cd) == length(sample_ids)) {
+      warning(sprintf("%s coldata has no ids; assuming row order aligns to splits for permutations.",
+                      context), call. = FALSE)
+      return(cd)
+    }
+    warning(sprintf("%s coldata not aligned to splits; restricted permutations disabled.", context),
+            call. = FALSE)
+    NULL
+  }
+
   if ("fold" %in% names(pred_df)) {
     pred_list <- lapply(seq_along(folds), function(i) {
       pred_df[pred_df$fold == i, , drop = FALSE]
@@ -716,77 +859,243 @@ audit_leakage <- function(fit,
   higher_better <- metric %in% c("auc", "pr_auc", "cindex", "accuracy", "macro_f1")
 
   # --- Permutations ----------------------------------------------------------
-  perm_source <- NULL
-  if (!is.null(coldata) && !is.null(outcome_col) && outcome_col %in% names(coldata)) {
-    folds_perm <- folds
-    if (isTRUE(compact)) {
-      attr(folds_perm, "fold_assignments") <- fold_assignments
+  perm_vals <- numeric(0)
+  if (perm_refit) {
+    if (identical(task, "survival")) {
+      stop("perm_refit=TRUE is not supported for survival tasks.", call. = FALSE)
     }
-    perm_source <- .permute_labels_factory(
-      cd = coldata, outcome = outcome_col, mode = fit@splits@mode,
-      folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
-      block_len = block_len, seed = seed,
-      group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-      study_col = fit@splits@info$study
-    )
-  }
-  if (is.null(perm_source)) {
-    perm_source <- function(b) {
-      lapply(pred_list, function(df) {
-        if (identical(task, "survival")) {
-          if (!requireNamespace("survival", quietly = TRUE)) {
-            stop("Package 'survival' is required for survival permutations.")
-          }
-          if (all(c("truth_time", "truth_event") %in% names(df))) {
-            idx <- sample(seq_len(nrow(df)))
-            return(survival::Surv(df$truth_time[idx], df$truth_event[idx]))
-          }
-        }
-        sample(df$truth)
-      })
+    if (length(refit_outcome) != 1L) {
+      stop("perm_refit=TRUE requires a single outcome column name.", call. = FALSE)
     }
-  }
 
-  perm_eval <- function(b) {
-    truths <- perm_source(b)
-    if (length(truths) != length(pred_list)) {
-      stop(
-        "Permutation source returned ", length(truths),
-        " truth sets for ", length(pred_list), " prediction tables"
+    refit_x_mat <- .bio_get_x(refit_x)
+    n_refit <- nrow(refit_x_mat)
+    if (!is.finite(n_refit) || n_refit < 1L) {
+      stop("perm_refit_spec$x has no rows.", call. = FALSE)
+    }
+    if (isTRUE(compact) && length(fold_assignments)) {
+      expected_n <- max(vapply(fold_assignments, length, integer(1)), na.rm = TRUE)
+      if (is.finite(expected_n) && n_refit != expected_n) {
+        stop("perm_refit_spec$x row count does not match compact split assignments.", call. = FALSE)
+      }
+    } else {
+      max_idx <- suppressWarnings(max(vapply(folds, function(z) {
+        idx <- c(z$train, z$test)
+        if (length(idx)) max(idx) else 0L
+      }, integer(1)), na.rm = TRUE))
+      if (is.finite(max_idx) && n_refit < max_idx) {
+        stop("perm_refit_spec$x has fewer rows than required by splits.", call. = FALSE)
+      }
+    }
+
+    if (is.null(refit_coldata)) {
+      if (.bio_is_se(refit_x)) {
+        refit_coldata <- as.data.frame(SummarizedExperiment::colData(refit_x))
+      } else if (is.data.frame(refit_x)) {
+        refit_coldata <- refit_x
+      }
+    } else if (isTRUE(refit_coldata_supplied)) {
+      refit_ids <- NULL
+      if (.bio_is_se(refit_x)) {
+        refit_ids <- rownames(SummarizedExperiment::colData(refit_x))
+      } else if (is.data.frame(refit_x)) {
+        refit_ids <- rownames(refit_x)
+        if ((is.null(refit_ids) || !all(nzchar(refit_ids))) &&
+            "row_id" %in% names(refit_x)) {
+          refit_ids <- as.character(refit_x[["row_id"]])
+        }
+      } else if (is.matrix(refit_x)) {
+        refit_ids <- rownames(refit_x)
+      }
+      if (!is.null(refit_ids) && all(nzchar(refit_ids))) {
+        refit_coldata <- align_coldata_for_perm(refit_coldata, refit_ids,
+                                                context = "perm_refit")
+      } else if (is.null(refit_ids) && nrow(refit_coldata) == n_refit) {
+        warning("perm_refit coldata has no ids; assuming row order aligns to refit data.",
+                call. = FALSE)
+      } else if (is.null(refit_ids)) {
+        warning("perm_refit coldata not aligned to refit data; restricted permutations disabled.",
+                call. = FALSE)
+        refit_coldata <- NULL
+      }
+    }
+
+    y_base <- NULL
+    if (!is.null(refit_coldata) && refit_outcome %in% names(refit_coldata)) {
+      y_base <- refit_coldata[[refit_outcome]]
+    } else {
+      y_base <- .bio_get_y(refit_x, refit_outcome)
+    }
+    if (length(y_base) != n_refit) {
+      stop("Outcome length does not match rows in perm_refit_spec$x.", call. = FALSE)
+    }
+
+    perm_full_source <- NULL
+    if (!is.null(refit_coldata) &&
+        refit_outcome %in% names(refit_coldata) &&
+        fit@splits@mode %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
+      folds_perm <- list(list(test = seq_len(n_refit), fold = 1L, repeat_id = 1L))
+      perm_full_source <- .permute_labels_factory(
+        cd = refit_coldata, outcome = refit_outcome, mode = fit@splits@mode,
+        folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
+        block_len = block_len, seed = seed,
+        group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
+        study_col = fit@splits@info$study
       )
     }
-    new_preds <- Map(function(df, tr, fold_idx) {
-      if (!nrow(df)) return(df)
-      tr_len <- if (inherits(tr, "Surv")) nrow(tr) else length(tr)
-      if (tr_len != nrow(df)) {
+
+    permute_outcome <- function(b) {
+      if (!is.null(perm_full_source)) {
+        perm_full_source(b)[[1]]
+      } else {
+        sample(y_base)
+      }
+    }
+
+    apply_outcome <- function(x, outcome, y_perm) {
+      y_perm <- .coerce_truth_like(y_base, y_perm)
+      if (.bio_is_se(x)) {
+        cd <- SummarizedExperiment::colData(x)
+        if (!outcome %in% colnames(cd)) {
+          stop("Outcome column not found in SummarizedExperiment colData.", call. = FALSE)
+        }
+        cd[[outcome]] <- y_perm
+        SummarizedExperiment::colData(x) <- cd
+        return(x)
+      }
+      if (is.data.frame(x)) {
+        if (!outcome %in% names(x)) {
+          stop("Outcome column not found in data.frame.", call. = FALSE)
+        }
+        x[[outcome]] <- y_perm
+        return(x)
+      }
+      if (is.matrix(x)) {
+        if (is.character(outcome) && outcome %in% colnames(x)) {
+          x[, outcome] <- y_perm
+          return(x)
+        }
+        stop("Outcome column not found in matrix input.", call. = FALSE)
+      }
+      stop("perm_refit_spec$x must be a SummarizedExperiment, data.frame, or matrix.", call. = FALSE)
+    }
+
+    perm_eval_refit <- function(b) {
+      set.seed(seed + b)
+      y_perm <- permute_outcome(b)
+      x_perm <- apply_outcome(refit_x, refit_outcome, y_perm)
+      fit_perm <- try(fit_resample(
+        x_perm,
+        outcome = refit_outcome,
+        splits = fit@splits,
+        preprocess = refit_preprocess,
+        learner = refit_learner,
+        learner_args = refit_learner_args,
+        custom_learners = refit_custom_learners,
+        metrics = metric,
+        class_weights = refit_class_weights,
+        positive_class = refit_positive_class,
+        parallel = refit_parallel,
+        refit = FALSE,
+        seed = seed + b
+      ), silent = TRUE)
+      if (inherits(fit_perm, "try-error")) {
+        warning(sprintf("Permutation refit %d failed: %s", b, attr(fit_perm, "condition")$message),
+                call. = FALSE)
+        return(NA_real_)
+      }
+      perm_pred <- if (length(fit_perm@predictions)) {
+        do.call(rbind, lapply(fit_perm@predictions, function(df) data.frame(df, stringsAsFactors = FALSE)))
+      } else {
+        NULL
+      }
+      if (is.null(perm_pred) || !nrow(perm_pred)) return(NA_real_)
+      .metric_value(metric, task, perm_pred$truth, perm_pred$pred, pred_df = perm_pred)
+    }
+
+    if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
+      perm_vals <- future.apply::future_sapply(seq_len(B), perm_eval_refit, future.seed = TRUE)
+    } else {
+      perm_vals <- sapply(seq_len(B), perm_eval_refit)
+    }
+  } else {
+    perm_source <- NULL
+    perm_coldata <- NULL
+    if (!is.null(coldata)) {
+      sample_ids <- resolve_sample_ids(fit, fallback_n = nrow(fit@splits@info$coldata %||% data.frame()))
+      perm_coldata <- align_coldata_for_perm(coldata, sample_ids, context = "Permutation")
+    }
+    if (!is.null(perm_coldata) && !is.null(outcome_col) && outcome_col %in% names(perm_coldata)) {
+      folds_perm <- folds
+      if (isTRUE(compact)) {
+        attr(folds_perm, "fold_assignments") <- fold_assignments
+      }
+      perm_source <- .permute_labels_factory(
+        cd = perm_coldata, outcome = outcome_col, mode = fit@splits@mode,
+        folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
+        block_len = block_len, seed = seed,
+        group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
+        study_col = fit@splits@info$study
+      )
+    }
+    if (is.null(perm_source)) {
+      perm_source <- function(b) {
+        lapply(pred_list, function(df) {
+          if (identical(task, "survival")) {
+            if (!requireNamespace("survival", quietly = TRUE)) {
+              stop("Package 'survival' is required for survival permutations.")
+            }
+            if (all(c("truth_time", "truth_event") %in% names(df))) {
+              idx <- sample(seq_len(nrow(df)))
+              return(survival::Surv(df$truth_time[idx], df$truth_event[idx]))
+            }
+          }
+          sample(df$truth)
+        })
+      }
+    }
+
+    perm_eval <- function(b) {
+      truths <- perm_source(b)
+      if (length(truths) != length(pred_list)) {
         stop(
-          "Permutation truth length (", tr_len,
-          ") does not match predictions (", nrow(df),
-          ") for fold ", fold_idx, "."
+          "Permutation source returned ", length(truths),
+          " truth sets for ", length(pred_list), " prediction tables"
         )
       }
-      if (identical(task, "survival") &&
-          all(c("truth_time", "truth_event") %in% names(df))) {
-        tr_mat <- as.matrix(tr)
-        time_col <- if ("time" %in% colnames(tr_mat)) "time" else colnames(tr_mat)[1]
-        status_col <- if ("status" %in% colnames(tr_mat)) "status" else colnames(tr_mat)[ncol(tr_mat)]
-        df$truth_time <- tr_mat[, time_col]
-        df$truth_event <- tr_mat[, status_col]
-      } else {
-        df$truth <- .coerce_truth_like(df$truth, tr)
-      }
-      df
-    }, pred_list, truths, seq_along(pred_list))
-    agg <- do.call(rbind, new_preds)
-    .metric_value(metric, task, agg$truth, agg$pred, pred_df = agg)
-  }
+      new_preds <- Map(function(df, tr, fold_idx) {
+        if (!nrow(df)) return(df)
+        tr_len <- if (inherits(tr, "Surv")) nrow(tr) else length(tr)
+        if (tr_len != nrow(df)) {
+          stop(
+            "Permutation truth length (", tr_len,
+            ") does not match predictions (", nrow(df),
+            ") for fold ", fold_idx, "."
+          )
+        }
+        if (identical(task, "survival") &&
+            all(c("truth_time", "truth_event") %in% names(df))) {
+          tr_mat <- as.matrix(tr)
+          time_col <- if ("time" %in% colnames(tr_mat)) "time" else colnames(tr_mat)[1]
+          status_col <- if ("status" %in% colnames(tr_mat)) "status" else colnames(tr_mat)[ncol(tr_mat)]
+          df$truth_time <- tr_mat[, time_col]
+          df$truth_event <- tr_mat[, status_col]
+        } else {
+          df$truth <- .coerce_truth_like(df$truth, tr)
+        }
+        df
+      }, pred_list, truths, seq_along(pred_list))
+      agg <- do.call(rbind, new_preds)
+      .metric_value(metric, task, agg$truth, agg$pred, pred_df = agg)
+    }
 
-  if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
-    perm_vals <- future.apply::future_sapply(seq_len(B), function(i) {
-      set.seed(seed + i); perm_eval(i)
-    }, future.seed = TRUE)
-  } else {
-    perm_vals <- sapply(seq_len(B), function(i) { set.seed(seed + i); perm_eval(i) })
+    if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
+      perm_vals <- future.apply::future_sapply(seq_len(B), function(i) {
+        set.seed(seed + i); perm_eval(i)
+      }, future.seed = TRUE)
+    } else {
+      perm_vals <- sapply(seq_len(B), function(i) { set.seed(seed + i); perm_eval(i) })
+    }
   }
 
   if (!is.na(metric_obs) && is.finite(metric_obs)) {
@@ -981,7 +1290,53 @@ audit_leakage <- function(fit,
   dup_df <- data.frame()
   if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
   if (!is.null(X_ref)) {
-    X <- as.matrix(X_ref)
+    n_samples <- NA_integer_
+    if (!is.null(fit@info$sample_ids)) {
+      n_samples <- length(fit@info$sample_ids)
+    }
+    if (!is.finite(n_samples) || n_samples < 1L) {
+      if (!is.null(fit@splits@info$coldata)) {
+        n_samples <- nrow(fit@splits@info$coldata)
+      }
+    }
+    if (!is.finite(n_samples) || n_samples < 1L) {
+      if (isTRUE(compact) && length(fold_assignments)) {
+        n_samples <- max(vapply(fold_assignments, length, integer(1)), na.rm = TRUE)
+      }
+    }
+    if (!is.finite(n_samples) || n_samples < 1L) {
+      n_samples <- suppressWarnings(max(vapply(folds, function(z) {
+        idx <- c(z$train, z$test)
+        if (length(idx)) max(idx) else 0L
+      }, integer(1)), na.rm = TRUE))
+    }
+    if (!is.finite(n_samples) || n_samples < 1L) n_samples <- NA_integer_
+
+    sample_ids_all <- resolve_sample_ids(fit, fallback_n = n_samples)
+    if (!is.null(sample_ids_all) && length(sample_ids_all)) {
+      sample_ids_all <- as.character(sample_ids_all)
+    }
+
+    X_use <- NULL
+    if (!is.null(sample_ids_all) && length(sample_ids_all)) {
+      X_use <- .align_by_ids(
+        X_ref, sample_ids_all, sample_ids = sample_ids_all,
+        warn = identical(duplicate_scope, "train_test")
+      )
+    }
+    if (is.null(X_use)) {
+      if (identical(duplicate_scope, "train_test")) {
+        warning("X_ref not aligned to splits; duplicate_scope='train_test' skipped.", call. = FALSE)
+      } else {
+        warning("X_ref not aligned to splits; proceeding with duplicate_scope='all'.", call. = FALSE)
+        X_use <- X_ref
+      }
+    }
+
+    if (is.null(X_use)) {
+      # skip duplicate detection when train/test alignment is required
+    } else {
+      X <- as.matrix(X_use)
     # choose feature space
     if (feature_space == "rank") {
       X <- t(apply(X, 1, function(row) rank(row, ties.method = "average", na.last = "keep")))
@@ -1020,17 +1375,156 @@ audit_leakage <- function(fit,
     }
 
     if (!is.null(candidate_pairs)) {
-      if (sim_method == "cosine") {
-        candidate_pairs$cos_sim <- candidate_pairs$sim
-      } else if (sim_method == "pearson") {
-        candidate_pairs$pearson <- candidate_pairs$sim
+      compute_cross_fold <- function(pairs) {
+        n_pairs <- nrow(pairs)
+        if (!n_pairs) return(logical(0))
+        if (!is.finite(n_samples) || n_samples < 1L) return(rep(NA, n_pairs))
+        if (is.null(folds) || !length(folds)) return(rep(NA, n_pairs))
+        split_mode <- fit@splits@mode %||% NA_character_
+
+        if (!identical(split_mode, "time_series")) {
+          fold_map_by_repeat <- NULL
+          if (isTRUE(compact) && length(fold_assignments)) {
+            ok_len <- all(vapply(fold_assignments, function(vec) {
+              length(vec) == n_samples
+            }, logical(1)))
+            if (isTRUE(ok_len)) {
+              fold_map_by_repeat <- lapply(fold_assignments, function(vec) as.integer(vec))
+            }
+          }
+          if (is.null(fold_map_by_repeat)) {
+            repeat_ids <- vapply(folds, function(f) f$repeat_id %||% 1L, integer(1))
+            n_rep <- suppressWarnings(max(repeat_ids, na.rm = TRUE))
+            if (!is.finite(n_rep) || n_rep < 1L) return(rep(NA, n_pairs))
+            fold_map_by_repeat <- lapply(seq_len(n_rep), function(r) rep(NA_integer_, n_samples))
+            for (i in seq_along(folds)) {
+              r <- repeat_ids[[i]]
+              test <- resolve_test_idx(folds[[i]])
+              if (length(test)) {
+                fold_id <- folds[[i]]$fold %||% i
+                fold_map_by_repeat[[r]][test] <- fold_id
+              }
+            }
+          }
+          cross <- rep(FALSE, n_pairs)
+          i_idx <- pairs$i
+          j_idx <- pairs$j
+          for (fm in fold_map_by_repeat) {
+            if (length(fm) != n_samples) next
+            fi <- fm[i_idx]
+            fj <- fm[j_idx]
+            valid <- !is.na(fi) & !is.na(fj)
+            cross <- cross | (valid & fi != fj)
+          }
+          return(cross)
+        }
+
+        fold_map <- rep(NA_integer_, n_samples)
+        time_vec <- NULL
+        time_col <- fit@splits@info$time %||% NULL
+        cd_time <- fit@splits@info$coldata %||% NULL
+        if (!is.null(cd_time) && !is.null(time_col) && time_col %in% names(cd_time)) {
+          time_vec <- cd_time[[time_col]]
+        }
+        fold_tmin <- NULL
+        if (!is.null(time_vec) && length(time_vec) == n_samples) {
+          fold_tmin <- rep(time_vec[1], length(folds))
+          fold_tmin[] <- NA
+        }
+        for (i in seq_along(folds)) {
+          test <- resolve_test_idx(folds[[i]])
+          if (!length(test)) next
+          fold_map[test] <- i
+          if (!is.null(fold_tmin)) {
+            fold_tmin[i] <- suppressWarnings(min(time_vec[test]))
+          }
+        }
+        if (!is.null(time_vec) && length(time_vec) == n_samples && !is.null(fold_tmin)) {
+          split_horizon <- fit@splits@info$horizon %||% 0
+          cross <- rep(FALSE, n_pairs)
+          i_idx <- pairs$i
+          j_idx <- pairs$j
+          fi <- fold_map[i_idx]
+          fj <- fold_map[j_idx]
+          idx_i <- which(!is.na(fi))
+          if (length(idx_i)) {
+            tmin_i <- fold_tmin[fi[idx_i]]
+            valid_i <- which(!is.na(tmin_i))
+            if (length(valid_i)) {
+              idx_i <- idx_i[valid_i]
+              tmin_i <- tmin_i[valid_i]
+              if (split_horizon == 0) {
+                cross[idx_i] <- time_vec[j_idx[idx_i]] < tmin_i
+              } else {
+                cutoff <- tmin_i - split_horizon
+                cross[idx_i] <- time_vec[j_idx[idx_i]] <= cutoff
+              }
+            }
+          }
+          idx_j <- which(!is.na(fj))
+          if (length(idx_j)) {
+            tmin_j <- fold_tmin[fj[idx_j]]
+            valid_j <- which(!is.na(tmin_j))
+            if (length(valid_j)) {
+              idx_j <- idx_j[valid_j]
+              tmin_j <- tmin_j[valid_j]
+              if (split_horizon == 0) {
+                cross[idx_j] <- cross[idx_j] | (time_vec[i_idx[idx_j]] < tmin_j)
+              } else {
+                cutoff <- tmin_j - split_horizon
+                cross[idx_j] <- cross[idx_j] | (time_vec[i_idx[idx_j]] <= cutoff)
+              }
+            }
+          }
+          return(cross)
+        }
+
+        has_train <- any(vapply(folds, function(f) !is.null(f$train), logical(1)))
+        if (!has_train) return(rep(NA, n_pairs))
+        cross <- rep(FALSE, n_pairs)
+        for (i in seq_along(folds)) {
+          fold <- folds[[i]]
+          if (is.null(fold$train) || is.null(fold$test)) next
+          train <- fold$train
+          test <- fold$test
+          if (!length(train) || !length(test)) next
+          train_mask <- rep(FALSE, n_samples)
+          test_mask <- rep(FALSE, n_samples)
+          train_mask[train] <- TRUE
+          test_mask[test] <- TRUE
+          cross <- cross | (test_mask[pairs$i] & train_mask[pairs$j]) |
+            (test_mask[pairs$j] & train_mask[pairs$i])
+        }
+        cross
       }
-      # sort and cap
-      ord <- order(candidate_pairs$sim, decreasing = TRUE)
-      candidate_pairs <- candidate_pairs[ord, , drop = FALSE]
-      if (nrow(candidate_pairs) > max_pairs)
-        candidate_pairs <- candidate_pairs[seq_len(max_pairs), , drop = FALSE]
-      dup_df <- candidate_pairs
+
+      cross_fold <- compute_cross_fold(candidate_pairs)
+      if (length(cross_fold)) {
+        candidate_pairs$cross_fold <- cross_fold
+      }
+      if (identical(duplicate_scope, "train_test")) {
+        keep <- which(!is.na(cross_fold) & cross_fold)
+        if (length(keep)) {
+          candidate_pairs <- candidate_pairs[keep, , drop = FALSE]
+        } else {
+          candidate_pairs <- candidate_pairs[0, , drop = FALSE]
+        }
+      }
+
+      if (nrow(candidate_pairs) > 0) {
+        if (sim_method == "cosine") {
+          candidate_pairs$cos_sim <- candidate_pairs$sim
+        } else if (sim_method == "pearson") {
+          candidate_pairs$pearson <- candidate_pairs$sim
+        }
+        # sort and cap
+        ord <- order(candidate_pairs$sim, decreasing = TRUE)
+        candidate_pairs <- candidate_pairs[ord, , drop = FALSE]
+        if (nrow(candidate_pairs) > max_pairs)
+          candidate_pairs <- candidate_pairs[seq_len(max_pairs), , drop = FALSE]
+        dup_df <- candidate_pairs
+      }
+    }
     }
   }
 
@@ -1048,12 +1542,14 @@ audit_leakage <- function(fit,
       info = list(
         n_perm = B,
         perm_stratify = perm_stratify,
+        perm_method = perm_method,
         parallel = parallel,
         target_scan = target_scan,
         target_threshold = target_threshold,
         sim_method = sim_method,
         feature_space = feature_space,
         duplicate_threshold = sim_threshold,
+        duplicate_scope = duplicate_scope,
         nn_k = nn_k,
         max_pairs = max_pairs,
         batch_cols = batch_cols,
@@ -1091,14 +1587,16 @@ audit_leakage <- function(fit,
 #' @param ... Additional named arguments forwarded to [audit_leakage()] for each
 #'   learner. These control the audit itself. Common options include:
 #'   `B` (integer permutations), `perm_stratify` (logical or `"auto"`),
+#'   `perm_refit` (logical), `perm_refit_spec` (list),
 #'   `time_block` (character), `block_len` (integer or NULL), `include_z`
 #'   (logical), `ci_method` (character), `boot_B` (integer), `parallel`
 #'   (logical), `seed` (integer), `return_perm` (logical), `batch_cols`
 #'   (character vector), `coldata` (data.frame), `X_ref` (matrix/data.frame),
 #'   `target_scan` (logical), `target_threshold` (numeric), `feature_space`
 #'   (character), `sim_method` (character), `sim_threshold` (numeric),
-#'   `nn_k` (integer), and `max_pairs` (integer). See [audit_leakage()] for full
-#'   definitions; changing these values changes each learner's audit.
+#'   `nn_k` (integer), `max_pairs` (integer), and `duplicate_scope` (character).
+#'   See [audit_leakage()] for full definitions; changing these values changes
+#'   each learner's audit.
 #' @return Named list of [LeakAudit] objects, keyed by learner ID.
 #' @examples
 #' \dontrun{

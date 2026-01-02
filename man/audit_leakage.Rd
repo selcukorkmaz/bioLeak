@@ -9,6 +9,8 @@ audit_leakage(
   metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
   B = 1000,
   perm_stratify = TRUE,
+  perm_refit = FALSE,
+  perm_refit_spec = NULL,
   time_block = c("circular", "stationary"),
   block_len = NULL,
   include_z = TRUE,
@@ -27,6 +29,7 @@ audit_leakage(
   sim_threshold = 0.995,
   nn_k = 50,
   max_pairs = 5000,
+  duplicate_scope = c("train_test", "all"),
   learner = NULL
 )
 }
@@ -50,6 +53,19 @@ are stratified within each fold (factor levels; numeric outcomes are binned
 into quantiles when enough non-missing values are available). If FALSE, no
 stratification is used. Stratification only applies when `coldata` supplies
 the outcome; otherwise labels are shuffled within each fold.}
+
+\item{perm_refit}{Logical scalar. If FALSE (default), permutations keep
+predictions fixed and shuffle labels (association test). If TRUE, each
+permutation refits the model on permuted outcomes using `perm_refit_spec`.
+Refit-based permutations are slower but better approximate a full null
+distribution.}
+
+\item{perm_refit_spec}{List of inputs used when `perm_refit = TRUE`.
+Required elements: `x` (data used for fitting) and `learner` (parsnip
+model_spec, workflow, or legacy learner). Optional elements: `outcome`
+(defaults to `fit@outcome`), `preprocess`, `learner_args`,
+`custom_learners`, `class_weights`, `positive_class`, and `parallel`.
+Survival outcomes are not supported for refit-based permutations.}
 
 \item{time_block}{Character scalar, `"circular"` or `"stationary"`. Controls
 block permutation for `time_series` splits; ignored for other split modes.
@@ -90,13 +106,14 @@ Changing this controls which batch tests appear in `batch_assoc`.}
 to prediction ids via row names, a `row_id` column, or row order. Used to
 build restricted permutations (when the outcome column is present), compute
 batch associations, and supply outcomes for target scans. If NULL, uses
-`fit@splits@info$coldata` when available. Misalignment triggers warnings
-and skips the affected checks.}
+`fit@splits@info$coldata` when available. If alignment fails, restricted
+permutations are disabled with a warning.}
 
 \item{X_ref}{Optional numeric matrix/data.frame (samples x features). Used for
 duplicate detection and the target leakage scan. If NULL, uses
-`fit@info$X_ref` when available. Rows must align to prediction ids via
-row names, sample ids, or row order; misalignment disables these checks.}
+`fit@info$X_ref` when available. Rows must align to sample ids (split order)
+via row names, a `row_id` column, or row order; misalignment disables these
+checks.}
 
 \item{target_scan}{Logical scalar. If TRUE (default), computes per-feature
 outcome associations on `X_ref` and flags proxy features; if FALSE, or if
@@ -127,6 +144,11 @@ Default is 50.}
 If more pairs are found, only the most similar are kept. This does not
 affect permutation results. Default is 5000.}
 
+\item{duplicate_scope}{Character scalar. One of `"train_test"` (default) or
+`"all"`. `"train_test"` retains only near-duplicate pairs that appear in
+train vs test in at least one repeat; `"all"` reports all near-duplicate
+pairs in `X_ref` regardless of fold assignment.}
+
 \item{learner}{Optional character scalar. When predictions include multiple
 learner IDs, selects the learner to audit. If NULL and multiple learners
 are present, the function errors; if predictions lack learner IDs, this
@@ -139,23 +161,27 @@ A [LeakAudit] object with slots:
 }
 \description{
 Computes a post-hoc leakage audit for a resampled model fit. The audit
-(1) compares observed cross-validated performance to a permutation null to
-detect label or split leakage, (2) tests whether fold assignments are
-associated with batch or study metadata (confounding by design), (3) scans
-features for unusually strong outcome proxies, and (4) flags duplicate or
-near-duplicate samples in a reference feature matrix.
+(1) compares observed cross-validated performance to a label-permutation
+null (by default using fixed predictions), (2) tests whether fold assignments
+are associated with batch or study metadata (confounding by design),
+(3) scans features for unusually strong outcome proxies, and (4) flags
+duplicate or near-duplicate samples in a reference feature matrix.
 
-The returned [LeakAudit] summarizes these diagnostics. It relies only on the
+The returned [LeakAudit] summarizes these diagnostics. It relies on the
 stored predictions, splits, and optional metadata; it does not refit models
-or alter splits. Results are conditional on the chosen metric and supplied
-metadata/features and should be interpreted as diagnostics, not proof of
-leakage or its absence.
+unless `perm_refit = TRUE`. Results are conditional on the chosen metric
+and supplied metadata/features and should be interpreted as diagnostics,
+not proof of leakage or its absence.
 }
 \details{
 The `permutation_gap` slot reports `metric_obs`, `perm_mean`, `perm_sd`,
 `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as
 `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
 accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
+The default permutation test keeps predictions fixed and shuffles labels,
+so p-values quantify prediction-label association rather than a full refit
+null. Set `perm_refit = TRUE` with `perm_refit_spec` to refit models under
+permuted outcomes.
 
 `batch_assoc` contains chi-square tests between fold assignment and each
 `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
@@ -168,10 +194,12 @@ one-way ANOVA (gaussian). The
 
 Duplicate detection compares rows of `X_ref` using the chosen `sim_method`
 (cosine on L2-normalized rows, or Pearson via row-centering), optionally after
-rank transformation (`feature_space = "rank"`). The `duplicates` slot returns
-index pairs and similarity values for near-duplicate samples. Only duplicates
-present in `X_ref` can be detected, and checks are skipped if inputs cannot
-be aligned to prediction ids.
+rank transformation (`feature_space = "rank"`). By default,
+`duplicate_scope = "train_test"` filters to pairs that appear in train vs test
+in at least one repeat; set `duplicate_scope = "all"` to include within-fold
+duplicates. The `duplicates` slot returns index pairs and similarity values
+for near-duplicate samples. Only duplicates present in `X_ref` can be
+detected, and checks are skipped if inputs cannot be aligned to splits.
 }
 \examples{
 set.seed(1)

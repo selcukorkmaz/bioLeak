@@ -24,21 +24,24 @@ Invisibly returns `object` after printing the summary.
 \description{
 Prints a concise, human-readable report for a `LeakAudit` object produced by
 [audit_leakage()]. The summary surfaces four diagnostics when available:
-permutation gap (signal vs. randomized labels), batch/study association tests
-(metadata aligned with fold splits), target leakage scan (features strongly
-associated with the outcome), and near-duplicate detection (high similarity
-in `X_ref`). The output reflects the stored audit results only; it does not
-recompute any tests.
+label-permutation gap (prediction-label association by default), batch/study
+association tests (metadata aligned with fold splits), target leakage scan
+(features strongly associated with the outcome), and near-duplicate detection
+(high similarity in `X_ref`). The output reflects the stored audit results
+only; it does not recompute any tests.
 }
 \details{
-The permutation test indicates whether model performance exceeds random label
-performance; it does not by itself prove or rule out leakage.
+The permutation test quantifies prediction-label association when using fixed
+predictions; refit-based permutations require `perm_refit = TRUE`. It does
+not by itself prove or rule out leakage.
 Batch association flags metadata that align with fold assignment; this may
 reflect study design rather than leakage.
 Target leakage scan uses univariate feature-outcome associations and can miss
 multivariate leakage or proxies not present in `X_ref`.
 Duplicate detection only considers the provided `X_ref` features and the
-similarity threshold used during [audit_leakage()].
+similarity threshold used during [audit_leakage()]. By default,
+`duplicate_scope = "train_test"` filters to pairs that cross train/test;
+set `duplicate_scope = "all"` to include within-fold duplicates.
 Sections are reported as "not available" when the corresponding audit
 component was not computed.
 }

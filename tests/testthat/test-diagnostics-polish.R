@@ -26,3 +26,25 @@ test_that("confounder_sensitivity summarizes metrics by confounder", {
   expect_true(nrow(cs) > 0)
   expect_true(all(c("confounder", "level", "metric", "value", "n") %in% names(cs)))
 })
+
+test_that("diagnostics require learner selection when multiple models are present", {
+  df <- make_class_df(40)
+  splits <- make_splits_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 4, seed = 2)
+  custom <- make_custom_learners()
+  custom$glm2 <- custom$glm
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = c("glm", "glm2"), custom_learners = custom,
+                            metrics = "accuracy", refit = FALSE, seed = 2)
+
+  expect_error(calibration_summary(fit, bins = 5), "Multiple learners found")
+  expect_error(confounder_sensitivity(fit, confounders = "batch", metric = "accuracy", min_n = 2),
+               "Multiple learners found")
+
+  cal <- calibration_summary(fit, bins = 5, learner = "glm")
+  expect_true(is.data.frame(cal$curve))
+  cs <- confounder_sensitivity(fit, confounders = "batch", metric = "accuracy",
+                               min_n = 2, learner = "glm")
+  expect_true(nrow(cs) > 0)
+})
