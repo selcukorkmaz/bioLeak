@@ -10,12 +10,14 @@
 #'
 #' @details
 #' The permutation test quantifies prediction-label association when using fixed
-#' predictions; refit-based permutations require `perm_refit = TRUE`. It does
-#' not by itself prove or rule out leakage.
+#' predictions; refit-based permutations require `perm_refit = TRUE` (or `"auto"`
+#' with refit data). It does not by itself prove or rule out leakage.
 #' Batch association flags metadata that align with fold assignment; this may
 #' reflect study design rather than leakage.
 #' Target leakage scan uses univariate feature-outcome associations and can miss
-#' multivariate leakage or proxies not present in `X_ref`.
+#' multivariate proxies, interaction leakage, or features not included in `X_ref`.
+#' The multivariate scan (enabled by default for supported tasks) reports an
+#' additional model-based score.
 #' Duplicate detection only considers the provided `X_ref` features and the
 #' similarity threshold used during [audit_leakage()]. By default,
 #' `duplicate_scope = "train_test"` filters to pairs that cross train/test;
@@ -103,13 +105,21 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!is.null(object@permutation_gap) && nrow(object@permutation_gap) > 0) {
     pg <- object@permutation_gap
     perm_method <- object@info$perm_method %||% "fixed"
+    perm_mode <- object@info$perm_refit_mode %||% perm_method
     perm_label <- if (identical(perm_method, "refit")) {
       "refit per permutation"
     } else {
       "fixed predictions"
     }
+    if (grepl("^auto", perm_mode)) {
+      perm_label <- paste0(perm_label, " (auto)")
+    }
     cat("Label-Permutation Association Test:\n")
     cat(sprintf("  Method: %s\n", perm_label))
+    if (!is.null(object@info$perm_refit_reason) &&
+        nzchar(object@info$perm_refit_reason)) {
+      cat(sprintf("  Auto mode: %s\n", object@info$perm_refit_reason))
+    }
     cat(sprintf("  Observed metric: %s\n",
                 formatC(pg$metric_obs, digits = digits, format = "f")))
     cat(sprintf("  Permuted mean %s SD: %s %s %s\n",
@@ -176,6 +186,24 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat("\n")
   } else {
     cat("Target Leakage Scan: not available.\n\n")
+  }
+
+  # --- Multivariate target scan ---
+  mv <- object@info$target_multivariate %||% data.frame()
+  if (is.data.frame(mv) && nrow(mv) > 0) {
+    cat("Multivariate Target Scan:\n")
+    mv_row <- mv[1, , drop = FALSE]
+    cat(sprintf("  Metric: %s | Score: %s | p = %s\n",
+                mv_row$metric,
+                formatC(mv_row$score, digits = digits, format = "f"),
+                formatC(mv_row$p_value, digits = digits, format = "f")))
+    if (all(c("n_features", "n_components", "n_interactions", "n_perm") %in% names(mv_row))) {
+      cat(sprintf("  Features: %s | Components: %s | Interactions: %s | Permutations: %s\n",
+                  mv_row$n_features, mv_row$n_components, mv_row$n_interactions, mv_row$n_perm))
+    }
+    cat("\n")
+  } else if (isTRUE(object@info$target_scan_multivariate)) {
+    cat("Multivariate Target Scan: not available.\n\n")
   }
 
   # --- Duplicate detection ---

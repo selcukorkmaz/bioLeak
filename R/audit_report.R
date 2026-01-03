@@ -3,21 +3,28 @@
 #' Creates an HTML report that summarizes a leakage audit for a resampled model.
 #' The report is built from a [LeakAudit] (or created from a [LeakFit]) and
 #' presents: cross-validated metric summaries, a label-permutation association
-#' test of the chosen performance metric (fixed predictions by default; optional
-#' refit-based permutations), batch or study association tests between
-#' metadata and predictions, confounder sensitivity plots, calibration checks
-#' for binomial tasks, a target leakage scan based on feature-outcome
-#' similarity, and duplicate detection across training and test folds. The
+#' test of the chosen performance metric (auto-refit when refit data are
+#' available; otherwise fixed predictions), batch or study association tests
+#' between metadata and predictions, confounder sensitivity plots, calibration
+#' checks for binomial tasks, a target leakage scan based on feature-outcome
+#' similarity (with multivariate scan enabled by default for supported tasks),
+#' and duplicate
+#' detection across training and test folds. The
 #' output is a self-contained HTML file with tables and plots for these checks
 #' plus the audit parameters used.
 #'
-#' The report does not refit models or reprocess data unless `perm_refit = TRUE`;
-#' it otherwise inspects the predictions and metadata stored in the input.
+#' The report does not refit models or reprocess data unless `perm_refit` triggers
+#' refitting (`TRUE` or `"auto"` with a valid `perm_refit_spec`); it otherwise
+#' inspects the predictions and metadata stored in the input.
 #' Results are conditional on the
 #' provided splits, selected metric, and any feature matrix supplied to
-#' [audit_leakage()]. A non-significant result does not prove the absence of
-#' leakage, especially with small `B` or incomplete metadata. Rendering requires
-#' the `rmarkdown` package and `ggplot2` for plots.
+#' [audit_leakage()]. The univariate target leakage scan can miss multivariate
+#' proxies, interaction leakage, or features not included in `X_ref`; the
+#' multivariate scan (enabled by default for supported tasks) adds a model-based
+#' check but still only uses features in `X_ref`. A
+#' non-significant result does not prove the absence of leakage, especially with
+#' small `B` or incomplete metadata. Rendering requires the
+#' `rmarkdown` package and `ggplot2` for plots.
 #'
 #' @param audit A [LeakAudit] object from [audit_leakage()] or a [LeakFit] object
 #'   from [fit_resample()]. If a [LeakAudit] is supplied, the report uses its

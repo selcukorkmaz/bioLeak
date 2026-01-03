@@ -14,6 +14,11 @@
 #'   do not already include inner folds, they are created from each outer
 #'   training fold using the same split metadata. rsample splits must already
 #'   include inner folds.
+#' @param split_cols Optional named list/character vector or `"auto"` (default)
+#'   overriding group/batch/study/time column names when `splits` is an rsample
+#'   object and its attributes are missing. `"auto"` falls back to common
+#'   metadata column names (e.g., `group`, `subject`, `batch`, `study`, `time`).
+#'   Supported names are `group`, `batch`, `study`, and `time`.
 #' @param learner A parsnip model_spec with tunable parameters, or a workflows
 #'   workflow. When a model_spec is provided, a workflow is built using
 #'   `preprocess` or a formula.
@@ -79,7 +84,8 @@ tune_resample <- function(x, outcome, splits,
                           inner_seed = NULL,
                           control = NULL,
                           parallel = FALSE,
-                          seed = 1) {
+                          seed = 1,
+                          split_cols = "auto") {
 
   selection <- match.arg(selection)
 
@@ -128,7 +134,8 @@ tune_resample <- function(x, outcome, splits,
       } else {
         NULL
       }
-      splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(.bio_get_x(x)), coldata = coldata)
+      splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(.bio_get_x(x)), coldata = coldata,
+                                                split_cols = split_cols)
     } else {
       stop("splits must be a LeakSplits or rsample rset/rsplit.", call. = FALSE)
     }

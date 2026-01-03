@@ -781,13 +781,15 @@ Assumptions and misuse to avoid:
 - `X_ref` must match the rows used in training (same order)
 - `plot_perm_distribution()` requires `return_perm = TRUE`
 - `target_threshold` should be set high enough to flag only strong proxies
+- target leakage scan includes univariate associations plus a multivariate/interaction check by default when `X_ref` is available; proxies outside `X_ref` can still pass undetected
 
-**Interpretation Note:** The label-permutation test keeps predictions fixed by default, so
-the p-value quantifies prediction-label association rather than a full refit null. A large
-gap indicates a non-random association. To determine if that signal is *real* or *leaked*,
+**Interpretation Note:** The label-permutation test refits models by default when refit
+data are available (auto mode); otherwise it keeps predictions fixed, so the p-value
+quantifies prediction-label association rather than a full refit null. A large gap
+indicates a non-random association. To determine if that signal is *real* or *leaked*,
 check the **Batch Association** (confounding), **Target Leakage Scan** (proxy features),
-and **Duplicate Detection** (memorization) tables. Use `perm_refit = TRUE` with
-`perm_refit_spec` for a refit-based null when needed.
+and **Duplicate Detection** (memorization) tables. Use `perm_refit = FALSE` to force
+fixed-prediction shuffles or `perm_refit = TRUE` with `perm_refit_spec` to always refit.
 
 Use `feature_space = "rank"` to compare samples by rank profiles, and
 `sim_method` (`cosine` or `pearson`) to control similarity. For large `n`, `nn_k`

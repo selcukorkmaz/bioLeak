@@ -7,6 +7,14 @@
 #' @param outcome outcome column name (if x is SE or data.frame), or a length-2
 #'   character vector of time/event column names for survival outcomes.
 #' @param splits LeakSplits object from make_splits(), or an `rsample` rset/rsplit.
+#' @param split_cols Optional named list/character vector or `"auto"` (default)
+#'   overriding group/batch/study/time column names when `splits` is an rsample
+#'   object and its attributes are missing. `"auto"` falls back to common
+#'   metadata column names (e.g., `group`, `subject`, `batch`, `study`, `time`).
+#'   Supported names are `group`, `batch`, `study`, and `time`.
+#' @param store_refit_data Logical; when TRUE (default), stores the original
+#'   data and learner configuration inside the fit to enable refit-based
+#'   permutation tests without manual `perm_refit_spec` setup.
 #' @param preprocess list(impute, normalize, filter=list(...), fs) or a
 #'   `recipes::recipe` object. When a recipe is supplied, the guarded preprocessing
 #'   pipeline is bypassed and the recipe is prepped on training data only.
@@ -109,9 +117,12 @@ fit_resample <- function(x, outcome, splits,
                          positive_class = NULL,
                          parallel = FALSE,
                          refit = TRUE,
-                         seed = 1) {
+                         seed = 1,
+                         split_cols = "auto",
+                         store_refit_data = TRUE) {
 
   set.seed(seed)
+  learner_input <- learner
   if (is.null(custom_learners)) custom_learners <- list()
   if (!is.list(custom_learners)) {
     stop("custom_learners must be a named list of learner definitions.")
@@ -241,7 +252,8 @@ fit_resample <- function(x, outcome, splits,
       } else {
         NULL
       }
-      splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(Xall), coldata = coldata)
+      splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(Xall), coldata = coldata,
+                                                split_cols = split_cols)
     } else {
       stop("splits must be a LeakSplits or rsample rset/rsplit.")
     }
@@ -1283,6 +1295,21 @@ fit_resample <- function(x, outcome, splits,
   }
 
   # assemble LeakFit object ---------------------------------------------------
+  perm_refit_spec <- NULL
+  if (isTRUE(store_refit_data)) {
+    perm_refit_spec <- list(
+      x = x,
+      outcome = outcome,
+      preprocess = preprocess,
+      learner = learner_input,
+      learner_args = learner_args,
+      custom_learners = custom_learners,
+      class_weights = class_weights,
+      positive_class = positive_class,
+      parallel = parallel
+    )
+  }
+
   new("LeakFit",
       splits = splits,
       metrics = met_df,
@@ -1304,5 +1331,7 @@ fit_resample <- function(x, outcome, splits,
                                         paste0("fold", seq_along(folds))),
                   refit = refit,
                   final_model = final_model,
-                  final_preprocess = final_guard))
+                  final_preprocess = final_guard,
+                  learner_names = learner_names,
+                  perm_refit_spec = perm_refit_spec))
 }

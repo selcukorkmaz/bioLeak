@@ -65,7 +65,7 @@
   list(train = as.integer(in_id), test = as.integer(out_id))
 }
 
-.bio_as_leaksplits_from_rsample <- function(splits, n = NULL, coldata = NULL) {
+.bio_as_leaksplits_from_rsample <- function(splits, n = NULL, coldata = NULL, split_cols = NULL) {
   if (!requireNamespace("rsample", quietly = TRUE)) {
     stop("Package 'rsample' is required for rsample split objects.", call. = FALSE)
   }
@@ -98,6 +98,59 @@
   }
 
   rsample_cols <- .bio_rsample_split_cols(splits)
+  split_cols_norm <- NULL
+  auto_cols <- FALSE
+  if (!is.null(split_cols)) {
+    if (is.character(split_cols) && length(split_cols) == 1L && identical(split_cols, "auto")) {
+      auto_cols <- TRUE
+      split_cols <- NULL
+    } else if (is.character(split_cols)) {
+      if (is.null(names(split_cols)) || !length(names(split_cols))) {
+        stop("split_cols must be a named character vector or list.", call. = FALSE)
+      }
+      split_cols <- as.list(split_cols)
+    } else if (!is.list(split_cols)) {
+      stop("split_cols must be a named character vector or list.", call. = FALSE)
+    }
+    if (!is.null(split_cols)) {
+      split_cols_norm <- list(
+        group = .bio_rsample_col_name(split_cols$group %||% split_cols$groups),
+        batch = .bio_rsample_col_name(split_cols$batch),
+        study = .bio_rsample_col_name(split_cols$study),
+        time = .bio_rsample_col_name(split_cols$time)
+      )
+      for (nm in names(split_cols_norm)) {
+        if (!is.null(split_cols_norm[[nm]])) {
+          rsample_cols[[nm]] <- split_cols_norm[[nm]]
+        }
+      }
+    }
+  }
+  if (isTRUE(auto_cols) && !is.null(coldata)) {
+    cd_names <- names(coldata)
+    if (is.null(rsample_cols$group)) {
+      if ("group" %in% cd_names) {
+        rsample_cols$group <- "group"
+      } else if ("subject" %in% cd_names) {
+        rsample_cols$group <- "subject"
+      }
+    }
+    if (is.null(rsample_cols$batch)) {
+      if ("batch" %in% cd_names) rsample_cols$batch <- "batch"
+    }
+    if (is.null(rsample_cols$study)) {
+      if ("study" %in% cd_names) rsample_cols$study <- "study"
+    }
+    if (is.null(rsample_cols$time)) {
+      if ("time" %in% cd_names) {
+        rsample_cols$time <- "time"
+      } else if ("date" %in% cd_names) {
+        rsample_cols$time <- "date"
+      } else if ("index" %in% cd_names) {
+        rsample_cols$time <- "index"
+      }
+    }
+  }
 
   indices <- vector("list", length(split_list))
   summary_rows <- vector("list", length(split_list))
@@ -140,7 +193,8 @@
     coldata = coldata,
     source = "rsample",
     id = split_ids,
-    id2 = split_ids2
+    id2 = split_ids2,
+    split_cols_override = split_cols_norm
   )
 
   methods::new("LeakSplits", mode = "rsample", indices = indices, info = info)

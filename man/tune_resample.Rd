@@ -20,7 +20,8 @@ tune_resample(
   inner_seed = NULL,
   control = NULL,
   parallel = FALSE,
-  seed = 1
+  seed = 1,
+  split_cols = "auto"
 )
 }
 \arguments{
@@ -71,6 +72,12 @@ are not precomputed. Defaults to the outer split seed.}
 folds (single-fold, no refit).}
 
 \item{seed}{Integer seed for reproducibility.}
+
+\item{split_cols}{Optional named list/character vector or `"auto"` (default)
+overriding group/batch/study/time column names when `splits` is an rsample
+object and its attributes are missing. `"auto"` falls back to common
+metadata column names (e.g., `group`, `subject`, `batch`, `study`, `time`).
+Supported names are `group`, `batch`, `study`, and `time`.}
 }
 \value{
 A list of class `"LeakTune"` with components:

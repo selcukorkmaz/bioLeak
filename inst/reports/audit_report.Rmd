@@ -43,8 +43,10 @@ if (!is.null(mf) && nrow(mf) > 0) {
 
 ## Label-permutation association test
 
-Note: By default, this test keeps predictions fixed and permutes labels, so the p-value
-quantifies prediction-label association rather than a full refit null. It does NOT diagnose
+Note: By default, this test refits models when refit data are available (auto mode);
+otherwise it keeps predictions fixed and permutes labels, so the p-value quantifies
+prediction-label association rather than a full refit null. Set `perm_refit = FALSE`
+to force fixed-prediction shuffles. This test does NOT diagnose
 information leakage. Use the Batch Association, Target Leakage Scan, and Duplicate Detection
 sections to check for leakage.
 
@@ -52,8 +54,14 @@ sections to check for leakage.
 pg <- aud@permutation_gap
 if (!is.null(pg) && nrow(pg) > 0) {
   perm_method <- if (!is.null(aud@info$perm_method)) aud@info$perm_method else "fixed"
-  cat(sprintf("Permutation method: %s\n\n",
-              if (identical(perm_method, "refit")) "refit per permutation" else "fixed predictions"))
+  perm_mode <- if (!is.null(aud@info$perm_refit_mode)) aud@info$perm_refit_mode else perm_method
+  perm_label <- if (identical(perm_method, "refit")) "refit per permutation" else "fixed predictions"
+  if (grepl("^auto", perm_mode)) perm_label <- paste0(perm_label, " (auto)")
+  cat(sprintf("Permutation method: %s\n", perm_label))
+  if (!is.null(aud@info$perm_refit_reason) && nzchar(aud@info$perm_refit_reason)) {
+    cat(sprintf("Auto mode: %s\n", aud@info$perm_refit_reason))
+  }
+  cat("\n")
   knitr::kable(pg)
 } else {
   cat("No permutation results available.")
@@ -125,6 +133,11 @@ if (identical(aud@fit@task, "binomial")) {
 
 ## Target leakage scan
 
+Note: The target leakage scan includes a multivariate/interaction check by default when
+`X_ref` is available; disable it with `target_scan_multivariate = FALSE`. Univariate
+scans can still miss proxies or features not included in `X_ref`. A multivariate scan
+summary (if enabled) is reported below.
+
 ```{r target-leakage}
 ta <- aud@target_assoc
 if (!is.null(ta) && nrow(ta) > 0) {
@@ -135,6 +148,19 @@ if (!is.null(ta) && nrow(ta) > 0) {
   knitr::kable(utils::head(show, 50))
 } else {
   cat("No target leakage scan results available.")
+}
+```
+
+## Multivariate target scan
+
+```{r target-leakage-mv}
+mv <- aud@info$target_multivariate
+if (!is.null(mv) && nrow(mv) > 0) {
+  knitr::kable(mv)
+} else if (isTRUE(aud@info$target_scan_multivariate)) {
+  cat("Multivariate target scan requested but no results were produced.")
+} else {
+  cat("Multivariate target scan not requested.")
 }
 ```
 

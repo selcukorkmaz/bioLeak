@@ -46,8 +46,12 @@
 #'   \code{"peek_norm"}, \code{"lookahead"}. Leakage is added as an extra
 #'   predictor: \code{"subject_overlap"} adds per-subject mean outcome,
 #'   \code{"batch_confounded"} adds per-batch mean outcome, \code{"peek_norm"}
-#'   adds the global mean outcome, and \code{"lookahead"} adds the next-time
+#'   adds the globally normalized (z-scored) outcome, and \code{"lookahead"} adds the next-time
 #'   outcome. Changing this controls whether and how leakage is present.
+#' @param preprocess Optional preprocessing list or recipe passed to
+#'   [fit_resample()]. When NULL (default), the simulator uses the
+#'   fit_resample defaults; for \code{"peek_norm"} leakage, normalization is
+#'   set to \code{"none"} to avoid attenuating the constant leakage feature.
 #' @param rho Numeric scalar in [-1, 1]. AR(1)-style autocorrelation applied to
 #'   each predictor across row order (default 0). Higher absolute values increase
 #'   serial correlation and make time-ordered leakage more pronounced.
@@ -112,6 +116,7 @@ simulate_leakage_suite <- function(
     mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
     learner = c("glmnet", "ranger"),
     leakage = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),
+    preprocess = NULL,
     rho = 0, K = 5, repeats = 1, horizon = 0,
     B = 1000, seeds = 1:10, parallel = FALSE, signal_strength = 1,
     verbose = FALSE
@@ -142,12 +147,30 @@ simulate_leakage_suite <- function(
       "rmse"
     }
 
+    preprocess_use <- preprocess
+    if (is.null(preprocess_use) && leakage == "peek_norm") {
+      preprocess_use <- list(
+        impute = list(method = "median"),
+        normalize = list(method = "none"),
+        filter = list(var_thresh = 0, iqr_thresh = 0),
+        fs = list(method = "none")
+      )
+    }
+
     fit <- fit_resample(
       sim$data, outcome = "y", splits = splits,
+      preprocess = preprocess_use,
       learner = learner, metrics = metrics, seed = s
     )
 
-    aud <- audit_leakage(fit, metric = metrics, B = B, seed = s)
+    aud <- audit_leakage(
+      fit,
+      metric = metrics,
+      B = B,
+      perm_refit = "auto",
+      perm_refit_auto_max = B,
+      seed = s
+    )
 
     data.frame(
       seed = s,
@@ -202,7 +225,10 @@ simulate_leakage_suite <- function(
     X <- cbind(X, leak_batch = batch_mean)
   } else if (leakage == "peek_norm") {
     global_mean <- mean(y)
-    X <- cbind(X, leak_global = global_mean)
+    global_sd <- stats::sd(y)
+    if (!is.finite(global_sd) || global_sd == 0) global_sd <- 1
+    leak_global <- (y - global_mean) / global_sd
+    X <- cbind(X, leak_global = leak_global)
   } else if (leakage == "lookahead") {
     lead <- c(y[-1], y[length(y)])
     X <- cbind(X, leak_future = lead)

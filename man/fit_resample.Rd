@@ -18,7 +18,9 @@ fit_resample(
   positive_class = NULL,
   parallel = FALSE,
   refit = TRUE,
-  seed = 1
+  seed = 1,
+  split_cols = "auto",
+  store_refit_data = TRUE
 )
 }
 \arguments{
@@ -67,6 +69,16 @@ as the positive class (level 2). If NULL, the second factor level is used.}
 \item{refit}{logical, if TRUE retrain final model on full data}
 
 \item{seed}{integer, for reproducibility}
+
+\item{split_cols}{Optional named list/character vector or `"auto"` (default)
+overriding group/batch/study/time column names when `splits` is an rsample
+object and its attributes are missing. `"auto"` falls back to common
+metadata column names (e.g., `group`, `subject`, `batch`, `study`, `time`).
+Supported names are `group`, `batch`, `study`, and `time`.}
+
+\item{store_refit_data}{Logical; when TRUE (default), stores the original
+data and learner configuration inside the fit to enable refit-based
+permutation tests without manual `perm_refit_spec` setup.}
 }
 \value{
 LeakFit object

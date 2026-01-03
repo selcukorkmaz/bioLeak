@@ -11,6 +11,7 @@ simulate_leakage_suite(
   mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
   learner = c("glmnet", "ranger"),
   leakage = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),
+  preprocess = NULL,
   rho = 0,
   K = 5,
   repeats = 1,
@@ -50,8 +51,13 @@ Switching learners changes the fitted model, runtime, and performance.}
 \code{"peek_norm"}, \code{"lookahead"}. Leakage is added as an extra
 predictor: \code{"subject_overlap"} adds per-subject mean outcome,
 \code{"batch_confounded"} adds per-batch mean outcome, \code{"peek_norm"}
-adds the global mean outcome, and \code{"lookahead"} adds the next-time
+adds the globally normalized (z-scored) outcome, and \code{"lookahead"} adds the next-time
 outcome. Changing this controls whether and how leakage is present.}
+
+\item{preprocess}{Optional preprocessing list or recipe passed to
+[fit_resample()]. When NULL (default), the simulator uses the
+fit_resample defaults; for \code{"peek_norm"} leakage, normalization is
+set to \code{"none"} to avoid attenuating the constant leakage feature.}
 
 \item{rho}{Numeric scalar in [-1, 1]. AR(1)-style autocorrelation applied to
 each predictor across row order (default 0). Higher absolute values increase

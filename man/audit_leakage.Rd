@@ -7,9 +7,10 @@
 audit_leakage(
   fit,
   metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
-  B = 1000,
+  B = 200,
   perm_stratify = TRUE,
-  perm_refit = FALSE,
+  perm_refit = "auto",
+  perm_refit_auto_max = 200,
   perm_refit_spec = NULL,
   time_block = c("circular", "stationary"),
   block_len = NULL,
@@ -23,6 +24,10 @@ audit_leakage(
   coldata = NULL,
   X_ref = NULL,
   target_scan = TRUE,
+  target_scan_multivariate = TRUE,
+  target_scan_multivariate_B = 100,
+  target_scan_multivariate_components = 10,
+  target_scan_multivariate_interactions = TRUE,
   target_threshold = 0.9,
   feature_space = c("raw", "rank"),
   sim_method = c("cosine", "pearson"),
@@ -45,7 +50,7 @@ This controls the observed performance
 statistic, the permutation null, and the sign of the reported gap.}
 
 \item{B}{Integer scalar. Number of permutations used to build the null
-distribution (default 1000). Larger values reduce Monte Carlo error but
+distribution (default 200). Larger values reduce Monte Carlo error but
 increase runtime.}
 
 \item{perm_stratify}{Logical scalar or `"auto"`. If TRUE (default), permutations
@@ -54,11 +59,17 @@ into quantiles when enough non-missing values are available). If FALSE, no
 stratification is used. Stratification only applies when `coldata` supplies
 the outcome; otherwise labels are shuffled within each fold.}
 
-\item{perm_refit}{Logical scalar. If FALSE (default), permutations keep
+\item{perm_refit}{Logical scalar or `"auto"`. If FALSE, permutations keep
 predictions fixed and shuffle labels (association test). If TRUE, each
 permutation refits the model on permuted outcomes using `perm_refit_spec`.
 Refit-based permutations are slower but better approximate a full null
-distribution.}
+distribution. The default is `"auto"`, which refits only when
+`perm_refit_spec` is provided and `B` is less than or equal to
+`perm_refit_auto_max`; otherwise it falls back to fixed-prediction
+permutations.}
+
+\item{perm_refit_auto_max}{Integer scalar. Maximum `B` allowed for
+`perm_refit = "auto"` to trigger refitting. Defaults to 200.}
 
 \item{perm_refit_spec}{List of inputs used when `perm_refit = TRUE`.
 Required elements: `x` (data used for fitting) and `learner` (parsnip
@@ -120,6 +131,20 @@ outcome associations on `X_ref` and flags proxy features; if FALSE, or if
 `X_ref`/outcomes are unavailable, `target_assoc` is empty. Not available
 for survival outcomes.}
 
+\item{target_scan_multivariate}{Logical scalar. If TRUE (default), fits a simple
+multivariate/interaction model on `X_ref` using the stored splits and
+reports a permutation-based score/p-value. This is slower and only
+implemented for binomial and gaussian tasks.}
+
+\item{target_scan_multivariate_B}{Integer scalar. Number of permutations for
+the multivariate scan (default 100). Larger values stabilize the p-value.}
+
+\item{target_scan_multivariate_components}{Integer scalar. Maximum number of
+principal components used in the multivariate scan (default 10).}
+
+\item{target_scan_multivariate_interactions}{Logical scalar. If TRUE (default),
+adds pairwise interactions among the top components in the multivariate scan.}
+
 \item{target_threshold}{Numeric scalar in (0,1). Threshold applied to the
 association score used to flag proxy features. Higher values are stricter.
 Default is 0.9.}
@@ -162,14 +187,16 @@ A [LeakAudit] object with slots:
 \description{
 Computes a post-hoc leakage audit for a resampled model fit. The audit
 (1) compares observed cross-validated performance to a label-permutation
-null (by default using fixed predictions), (2) tests whether fold assignments
+null (by default refitting when data are available; otherwise using fixed
+predictions), (2) tests whether fold assignments
 are associated with batch or study metadata (confounding by design),
 (3) scans features for unusually strong outcome proxies, and (4) flags
 duplicate or near-duplicate samples in a reference feature matrix.
 
 The returned [LeakAudit] summarizes these diagnostics. It relies on the
 stored predictions, splits, and optional metadata; it does not refit models
-unless `perm_refit = TRUE`. Results are conditional on the chosen metric
+unless `perm_refit = TRUE` (or `perm_refit = "auto"` with a valid
+`perm_refit_spec`). Results are conditional on the chosen metric
 and supplied metadata/features and should be interpreted as diagnostics,
 not proof of leakage or its absence.
 }
@@ -178,10 +205,11 @@ The `permutation_gap` slot reports `metric_obs`, `perm_mean`, `perm_sd`,
 `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as
 `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
 accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
-The default permutation test keeps predictions fixed and shuffles labels,
-so p-values quantify prediction-label association rather than a full refit
-null. Set `perm_refit = TRUE` with `perm_refit_spec` to refit models under
-permuted outcomes.
+By default, `perm_refit = "auto"` refits models when refit data are available
+and `B` is not too large; otherwise it keeps predictions fixed and shuffles
+labels. Fixed-prediction permutations quantify prediction-label association
+rather than a full refit null. Set `perm_refit = FALSE` to force fixed
+predictions, or `perm_refit = TRUE` (with `perm_refit_spec`) to always refit.
 
 `batch_assoc` contains chi-square tests between fold assignment and each
 `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
@@ -191,6 +219,10 @@ categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
 one-way ANOVA (gaussian). The
 `score` column is the scaled effect size used for flagging
 (`flag = score >= target_threshold`).
+The univariate target leakage scan can miss multivariate proxies, interaction
+leakage, or features not included in `X_ref`. The multivariate scan (enabled
+by default for supported tasks) adds a model-based proxy check but still only
+covers features present in `X_ref`.
 
 Duplicate detection compares rows of `X_ref` using the chosen `sim_method`
 (cosine on L2-normalized rows, or Pearson via row-centering), optionally after

@@ -19,6 +19,30 @@ test_that("rsample grouped splits drop grouping columns", {
   expect_false("subject" %in% fit@feature_names)
 })
 
+test_that("rsample split_cols override drops identifiers", {
+  skip_if_not_installed("rsample")
+  df <- make_class_df(12)
+  rs <- rsample::vfold_cv(df, v = 2)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = rs,
+                            split_cols = list(group = "subject", batch = "batch"),
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "accuracy", refit = FALSE)
+  expect_false("subject" %in% fit@feature_names)
+  expect_false("batch" %in% fit@feature_names)
+})
+
+test_that("rsample auto split_cols drops common identifiers", {
+  skip_if_not_installed("rsample")
+  df <- make_class_df(12)
+  rs <- rsample::vfold_cv(df, v = 2)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = rs,
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "accuracy", refit = FALSE)
+  expect_false("subject" %in% fit@feature_names)
+  expect_false("batch" %in% fit@feature_names)
+  expect_false("time" %in% fit@feature_names)
+})
+
 test_that("as_rsample converts LeakSplits", {
   skip_if_not_installed("rsample")
   df <- make_class_df(12)

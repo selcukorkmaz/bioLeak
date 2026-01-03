@@ -32,12 +32,14 @@ only; it does not recompute any tests.
 }
 \details{
 The permutation test quantifies prediction-label association when using fixed
-predictions; refit-based permutations require `perm_refit = TRUE`. It does
-not by itself prove or rule out leakage.
+predictions; refit-based permutations require `perm_refit = TRUE` (or `"auto"`
+with refit data). It does not by itself prove or rule out leakage.
 Batch association flags metadata that align with fold assignment; this may
 reflect study design rather than leakage.
 Target leakage scan uses univariate feature-outcome associations and can miss
-multivariate leakage or proxies not present in `X_ref`.
+multivariate proxies, interaction leakage, or features not included in `X_ref`.
+The multivariate scan (enabled by default for supported tasks) reports an
+additional model-based score.
 Duplicate detection only considers the provided `X_ref` features and the
 similarity threshold used during [audit_leakage()]. By default,
 `duplicate_scope = "train_test"` filters to pairs that cross train/test;

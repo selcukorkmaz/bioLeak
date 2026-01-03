@@ -308,6 +308,174 @@
   out
 }
 
+.target_scan_prepare_matrix <- function(X) {
+  if (is.null(X) || (!is.data.frame(X) && !is.matrix(X))) return(NULL)
+  X_mat <- if (is.data.frame(X)) {
+    mm <- try(stats::model.matrix(~ . - 1, data = X), silent = TRUE)
+    if (inherits(mm, "try-error")) return(NULL)
+    mm
+  } else {
+    as.matrix(X)
+  }
+  if (!nrow(X_mat) || !ncol(X_mat)) return(NULL)
+  storage.mode(X_mat) <- "numeric"
+  for (j in seq_len(ncol(X_mat))) {
+    col <- X_mat[, j]
+    med <- stats::median(col, na.rm = TRUE)
+    if (!is.finite(med)) med <- 0
+    col[is.na(col)] <- med
+    X_mat[, j] <- col
+  }
+  sdv <- vapply(seq_len(ncol(X_mat)), function(j) {
+    stats::sd(X_mat[, j], na.rm = TRUE)
+  }, numeric(1))
+  keep <- is.finite(sdv) & sdv > 0
+  X_mat <- X_mat[, keep, drop = FALSE]
+  if (!ncol(X_mat)) return(NULL)
+  X_mat
+}
+
+.target_scan_multivariate <- function(X, y, task, splits, folds, coldata, seed, B,
+                                      max_components = 10L, interactions = TRUE,
+                                      positive_class = NULL, permute_outcome = NULL) {
+  if (is.null(X) || is.null(y)) return(data.frame())
+  if (!task %in% c("binomial", "gaussian")) return(data.frame())
+  X_mat <- .target_scan_prepare_matrix(X)
+  if (is.null(X_mat)) return(data.frame())
+  if (length(y) != nrow(X_mat)) return(data.frame())
+
+  if (isTRUE(splits@info$compact) && identical(splits@mode, "time_series") && is.null(coldata)) {
+    warning("time_series compact splits require coldata for multivariate target scan; skipping.",
+            call. = FALSE)
+    return(data.frame())
+  }
+
+  max_components <- as.integer(max_components)
+  if (!is.finite(max_components) || max_components < 1L) return(data.frame())
+  n <- nrow(X_mat)
+  k <- min(max_components, n - 1L, ncol(X_mat))
+  if (!is.finite(k) || k < 1L) return(data.frame())
+
+  X_scaled <- scale(X_mat, center = TRUE, scale = TRUE)
+  pc <- try(stats::prcomp(X_scaled, center = FALSE, scale. = FALSE, rank. = k), silent = TRUE)
+  if (inherits(pc, "try-error") || is.null(pc$x)) return(data.frame())
+  k_eff <- ncol(pc$x)
+  if (!is.finite(k_eff) || k_eff < 1L) return(data.frame())
+  X_design <- pc$x[, seq_len(k_eff), drop = FALSE]
+  colnames(X_design) <- paste0("PC", seq_len(ncol(X_design)))
+
+  n_interactions <- 0L
+  if (isTRUE(interactions) && ncol(X_design) >= 2L) {
+    k_int <- min(5L, ncol(X_design))
+    comb <- utils::combn(k_int, 2)
+    int_mat <- matrix(NA_real_, nrow = n, ncol = ncol(comb))
+    colnames(int_mat) <- apply(comb, 2, function(idx) {
+      paste0("PC", idx[1], "_x_PC", idx[2])
+    })
+    for (j in seq_len(ncol(comb))) {
+      int_mat[, j] <- X_design[, comb[1, j]] * X_design[, comb[2, j]]
+    }
+    X_design <- cbind(X_design, int_mat)
+    n_interactions <- ncol(int_mat)
+  }
+
+  score_for_y <- function(y_vec) {
+    if (identical(task, "binomial")) {
+      y_fac <- if (is.factor(y_vec)) droplevels(y_vec) else factor(y_vec)
+      if (nlevels(y_fac) < 2L) {
+        return(list(score = NA_real_, value = NA_real_, n_obs = 0L, metric = "auc"))
+      }
+      pos <- positive_class
+      if (is.null(pos) || !as.character(pos) %in% levels(y_fac)) {
+        pos <- levels(y_fac)[2]
+      }
+      y01 <- as.numeric(y_fac == pos)
+    } else {
+      y_num <- as.numeric(y_vec)
+    }
+
+    preds <- rep(NA_real_, n)
+    for (i in seq_along(folds)) {
+      fold_full <- try(.bio_resolve_fold_indices(splits, folds[[i]], n = n, data = coldata),
+                       silent = TRUE)
+      if (inherits(fold_full, "try-error")) next
+      tr <- fold_full$train
+      te <- fold_full$test
+      if (!length(tr) || !length(te)) next
+      if (identical(task, "binomial")) {
+        y_tr <- y01[tr]
+        ok_tr <- which(!is.na(y_tr))
+        if (length(ok_tr) < 2L) next
+        y_tr <- y_tr[ok_tr]
+        if (length(unique(y_tr)) < 2L) next
+        df_tr <- data.frame(y = y_tr, X_design[tr[ok_tr], , drop = FALSE], check.names = FALSE)
+        fit <- try(stats::glm(y ~ ., data = df_tr, family = stats::binomial()), silent = TRUE)
+        if (inherits(fit, "try-error")) next
+        df_te <- as.data.frame(X_design[te, , drop = FALSE], check.names = FALSE)
+        pr <- try(stats::predict(fit, newdata = df_te, type = "response"), silent = TRUE)
+        if (inherits(pr, "try-error")) next
+        preds[te] <- as.numeric(pr)
+      } else {
+        y_tr <- y_num[tr]
+        ok_tr <- which(is.finite(y_tr))
+        if (length(ok_tr) < 2L) next
+        df_tr <- data.frame(y = y_tr[ok_tr], X_design[tr[ok_tr], , drop = FALSE], check.names = FALSE)
+        fit <- try(stats::lm(y ~ ., data = df_tr), silent = TRUE)
+        if (inherits(fit, "try-error")) next
+        df_te <- as.data.frame(X_design[te, , drop = FALSE], check.names = FALSE)
+        pr <- try(stats::predict(fit, newdata = df_te), silent = TRUE)
+        if (inherits(pr, "try-error")) next
+        preds[te] <- as.numeric(pr)
+      }
+    }
+
+    if (identical(task, "binomial")) {
+      ok <- is.finite(preds) & !is.na(y01)
+      if (sum(ok) < 3L) {
+        return(list(score = NA_real_, value = NA_real_, n_obs = sum(ok), metric = "auc"))
+      }
+      auc <- .auc_rank(preds[ok], y01[ok])
+      return(list(score = auc, value = auc, n_obs = sum(ok), metric = "auc"))
+    }
+    ok <- is.finite(preds) & is.finite(y_num)
+    if (sum(ok) < 3L) {
+      return(list(score = NA_real_, value = NA_real_, n_obs = sum(ok), metric = "cor"))
+    }
+    r <- stats::cor(preds[ok], y_num[ok])
+    list(score = abs(r), value = r, n_obs = sum(ok), metric = "cor")
+  }
+
+  obs <- score_for_y(y)
+  perm_scores <- numeric(0)
+  if (is.finite(B) && B >= 1L) {
+    perm_scores <- vapply(seq_len(B), function(b) {
+      set.seed(seed + b)
+      y_perm <- if (!is.null(permute_outcome)) permute_outcome(b) else sample(y)
+      if (length(y_perm) != length(y)) return(NA_real_)
+      score_for_y(y_perm)$score
+    }, numeric(1))
+  }
+  pval <- NA_real_
+  if (is.finite(obs$score) && length(perm_scores) && any(is.finite(perm_scores))) {
+    finite_perm <- is.finite(perm_scores)
+    pval <- (1 + sum(perm_scores[finite_perm] >= obs$score)) / (1 + sum(finite_perm))
+  }
+
+  data.frame(
+    scan = "multivariate",
+    metric = obs$metric,
+    value = obs$value,
+    score = obs$score,
+    p_value = pval,
+    n = obs$n_obs,
+    n_features = ncol(X_mat),
+    n_components = k_eff,
+    n_interactions = n_interactions,
+    n_perm = length(perm_scores),
+    stringsAsFactors = FALSE
+  )
+}
+
 # Compute metric from predictions
 .metric_value <- function(metric, task, truth, pred, pred_df = NULL) {
   if (task == "survival") {
@@ -401,14 +569,16 @@
 #' @description
 #' Computes a post-hoc leakage audit for a resampled model fit. The audit
 #' (1) compares observed cross-validated performance to a label-permutation
-#' null (by default using fixed predictions), (2) tests whether fold assignments
+#' null (by default refitting when data are available; otherwise using fixed
+#' predictions), (2) tests whether fold assignments
 #' are associated with batch or study metadata (confounding by design),
 #' (3) scans features for unusually strong outcome proxies, and (4) flags
 #' duplicate or near-duplicate samples in a reference feature matrix.
 #'
 #' The returned [LeakAudit] summarizes these diagnostics. It relies on the
 #' stored predictions, splits, and optional metadata; it does not refit models
-#' unless `perm_refit = TRUE`. Results are conditional on the chosen metric
+#' unless `perm_refit = TRUE` (or `perm_refit = "auto"` with a valid
+#' `perm_refit_spec`). Results are conditional on the chosen metric
 #' and supplied metadata/features and should be interpreted as diagnostics,
 #' not proof of leakage or its absence.
 #'
@@ -421,18 +591,23 @@
 #'   This controls the observed performance
 #'   statistic, the permutation null, and the sign of the reported gap.
 #' @param B Integer scalar. Number of permutations used to build the null
-#'   distribution (default 1000). Larger values reduce Monte Carlo error but
+#'   distribution (default 200). Larger values reduce Monte Carlo error but
 #'   increase runtime.
 #' @param perm_stratify Logical scalar or `"auto"`. If TRUE (default), permutations
 #'   are stratified within each fold (factor levels; numeric outcomes are binned
 #'   into quantiles when enough non-missing values are available). If FALSE, no
 #'   stratification is used. Stratification only applies when `coldata` supplies
 #'   the outcome; otherwise labels are shuffled within each fold.
-#' @param perm_refit Logical scalar. If FALSE (default), permutations keep
+#' @param perm_refit Logical scalar or `"auto"`. If FALSE, permutations keep
 #'   predictions fixed and shuffle labels (association test). If TRUE, each
 #'   permutation refits the model on permuted outcomes using `perm_refit_spec`.
 #'   Refit-based permutations are slower but better approximate a full null
-#'   distribution.
+#'   distribution. The default is `"auto"`, which refits only when
+#'   `perm_refit_spec` is provided and `B` is less than or equal to
+#'   `perm_refit_auto_max`; otherwise it falls back to fixed-prediction
+#'   permutations.
+#' @param perm_refit_auto_max Integer scalar. Maximum `B` allowed for
+#'   `perm_refit = "auto"` to trigger refitting. Defaults to 200.
 #' @param perm_refit_spec List of inputs used when `perm_refit = TRUE`.
 #'   Required elements: `x` (data used for fitting) and `learner` (parsnip
 #'   model_spec, workflow, or legacy learner). Optional elements: `outcome`
@@ -480,6 +655,16 @@
 #'   outcome associations on `X_ref` and flags proxy features; if FALSE, or if
 #'   `X_ref`/outcomes are unavailable, `target_assoc` is empty. Not available
 #'   for survival outcomes.
+#' @param target_scan_multivariate Logical scalar. If TRUE (default), fits a simple
+#'   multivariate/interaction model on `X_ref` using the stored splits and
+#'   reports a permutation-based score/p-value. This is slower and only
+#'   implemented for binomial and gaussian tasks.
+#' @param target_scan_multivariate_B Integer scalar. Number of permutations for
+#'   the multivariate scan (default 100). Larger values stabilize the p-value.
+#' @param target_scan_multivariate_components Integer scalar. Maximum number of
+#'   principal components used in the multivariate scan (default 10).
+#' @param target_scan_multivariate_interactions Logical scalar. If TRUE (default),
+#'   adds pairwise interactions among the top components in the multivariate scan.
 #' @param target_threshold Numeric scalar in (0,1). Threshold applied to the
 #'   association score used to flag proxy features. Higher values are stricter.
 #'   Default is 0.9.
@@ -515,10 +700,11 @@
 #' `metric_obs - perm_mean` for metrics where higher is better (AUC, PR-AUC,
 #' accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
 #
-#' The default permutation test keeps predictions fixed and shuffles labels,
-#' so p-values quantify prediction-label association rather than a full refit
-#' null. Set `perm_refit = TRUE` with `perm_refit_spec` to refit models under
-#' permuted outcomes.
+#' By default, `perm_refit = "auto"` refits models when refit data are available
+#' and `B` is not too large; otherwise it keeps predictions fixed and shuffles
+#' labels. Fixed-prediction permutations quantify prediction-label association
+#' rather than a full refit null. Set `perm_refit = FALSE` to force fixed
+#' predictions, or `perm_refit = TRUE` (with `perm_refit_spec`) to always refit.
 #'
 #' `batch_assoc` contains chi-square tests between fold assignment and each
 #' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
@@ -528,6 +714,10 @@
 #' one-way ANOVA (gaussian). The
 #' `score` column is the scaled effect size used for flagging
 #' (`flag = score >= target_threshold`).
+#' The univariate target leakage scan can miss multivariate proxies, interaction
+#' leakage, or features not included in `X_ref`. The multivariate scan (enabled
+#' by default for supported tasks) adds a model-based proxy check but still only
+#' covers features present in `X_ref`.
 #'
 #' Duplicate detection compares rows of `X_ref` using the chosen `sim_method`
 #' (cosine on L2-normalized rows, or Pearson via row-centering), optionally after
@@ -574,9 +764,10 @@
 #' @export
 audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
-                          B = 1000,
+                          B = 200,
                           perm_stratify = TRUE,
-                          perm_refit = FALSE,
+                          perm_refit = "auto",
+                          perm_refit_auto_max = 200,
                           perm_refit_spec = NULL,
                           time_block = c("circular", "stationary"),
                           block_len = NULL,
@@ -590,6 +781,10 @@ audit_leakage <- function(fit,
                           coldata = NULL,
                           X_ref = NULL,
                           target_scan = TRUE,
+                          target_scan_multivariate = TRUE,
+                          target_scan_multivariate_B = 100,
+                          target_scan_multivariate_components = 10,
+                          target_scan_multivariate_interactions = TRUE,
                           target_threshold = 0.9,
                           feature_space = c("raw", "rank"),
                           sim_method = c("cosine", "pearson"),
@@ -610,10 +805,103 @@ audit_leakage <- function(fit,
       !is.finite(target_threshold) || target_threshold <= 0 || target_threshold >= 1) {
     stop("target_threshold must be a single numeric value in (0,1).")
   }
+  if (!is.logical(target_scan_multivariate) || length(target_scan_multivariate) != 1L) {
+    stop("target_scan_multivariate must be TRUE or FALSE.")
+  }
+  target_scan_multivariate <- isTRUE(target_scan_multivariate)
+  target_scan_multivariate_B <- as.integer(target_scan_multivariate_B)
+  if (isTRUE(target_scan_multivariate)) {
+    if (!is.finite(target_scan_multivariate_B) || target_scan_multivariate_B < 1L) {
+      stop("target_scan_multivariate_B must be an integer >= 1.")
+    }
+    target_scan_multivariate_components <- as.integer(target_scan_multivariate_components)
+    if (!is.finite(target_scan_multivariate_components) ||
+        target_scan_multivariate_components < 1L) {
+      stop("target_scan_multivariate_components must be an integer >= 1.")
+    }
+    if (!is.logical(target_scan_multivariate_interactions) ||
+        length(target_scan_multivariate_interactions) != 1L) {
+      stop("target_scan_multivariate_interactions must be TRUE or FALSE.")
+    }
+  }
 
   set.seed(seed)
-  perm_refit <- isTRUE(perm_refit)
-  perm_method <- if (perm_refit) "refit" else "fixed"
+  if (is.null(perm_refit_spec) && !is.null(fit@info$perm_refit_spec)) {
+    perm_refit_spec <- fit@info$perm_refit_spec
+  }
+
+  select_refit_learner <- function(spec_learner, learner, learner_names = NULL) {
+    if (is.null(spec_learner) || is.null(learner)) return(spec_learner)
+    if (inherits(spec_learner, "workflow") || inherits(spec_learner, "model_spec")) {
+      return(spec_learner)
+    }
+    if (is.list(spec_learner)) {
+      nm <- names(spec_learner)
+      if (!is.null(nm) && learner %in% nm) {
+        return(spec_learner[[learner]])
+      }
+      if (!is.null(learner_names)) {
+        idx <- match(learner, learner_names)
+        if (is.finite(idx) && idx >= 1L && idx <= length(spec_learner)) {
+          return(spec_learner[[idx]])
+        }
+      }
+    }
+    if (is.character(spec_learner) && length(spec_learner) > 1L) {
+      nm <- names(spec_learner)
+      if (!is.null(nm) && learner %in% nm) {
+        return(spec_learner[[learner]])
+      }
+      if (!is.null(learner_names)) {
+        idx <- match(learner, learner_names)
+        if (is.finite(idx) && idx >= 1L && idx <= length(spec_learner)) {
+          return(spec_learner[[idx]])
+        }
+      }
+    }
+    spec_learner
+  }
+
+  if (!is.null(perm_refit_spec) && is.list(perm_refit_spec) && !is.null(learner)) {
+    perm_refit_spec$learner <- select_refit_learner(
+      perm_refit_spec$learner %||% NULL,
+      learner,
+      fit@info$learner_names %||% NULL
+    )
+  }
+  perm_refit_mode <- "fixed"
+  perm_refit_reason <- NULL
+  perm_refit_raw <- perm_refit
+  if (is.character(perm_refit_raw)) {
+    if (!identical(perm_refit_raw, "auto")) {
+      stop("perm_refit must be TRUE, FALSE, or \"auto\".", call. = FALSE)
+    }
+    perm_refit_mode <- "auto-fixed"
+    if (!is.numeric(perm_refit_auto_max) || length(perm_refit_auto_max) != 1L ||
+        !is.finite(perm_refit_auto_max) || perm_refit_auto_max < 1L) {
+      stop("perm_refit_auto_max must be a single integer >= 1.", call. = FALSE)
+    }
+    if (is.null(perm_refit_spec) || !is.list(perm_refit_spec)) {
+      perm_refit_reason <- "perm_refit_spec missing; using fixed predictions."
+      perm_refit <- FALSE
+    } else if (!is.finite(B) || B > perm_refit_auto_max) {
+      perm_refit_reason <- sprintf("B=%s exceeds perm_refit_auto_max=%s; using fixed predictions.",
+                                   as.character(B), as.character(perm_refit_auto_max))
+      perm_refit <- FALSE
+    } else {
+      perm_refit <- TRUE
+      perm_refit_mode <- "auto-refit"
+    }
+  } else if (isTRUE(perm_refit_raw)) {
+    perm_refit <- TRUE
+    perm_refit_mode <- "refit"
+  } else if (isFALSE(perm_refit_raw)) {
+    perm_refit <- FALSE
+    perm_refit_mode <- "fixed"
+  } else {
+    stop("perm_refit must be TRUE, FALSE, or \"auto\".", call. = FALSE)
+  }
+  perm_method <- if (isTRUE(perm_refit)) "refit" else "fixed"
 
   refit_x <- NULL
   refit_outcome <- NULL
@@ -647,6 +935,11 @@ audit_leakage <- function(fit,
     refit_learner <- perm_refit_spec$learner %||% NULL
     if (is.null(refit_learner)) {
       stop("perm_refit_spec$learner is required when perm_refit=TRUE.")
+    }
+    if ((is.list(refit_learner) && length(refit_learner) != 1L) ||
+        (is.character(refit_learner) && length(refit_learner) != 1L)) {
+      stop("perm_refit requires a single learner; supply learner= or a single perm_refit_spec$learner.",
+           call. = FALSE)
     }
     refit_preprocess <- perm_refit_spec$preprocess %||% default_preprocess
     refit_learner_args <- perm_refit_spec$learner_args %||% list()
@@ -705,6 +998,11 @@ audit_leakage <- function(fit,
   if (isTRUE(target_scan) && identical(task, "survival")) {
     warning("Target leakage scan is not available for survival outcomes.", call. = FALSE)
     target_scan <- FALSE
+  }
+  if (isTRUE(target_scan_multivariate) && !task %in% c("binomial", "gaussian")) {
+    warning("Multivariate target scan is only available for binomial or gaussian tasks.",
+            call. = FALSE)
+    target_scan_multivariate <- FALSE
   }
 
   pred_list_raw <- lapply(fit@predictions, function(df) data.frame(df, stringsAsFactors = FALSE))
@@ -1286,6 +1584,67 @@ audit_leakage <- function(fit,
     }
   }
 
+  # --- Multivariate/interaction target scan ----------------------------------
+  target_multivariate <- data.frame()
+  if (isTRUE(target_scan_multivariate)) {
+    if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
+    max_idx <- suppressWarnings(max(vapply(folds, function(z) {
+      idx <- c(z$train, z$test)
+      if (length(idx)) max(idx) else 0L
+    }, integer(1)), na.rm = TRUE))
+    if (!is.finite(max_idx) || max_idx < 1L) max_idx <- NA_integer_
+    sample_ids_scan <- resolve_sample_ids(fit, fallback_n = max_idx)
+    if (!is.null(sample_ids_scan) && length(sample_ids_scan)) {
+      sample_ids_scan <- as.character(sample_ids_scan)
+    }
+    coldata_scan <- fit@splits@info$coldata %||% NULL
+    if (!is.null(coldata_scan) && !is.null(sample_ids_scan)) {
+      coldata_scan <- .align_by_ids(coldata_scan, sample_ids_scan,
+                                    sample_ids = sample_ids_scan, warn = FALSE)
+    }
+    y_outcome_scan <- NULL
+    if (!is.null(coldata_scan) && !is.null(outcome_col) &&
+        outcome_col %in% names(coldata_scan)) {
+      y_outcome_scan <- coldata_scan[[outcome_col]]
+    }
+    if (is.null(y_outcome_scan) || !length(y_outcome_scan)) {
+      id_first <- !duplicated(as.character(all_pred$id))
+      truth_map <- all_pred$truth[id_first]
+      names(truth_map) <- as.character(all_pred$id[id_first])
+      if (!is.null(sample_ids_scan)) {
+        y_outcome_scan <- truth_map[sample_ids_scan]
+      }
+    }
+    if (!is.null(X_ref) && !is.null(y_outcome_scan) && length(y_outcome_scan) &&
+        !is.null(sample_ids_scan) && length(sample_ids_scan)) {
+      X_scan_mv <- .align_by_ids(X_ref, sample_ids_scan, sample_ids = sample_ids_scan)
+      if (!is.null(X_scan_mv)) {
+        permute_outcome <- NULL
+        if (!is.null(coldata_scan) && !is.null(outcome_col) &&
+            outcome_col %in% names(coldata_scan) &&
+            fit@splits@mode %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
+          folds_perm <- list(list(test = seq_len(length(y_outcome_scan)), fold = 1L, repeat_id = 1L))
+          perm_source <- .permute_labels_factory(
+            cd = coldata_scan, outcome = outcome_col, mode = fit@splits@mode,
+            folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
+            block_len = block_len, seed = seed,
+            group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
+            study_col = fit@splits@info$study
+          )
+          permute_outcome <- function(b) perm_source(b)[[1]]
+        }
+        target_multivariate <- .target_scan_multivariate(
+          X_scan_mv, y_outcome_scan, task, fit@splits, folds, coldata_scan, seed,
+          B = target_scan_multivariate_B,
+          max_components = target_scan_multivariate_components,
+          interactions = target_scan_multivariate_interactions,
+          positive_class = fit@info$positive_class,
+          permute_outcome = permute_outcome
+        )
+      }
+    }
+  }
+
   # --- Duplicate / near-duplicate detection ---------------------------------
   dup_df <- data.frame()
   if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
@@ -1543,8 +1902,16 @@ audit_leakage <- function(fit,
         n_perm = B,
         perm_stratify = perm_stratify,
         perm_method = perm_method,
+        perm_refit_mode = perm_refit_mode,
+        perm_refit_reason = perm_refit_reason,
+        perm_refit_auto_max = perm_refit_auto_max,
         parallel = parallel,
         target_scan = target_scan,
+        target_scan_multivariate = target_scan_multivariate,
+        target_scan_multivariate_B = target_scan_multivariate_B,
+        target_scan_multivariate_components = target_scan_multivariate_components,
+        target_scan_multivariate_interactions = target_scan_multivariate_interactions,
+        target_multivariate = target_multivariate,
         target_threshold = target_threshold,
         sim_method = sim_method,
         feature_space = feature_space,

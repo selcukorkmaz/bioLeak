@@ -177,9 +177,10 @@ if (requireNamespace("rsample", quietly = TRUE) &&
 - The split mode matches the true dependence structure (subject, batch, study, or time).
 - Leakage is inferred from performance gaps and diagnostic signals, not proven or ruled out.
 - Permutation gaps assume the chosen resampling scheme reflects the intended evaluation setting.
-- By default, permutation gaps keep predictions fixed and shuffle labels (association test);
-  use `perm_refit = TRUE` with `perm_refit_spec` for a full refit-based null.
-- Target leakage scans are univariate; they can miss multivariate leakage or proxy features not included in `X_ref`.
+- By default, permutation gaps use refit-based permutations when refit data are available
+  (auto mode), falling back to fixed-prediction shuffles when they are not.
+- Target leakage scans include univariate associations plus a multivariate/interaction check
+  by default for supported tasks; proxies outside `X_ref` can still pass undetected.
 
 ## Interpretation guidance
 - Permutation gap: large positive gaps indicate non-random signal; they do not by themselves indicate or refute leakage.
