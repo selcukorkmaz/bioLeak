@@ -46,7 +46,10 @@ an integer size.}
 
 \item{metrics}{Character vector of metric names (`auc`, `pr_auc`, `accuracy`,
 `macro_f1`, `log_loss`, `rmse`) or a yardstick metric set/list. Metrics are
-computed with yardstick; unsupported metrics are dropped with a warning.}
+computed with yardstick; unsupported metrics are dropped with a warning.
+For binomial tasks, if any inner assessment fold contains a single class,
+probability metrics (`auc`, `roc_auc`, `pr_auc`) are dropped for tuning with
+a warning.}
 
 \item{positive_class}{Optional value indicating the positive class for
 binomial outcomes. When set, the outcome levels are reordered so the
@@ -55,7 +58,8 @@ positive class is second.}
 \item{selection}{Selection rule for tuning, either `"best"` or `"one_std_err"`.}
 
 \item{selection_metric}{Metric name used for selecting hyperparameters.
-Defaults to the first metric in `metrics`.}
+Defaults to the first metric in `metrics`. If the chosen metric yields
+no valid results, the first available metric is used with a warning.}
 
 \item{inner_v}{Optional number of folds for inner CV when inner splits are
 not precomputed. Defaults to the outer `v`.}
@@ -103,9 +107,9 @@ df <- data.frame(
   x1 = rnorm(20),
   x2 = rnorm(20)
 )
-splits <- make_splits(df, outcome = "outcome",
+splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject",
-                      v = 3, nested = TRUE)
+                      v = 3, nested = TRUE, stratify = TRUE)
 spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
   parsnip::set_engine("glmnet")
 rec <- recipes::recipe(outcome ~ x1 + x2, data = df)

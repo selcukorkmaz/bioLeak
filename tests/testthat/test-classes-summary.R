@@ -3,7 +3,7 @@ test_that("LeakSplits validity and show method work", {
                "indices list cannot be empty")
 
   df <- make_class_df(8)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1)
   out <- capture.output(show(splits))
@@ -11,7 +11,7 @@ test_that("LeakSplits validity and show method work", {
 })
 
 test_that("LeakFit and LeakAudit validity checks enforce class constraints", {
-  splits <- make_splits_quiet(make_class_df(8), outcome = "outcome",
+  splits <- make_split_plan_quiet(make_class_df(8), outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1)
   expect_error(bioLeak:::LeakFit(splits = list(), metrics = data.frame(),
@@ -35,7 +35,7 @@ test_that("LeakFit and LeakAudit validity checks enforce class constraints", {
 
 # test_that("summary methods emit expected headers", {
 #   df <- make_class_df(10)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 2, seed = 1)
 #   custom <- make_custom_learners()

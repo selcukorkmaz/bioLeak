@@ -28,7 +28,7 @@ test_that("grouped and within-group permutation functions preserve values", {
 test_that("permute_labels_factory returns per-fold permutations", {
   set.seed(1)
   df <- make_class_df(20)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 4, stratify = FALSE, seed = 1)
   perm_fun <- bioLeak:::.permute_labels_factory(
@@ -45,7 +45,7 @@ test_that("permute_labels_factory returns per-fold permutations", {
 test_that("permute_labels_factory warns for small numeric stratification", {
   df <- make_class_df(12)
   df$outcome <- rnorm(12)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "batch_blocked", batch = "batch",
                               v = 3, stratify = FALSE, seed = 1)
   perm_fun <- expect_warning_match(
@@ -63,17 +63,46 @@ test_that("permute_labels_factory warns for small numeric stratification", {
 
 test_that("permute_labels_factory handles time-series permutations", {
   df <- make_class_df(30)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "time_series", time = "time",
                               v = 4, seed = 1)
   perm_fun <- bioLeak:::.permute_labels_factory(
     cd = df, outcome = "outcome", mode = "time_series",
     folds = splits@indices, perm_stratify = FALSE,
-    time_block = "stationary", block_len = 3, seed = 1
+    time_block = "stationary", block_len = 3, seed = 1,
+    time_col = "time"
   )
   out <- perm_fun(1)
   expect_equal(length(out), length(splits@indices))
   expect_equal(length(out[[1]]), length(splits@indices[[1]]$test))
+})
+
+test_that("time-series permutations respect time order", {
+  df <- make_class_df(20)
+  df$time <- rev(seq_len(nrow(df)))
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
+                              mode = "time_series", time = "time",
+                              v = 3, seed = 1, compact = TRUE)
+  folds <- splits@indices
+  attr(folds, "fold_assignments") <- splits@info$fold_assignments
+  fold <- folds[[1]]
+  test_idx <- which(splits@info$fold_assignments[[1]] == fold$fold)
+  block_len <- length(test_idx)
+
+  perm_fun <- bioLeak:::.permute_labels_factory(
+    cd = df, outcome = "outcome", mode = "time_series",
+    folds = folds, perm_stratify = FALSE,
+    time_block = "circular", block_len = block_len, seed = 1,
+    time_col = "time"
+  )
+  out <- perm_fun(1)
+
+  time_order <- test_idx[order(df$time[test_idx], test_idx)]
+  set.seed(2)
+  perm_idx <- bioLeak:::.circular_block_permute(time_order, block_len = block_len)
+  perm_time <- df$outcome[perm_idx]
+  expected <- perm_time[match(test_idx, time_order)]
+  expect_equal(out[[1]], expected)
 })
 
 test_that("permute_labels_factory errors on invalid metadata", {

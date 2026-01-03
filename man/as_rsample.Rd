@@ -7,7 +7,7 @@
 as_rsample(x, ...)
 }
 \arguments{
-\item{x}{LeakSplits object created by [make_splits()].}
+\item{x}{LeakSplits object created by [make_split_plan()].}
 
 \item{data}{Optional data.frame used to populate rsample splits. When NULL,
 the stored `coldata` from `x` is used (if available).}
@@ -26,7 +26,7 @@ df <- data.frame(
   x1 = rnorm(20),
   x2 = rnorm(20)
 )
-splits <- make_splits(df, outcome = "outcome",
+splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 5)
 rset <- as_rsample(splits, data = df)
 }

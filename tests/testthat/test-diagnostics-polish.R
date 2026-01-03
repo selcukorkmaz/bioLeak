@@ -1,6 +1,6 @@
 test_that("calibration_summary computes metrics for binomial fits", {
   df <- make_class_df(30)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -15,7 +15,7 @@ test_that("calibration_summary computes metrics for binomial fits", {
 
 test_that("confounder_sensitivity summarizes metrics by confounder", {
   df <- make_class_df(30)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -29,7 +29,7 @@ test_that("confounder_sensitivity summarizes metrics by confounder", {
 
 test_that("diagnostics require learner selection when multiple models are present", {
   df <- make_class_df(40)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 4, seed = 2)
   custom <- make_custom_learners()

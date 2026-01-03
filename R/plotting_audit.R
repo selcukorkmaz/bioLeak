@@ -271,7 +271,7 @@ plot_fold_balance <- function(fit) {
 #'   x1 = rnorm(12),
 #'   x2 = rnorm(12)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 3)
 #' custom <- list(
 #'   glm = list(
@@ -358,7 +358,8 @@ plot_overlap_checks <- function(fit, column = NULL) {
 #' Plot ACF of test predictions for time-series leakage checks
 #'
 #' Uses the autocorrelation function of out-of-fold predictions to detect
-#' temporal dependence that may indicate leakage. Requires numeric predictions
+#' temporal dependence that may indicate leakage. Predictions are ordered by
+#' the split time column before computing the ACF. Requires numeric predictions
 #' (regression or survival). Requires ggplot2.
 #'
 #' @param fit LeakFit.
@@ -377,14 +378,68 @@ plot_time_acf <- function(fit, lag.max = 20) {
     stop("Package 'ggplot2' is required for plotting. Install it to use plot_time_acf().",
          call. = FALSE)
   }
+  if (!"pred" %in% names(all_pred)) {
+    stop("Predictions missing 'pred' column for ACF plotting.", call. = FALSE)
+  }
   pred <- all_pred$pred
   if (!is.numeric(pred)) {
     stop("plot_time_acf requires numeric predictions (regression or survival).", call. = FALSE)
   }
-  pred <- pred[is.finite(pred)]
+  if (!"id" %in% names(all_pred)) {
+    stop("Predictions are missing sample ids; time ordering unavailable.", call. = FALSE)
+  }
+  time_col <- fit@splits@info$time %||% NULL
+  coldata <- fit@splits@info$coldata %||% NULL
+  if (is.null(coldata)) {
+    stop("plot_time_acf requires split metadata with time values.", call. = FALSE)
+  }
+  coldata <- as.data.frame(coldata, check.names = FALSE)
+  if (is.null(time_col) || !time_col %in% names(coldata)) {
+    stop("plot_time_acf requires a time column in split metadata.", call. = FALSE)
+  }
+
+  ids_chr <- as.character(all_pred$id)
+  time_vals <- NULL
+  rn <- rownames(coldata)
+  if (!is.null(rn) && all(ids_chr %in% rn)) {
+    time_vals <- coldata[match(ids_chr, rn), time_col]
+  } else if ("row_id" %in% names(coldata)) {
+    rid <- as.character(coldata[["row_id"]])
+    if (!anyDuplicated(rid) && all(ids_chr %in% rid)) {
+      time_vals <- coldata[match(ids_chr, rid), time_col]
+    }
+  } else if (!is.null(fit@info$sample_ids) &&
+             length(fit@info$sample_ids) == nrow(coldata)) {
+    sample_ids <- as.character(fit@info$sample_ids)
+    idx <- match(ids_chr, sample_ids)
+    if (all(!is.na(idx))) time_vals <- coldata[idx, time_col]
+  } else {
+    ids_int <- suppressWarnings(as.integer(ids_chr))
+    if (all(!is.na(ids_int)) && max(ids_int, na.rm = TRUE) <= nrow(coldata)) {
+      time_vals <- coldata[ids_int, time_col]
+    }
+  }
+  if (is.null(time_vals) || length(time_vals) != length(pred)) {
+    stop("plot_time_acf could not align time metadata to predictions.", call. = FALSE)
+  }
+  if (!is.numeric(time_vals) && !inherits(time_vals, c("POSIXct", "Date"))) {
+    stop("plot_time_acf requires numeric, Date, or POSIXct time values.", call. = FALSE)
+  }
+
+  ok_time <- !is.na(time_vals)
+  if (!all(ok_time)) {
+    warning("plot_time_acf dropped predictions with missing time values.", call. = FALSE)
+  }
+  pred <- pred[ok_time]
+  time_vals <- time_vals[ok_time]
+  ok_pred <- is.finite(pred)
+  pred <- pred[ok_pred]
+  time_vals <- time_vals[ok_pred]
   if (length(pred) < 2) {
     stop("Not enough finite predictions for ACF plotting.", call. = FALSE)
   }
+  ord <- order(time_vals, seq_along(time_vals), na.last = TRUE)
+  pred <- pred[ord]
   acf_res <- stats::acf(pred, lag.max = lag.max, plot = FALSE)
   lag_vals <- as.numeric(acf_res$lag)
   acf_vals <- as.numeric(acf_res$acf)

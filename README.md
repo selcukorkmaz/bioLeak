@@ -19,7 +19,7 @@ Out of scope:
 Standard cross-validation assumes independent samples and exchangeable labels. Biomedical datasets often violate these assumptions due to repeated measures, site effects, batch structure, and temporal dependence. These violations can inflate performance metrics even when a model does not generalize. `bioLeak` enforces leakage-aware resampling and provides post-hoc diagnostics that estimate how much apparent performance could be driven by leakage or confounding.
 
 ## Core functionality
-- Leakage-aware splitting (`make_splits`): subject-grouped, batch-blocked, study leave-out, and time-series splits with reproducible metadata.
+- Leakage-aware splitting (`make_split_plan`): subject-grouped, batch-blocked, study leave-out, and time-series splits with reproducible metadata.
 - Guarded preprocessing and fitting (`fit_resample`): train-only imputation, normalization, filtering, and feature selection; excludes split-defining columns from predictors; supports parsnip specs and built-in learners; returns per-fold metrics and predictions for instability checks.
 - Multiclass and survival modeling support in `fit_resample` with task-appropriate metrics (accuracy/macro-F1/log-loss; C-index).
 - Leak-safe hyperparameter tuning (`tune_resample`): nested CV with tidymodels tune/dials using leakage-aware splits.
@@ -64,7 +64,7 @@ outcome <- factor(ifelse(runif(n) < p_subj[subject], "case", "control"),
 df <- data.frame(subject, batch, outcome, x1, x2, x3)
 
 # Leakage-aware splits (subjects do not cross folds)
-splits <- make_splits(
+splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "subject_grouped",

@@ -8,7 +8,7 @@ test_that("tune_resample runs nested tuning with workflows", {
   skip_if_not_installed("workflows")
 
   df <- make_class_df(24)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, nested = TRUE, stratify = TRUE, seed = 1)
 

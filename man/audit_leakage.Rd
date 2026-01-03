@@ -12,6 +12,7 @@ audit_leakage(
   perm_refit = "auto",
   perm_refit_auto_max = 200,
   perm_refit_spec = NULL,
+  perm_mode = NULL,
   time_block = c("circular", "stationary"),
   block_len = NULL,
   include_z = TRUE,
@@ -77,6 +78,11 @@ model_spec, workflow, or legacy learner). Optional elements: `outcome`
 (defaults to `fit@outcome`), `preprocess`, `learner_args`,
 `custom_learners`, `class_weights`, `positive_class`, and `parallel`.
 Survival outcomes are not supported for refit-based permutations.}
+
+\item{perm_mode}{Optional character scalar to override the permutation mode
+used for restricted shuffles. One of `"subject_grouped"`, `"batch_blocked"`,
+`"study_loocv"`, or `"time_series"`. Defaults to the split metadata when
+available (including rsample-derived modes).}
 
 \item{time_block}{Character scalar, `"circular"` or `"stationary"`. Controls
 block permutation for `time_series` splits; ignored for other split modes.
@@ -242,7 +248,7 @@ df <- data.frame(
   x2 = rnorm(12)
 )
 
-splits <- make_splits(df, outcome = "outcome",
+splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 3,
                       progress = FALSE)
 

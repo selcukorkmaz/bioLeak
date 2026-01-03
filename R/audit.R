@@ -614,6 +614,10 @@
 #'   (defaults to `fit@outcome`), `preprocess`, `learner_args`,
 #'   `custom_learners`, `class_weights`, `positive_class`, and `parallel`.
 #'   Survival outcomes are not supported for refit-based permutations.
+#' @param perm_mode Optional character scalar to override the permutation mode
+#'   used for restricted shuffles. One of `"subject_grouped"`, `"batch_blocked"`,
+#'   `"study_loocv"`, or `"time_series"`. Defaults to the split metadata when
+#'   available (including rsample-derived modes).
 #' @param time_block Character scalar, `"circular"` or `"stationary"`. Controls
 #'   block permutation for `time_series` splits; ignored for other split modes.
 #'   Default is `"circular"`.
@@ -736,7 +740,7 @@
 #'   x2 = rnorm(12)
 #' )
 #'
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 3,
 #'                       progress = FALSE)
 #'
@@ -769,6 +773,7 @@ audit_leakage <- function(fit,
                           perm_refit = "auto",
                           perm_refit_auto_max = 200,
                           perm_refit_spec = NULL,
+                          perm_mode = NULL,
                           time_block = c("circular", "stationary"),
                           block_len = NULL,
                           include_z = TRUE,
@@ -829,6 +834,7 @@ audit_leakage <- function(fit,
   if (is.null(perm_refit_spec) && !is.null(fit@info$perm_refit_spec)) {
     perm_refit_spec <- fit@info$perm_refit_spec
   }
+
 
   select_refit_learner <- function(spec_learner, learner, learner_names = NULL) {
     if (is.null(spec_learner) || is.null(learner)) return(spec_learner)
@@ -936,8 +942,9 @@ audit_leakage <- function(fit,
     if (is.null(refit_learner)) {
       stop("perm_refit_spec$learner is required when perm_refit=TRUE.")
     }
-    if ((is.list(refit_learner) && length(refit_learner) != 1L) ||
-        (is.character(refit_learner) && length(refit_learner) != 1L)) {
+    if (!inherits(refit_learner, c("workflow", "model_spec")) &&
+        ((is.list(refit_learner) && length(refit_learner) != 1L) ||
+         (is.character(refit_learner) && length(refit_learner) != 1L))) {
       stop("perm_refit requires a single learner; supply learner= or a single perm_refit_spec$learner.",
            call. = FALSE)
     }
@@ -976,6 +983,23 @@ audit_leakage <- function(fit,
   folds <- fit@splits@indices
   compact <- isTRUE(fit@splits@info$compact)
   fold_assignments <- fit@splits@info$fold_assignments
+  perm_mode_use <- .bio_perm_mode(fit@splits)
+  if (!is.null(perm_mode)) {
+    valid_modes <- c("subject_grouped", "batch_blocked", "study_loocv", "time_series")
+    perm_mode <- as.character(perm_mode)
+    perm_mode <- perm_mode[!is.na(perm_mode) & nzchar(perm_mode)]
+    if (length(perm_mode) != 1L || !perm_mode %in% valid_modes) {
+      stop("perm_mode must be one of: subject_grouped, batch_blocked, study_loocv, time_series.",
+           call. = FALSE)
+    }
+    perm_mode_use <- perm_mode
+  }
+  if (identical(fit@splits@mode, "rsample") && identical(perm_mode_use, "rsample")) {
+    stop(paste0("rsample splits require an explicit perm_mode; pass perm_mode= to ",
+                "audit_leakage() or set split_cols/attr(splits, 'bioLeak_perm_mode') when fitting."),
+         call. = FALSE)
+  }
+  trail$perm_mode <- perm_mode_use
   resolve_test_idx <- function(fold) {
     if (!isTRUE(compact) && !is.null(fold$test)) return(fold$test)
     if (is.null(fold_assignments) || !length(fold_assignments)) {
@@ -1231,14 +1255,14 @@ audit_leakage <- function(fit,
     perm_full_source <- NULL
     if (!is.null(refit_coldata) &&
         refit_outcome %in% names(refit_coldata) &&
-        fit@splits@mode %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
+        perm_mode_use %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
       folds_perm <- list(list(test = seq_len(n_refit), fold = 1L, repeat_id = 1L))
       perm_full_source <- .permute_labels_factory(
-        cd = refit_coldata, outcome = refit_outcome, mode = fit@splits@mode,
+        cd = refit_coldata, outcome = refit_outcome, mode = perm_mode_use,
         folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
         block_len = block_len, seed = seed,
         group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-        study_col = fit@splits@info$study
+        study_col = fit@splits@info$study, time_col = fit@splits@info$time
       )
     }
 
@@ -1329,11 +1353,11 @@ audit_leakage <- function(fit,
         attr(folds_perm, "fold_assignments") <- fold_assignments
       }
       perm_source <- .permute_labels_factory(
-        cd = perm_coldata, outcome = outcome_col, mode = fit@splits@mode,
+        cd = perm_coldata, outcome = outcome_col, mode = perm_mode_use,
         folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
         block_len = block_len, seed = seed,
         group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-        study_col = fit@splits@info$study
+        study_col = fit@splits@info$study, time_col = fit@splits@info$time
       )
     }
     if (is.null(perm_source)) {
@@ -1456,10 +1480,24 @@ audit_leakage <- function(fit,
     if (is.numeric(x)) round(x, 6) else x)
 
   # --- Batch / study association with folds ---------------------------------
-  ids_all <- unique(all_pred$id)
+  ids_pred <- all_pred$id
+  ids_pred_chr <- as.character(ids_pred)
+  ids_all <- unique(ids_pred)
   ids_all_chr <- as.character(ids_all)
-  fold_id <- rep(NA_integer_, length(ids_all_chr))
-  names(fold_id) <- ids_all_chr
+  fold_id <- if ("fold" %in% names(all_pred)) all_pred$fold else NULL
+  repeat_vals <- if (length(fit@splits@indices)) {
+    vapply(fit@splits@indices, function(z) as.integer(z$repeat_id %||% 1L), integer(1))
+  } else {
+    1L
+  }
+  repeat_vals <- repeat_vals[is.finite(repeat_vals)]
+  has_repeats <- length(unique(repeat_vals)) > 1L
+  skip_batch_assoc <- FALSE
+  if ((is.null(fold_id) || !length(fold_id) || all(is.na(fold_id))) && isTRUE(has_repeats)) {
+    warning("Predictions lack fold identifiers for repeated CV; batch association skipped to avoid pooling repeats.",
+            call. = FALSE)
+    skip_batch_assoc <- TRUE
+  }
 
   sample_ids <- fit@info$sample_ids %||% NULL
   if (is.null(sample_ids) || !length(sample_ids)) {
@@ -1477,28 +1515,52 @@ audit_leakage <- function(fit,
       }
     }
   }
-  if (!is.null(sample_ids) && length(sample_ids)) {
-    sample_ids <- as.character(sample_ids)
-    max_idx <- max(vapply(fit@splits@indices, function(z) {
-      te_idx <- resolve_test_idx(z)
-      if (length(te_idx)) max(te_idx) else 0L
-    }, integer(1)), na.rm = TRUE)
-    if (length(sample_ids) < max_idx) {
-      warning("Sample ID mapping is shorter than split indices; fold mapping may be incomplete.",
-              call. = FALSE)
-    } else {
+  if (!skip_batch_assoc && (is.null(fold_id) || !length(fold_id) || all(is.na(fold_id)))) {
+    fold_id_map <- rep(NA_integer_, length(ids_all_chr))
+    names(fold_id_map) <- ids_all_chr
+    if (!is.null(sample_ids) && length(sample_ids)) {
+      sample_ids <- as.character(sample_ids)
+      max_idx <- max(vapply(fit@splits@indices, function(z) {
+        te_idx <- resolve_test_idx(z)
+        if (length(te_idx)) max(te_idx) else 0L
+      }, integer(1)), na.rm = TRUE)
+      if (length(sample_ids) < max_idx) {
+        warning("Sample ID mapping is shorter than split indices; fold mapping may be incomplete.",
+                call. = FALSE)
+      } else {
+        for (i in seq_along(fit@splits@indices)) {
+          te_idx <- resolve_test_idx(fit@splits@indices[[i]])
+          te_ids <- sample_ids[te_idx]
+          fold_id_map[as.character(te_ids)] <- i
+        }
+      }
+    } else if (is.numeric(ids_all)) {
       for (i in seq_along(fit@splits@indices)) {
         te_idx <- resolve_test_idx(fit@splits@indices[[i]])
-        te_ids <- sample_ids[te_idx]
-        fold_id[as.character(te_ids)] <- i
+        te_ids <- intersect(te_idx, ids_all)
+        fold_id_map[as.character(te_ids)] <- i
       }
     }
-  } else if (is.numeric(ids_all)) {
-    for (i in seq_along(fit@splits@indices)) {
-      te_idx <- resolve_test_idx(fit@splits@indices[[i]])
-      te_ids <- intersect(te_idx, ids_all)
-      fold_id[as.character(te_ids)] <- i
-    }
+    fold_id <- fold_id_map[ids_pred_chr]
+  }
+
+  fold_label <- fold_id
+  repeat_id <- NULL
+  if (!skip_batch_assoc && !is.null(fold_id) && length(fold_id) && length(fit@splits@indices)) {
+    fold_meta <- data.frame(
+      fold_seq = seq_along(fit@splits@indices),
+      fold = vapply(fit@splits@indices, function(z) {
+        as.integer(z$fold %||% NA_integer_)
+      }, integer(1)),
+      repeat_id = vapply(fit@splits@indices, function(z) {
+        as.integer(z$repeat_id %||% 1L)
+      }, integer(1)),
+      stringsAsFactors = FALSE
+    )
+    fold_meta$fold[!is.finite(fold_meta$fold)] <- fold_meta$fold_seq[!is.finite(fold_meta$fold)]
+    fold_idx <- match(fold_id, fold_meta$fold_seq)
+    repeat_id <- fold_meta$repeat_id[fold_idx]
+    fold_label <- fold_meta$fold[fold_idx]
   }
 
   if (is.null(coldata) && !is.null(fit@splits@info$coldata)) {
@@ -1533,27 +1595,59 @@ audit_leakage <- function(fit,
     }
   }
 
-  batch_df <- data.frame()
+  coldata_pred <- NULL
   if (!is.null(coldata)) {
+    idx_pred <- match(ids_pred_chr, ids_all_chr)
+    if (anyNA(idx_pred)) {
+      warning("`coldata` not aligned to predictions; batch association skipped.")
+    } else {
+      coldata_pred <- coldata[idx_pred, , drop = FALSE]
+    }
+  }
+
+  batch_df <- data.frame()
+  if (!skip_batch_assoc && !is.null(coldata_pred)) {
     if (is.null(batch_cols)) {
-      batch_cols <- intersect(c("batch", "plate", "center", "site", "study"), colnames(coldata))
+      batch_cols <- intersect(c("batch", "plate", "center", "site", "study"), colnames(coldata_pred))
     }
     if (length(batch_cols) > 0) {
-      fold_valid <- !is.na(fold_id)
+      fold_valid <- !is.na(fold_label)
+      repeat_valid <- !is.null(repeat_id) && !all(is.na(repeat_id))
       batch_results <- lapply(batch_cols, function(bc) {
-        if (!bc %in% colnames(coldata)) return(NULL)
-        tab <- table(
-          fold = fold_id[fold_valid],
-          batch = as.factor(coldata[fold_valid, bc])
-        )
-        as.data.frame(.chisq_assoc(tab))
+        if (!bc %in% colnames(coldata_pred)) return(NULL)
+        if (isTRUE(repeat_valid) && any(fold_valid, na.rm = TRUE)) {
+          reps <- sort(unique(repeat_id[fold_valid]))
+          reps <- reps[is.finite(reps)]
+          rep_rows <- lapply(reps, function(r) {
+            idx <- fold_valid & repeat_id == r
+            if (!any(idx)) return(NULL)
+            tab <- table(
+              fold = fold_label[idx],
+              batch = as.factor(coldata_pred[idx, bc])
+            )
+            df <- as.data.frame(.chisq_assoc(tab))
+            df$repeat_id <- r
+            df
+          })
+          rep_rows <- rep_rows[!vapply(rep_rows, is.null, logical(1))]
+          if (!length(rep_rows)) return(NULL)
+          do.call(rbind, rep_rows)
+        } else {
+          tab <- table(
+            fold = fold_label[fold_valid],
+            batch = as.factor(coldata_pred[fold_valid, bc])
+          )
+          df <- as.data.frame(.chisq_assoc(tab))
+          df$repeat_id <- 1L
+          df
+        }
       })
       names(batch_results) <- batch_cols
       keep_idx <- !vapply(batch_results, is.null, logical(1))
       if (any(keep_idx)) {
         batch_results <- batch_results[keep_idx]
         batch_df <- do.call(rbind, Map(function(nm, df) { df$batch_col <- nm; df }, names(batch_results), batch_results))
-        batch_df <- batch_df[, c("batch_col", "stat", "df", "pval", "cramer_v")]
+        batch_df <- batch_df[, c("batch_col", "repeat_id", "stat", "df", "pval", "cramer_v")]
       }
     }
   }
@@ -1622,14 +1716,14 @@ audit_leakage <- function(fit,
         permute_outcome <- NULL
         if (!is.null(coldata_scan) && !is.null(outcome_col) &&
             outcome_col %in% names(coldata_scan) &&
-            fit@splits@mode %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
+            perm_mode_use %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
           folds_perm <- list(list(test = seq_len(length(y_outcome_scan)), fold = 1L, repeat_id = 1L))
           perm_source <- .permute_labels_factory(
-            cd = coldata_scan, outcome = outcome_col, mode = fit@splits@mode,
+            cd = coldata_scan, outcome = outcome_col, mode = perm_mode_use,
             folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
             block_len = block_len, seed = seed,
             group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-            study_col = fit@splits@info$study
+            study_col = fit@splits@info$study, time_col = fit@splits@info$time
           )
           permute_outcome <- function(b) perm_source(b)[[1]]
         }
@@ -1752,7 +1846,9 @@ audit_leakage <- function(fit,
             }
           }
           if (is.null(fold_map_by_repeat)) {
-            repeat_ids <- vapply(folds, function(f) f$repeat_id %||% 1L, integer(1))
+            repeat_ids <- vapply(folds, function(f) {
+              as.integer(f$repeat_id %||% 1L)
+            }, integer(1))
             n_rep <- suppressWarnings(max(repeat_ids, na.rm = TRUE))
             if (!is.finite(n_rep) || n_rep < 1L) return(rep(NA, n_pairs))
             fold_map_by_repeat <- lapply(seq_len(n_rep), function(r) rep(NA_integer_, n_samples))
@@ -1902,6 +1998,7 @@ audit_leakage <- function(fit,
         n_perm = B,
         perm_stratify = perm_stratify,
         perm_method = perm_method,
+        perm_mode = perm_mode_use,
         perm_refit_mode = perm_refit_mode,
         perm_refit_reason = perm_refit_reason,
         perm_refit_auto_max = perm_refit_auto_max,
@@ -1974,7 +2071,7 @@ audit_leakage <- function(fit,
 #'   x1 = rnorm(12),
 #'   x2 = rnorm(12)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject",
 #'                       v = 3, progress = FALSE)
 #' custom <- list(

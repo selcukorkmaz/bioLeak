@@ -6,7 +6,7 @@
 #' @param x SummarizedExperiment or matrix/data.frame
 #' @param outcome outcome column name (if x is SE or data.frame), or a length-2
 #'   character vector of time/event column names for survival outcomes.
-#' @param splits LeakSplits object from make_splits(), or an `rsample` rset/rsplit.
+#' @param splits LeakSplits object from make_split_plan(), or an `rsample` rset/rsplit.
 #' @param split_cols Optional named list/character vector or `"auto"` (default)
 #'   overriding group/batch/study/time column names when `splits` is an rsample
 #'   object and its attributes are missing. `"auto"` falls back to common
@@ -69,7 +69,7 @@
 #'   x1 = rnorm(20),
 #'   x2 = rnorm(20)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' fit <- fit_resample(df, outcome = "outcome", splits = splits,
 #'                     learner = "glmnet", metrics = "auc")

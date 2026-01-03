@@ -1,6 +1,6 @@
 # test_that("plotting helpers validate ggplot2 availability", {
 #   df <- make_class_df(10)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 2, seed = 1)
 #   custom <- make_custom_learners()
@@ -22,7 +22,7 @@
 # test_that("plotting helpers return objects when ggplot2 is installed", {
 #   skip_if_not_installed("ggplot2")
 #   df <- make_class_df(12)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 3, seed = 1)
 #   custom <- make_custom_learners()
@@ -50,7 +50,7 @@
 #   skip_if_not_installed("ggplot2")
 #   df <- make_class_df(8)
 #   df <- df[, c("subject", "outcome", "x1", "x2")]
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 2, seed = 1)
 #   custom <- make_custom_learners()
@@ -66,7 +66,7 @@
 # test_that("plot_perm_distribution errors without permutation values", {
 #   skip_if_not_installed("ggplot2")
 #   df <- make_class_df(10)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 2, seed = 1)
 #   custom <- make_custom_learners()

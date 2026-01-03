@@ -16,6 +16,7 @@
   group_col = NULL,
   batch_col = NULL,
   study_col = NULL,
+  time_col = NULL,
   verbose = FALSE
 )
 }
@@ -39,6 +40,8 @@ splits are used, fold assignments are read from the
 \item{seed}{integer seed.}
 
 \item{group_col, batch_col, study_col}{optional metadata columns.}
+
+\item{time_col}{optional metadata column name for time-series ordering.}
 
 \item{verbose}{logical; print progress messages.}
 }

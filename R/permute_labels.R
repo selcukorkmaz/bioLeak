@@ -99,6 +99,7 @@
 #' @param block_len block length for time-series permutations.
 #' @param seed integer seed.
 #' @param group_col,batch_col,study_col optional metadata columns.
+#' @param time_col optional metadata column name for time-series ordering.
 #' @param verbose logical; print progress messages.
 #' @return A function that returns a list of permuted outcome vectors, one per fold.
 #' @keywords internal
@@ -106,7 +107,8 @@
 .permute_labels_factory <- function(cd, outcome, mode, folds, perm_stratify,
                                     time_block, block_len, seed,
                                     group_col = NULL, batch_col = NULL,
-                                    study_col = NULL, verbose = FALSE) {
+                                    study_col = NULL, time_col = NULL,
+                                    verbose = FALSE) {
   if (is.null(cd) || !outcome %in% names(cd)) {
     stop("Metadata with outcome column required for restricted permutations.")
   }
@@ -165,6 +167,17 @@
     message("[permute_labels] Stratification disabled for outcome '", outcome, "'.")
   }
   if (identical(mode, "time_series")) {
+    time_col_use <- time_col
+    if (is.null(time_col_use) && "time" %in% names(cd)) {
+      time_col_use <- "time"
+    }
+    if (is.null(time_col_use) || !time_col_use %in% names(cd)) {
+      stop("time_series permutations require a time column in metadata.", call. = FALSE)
+    }
+    time_vec <- cd[[time_col_use]]
+    if (!is.numeric(time_vec) && !inherits(time_vec, c("POSIXct", "Date"))) {
+      stop("time_series time column must be numeric, Date, or POSIXct.", call. = FALSE)
+    }
     if (!exists(".stationary_bootstrap", mode = "function")) {
       stop("Missing .stationary_bootstrap() implementation.")
     }
@@ -233,7 +246,8 @@
           .permute_within_study(y_all[te_idx], study_vals[te_idx])
         },
         time_series = {
-          idx_order <- order(te_idx)
+          time_vals <- time_vec[te_idx]
+          idx_order <- order(time_vals, te_idx, na.last = TRUE)
           te_idx_sorted <- te_idx[idx_order]
           L <- block_len
           if (is.null(L) || !is.finite(L) || L <= 0) {
@@ -248,7 +262,12 @@
           if (any(!perm_idx %in% te_idx_sorted)) {
             stop(".stationary_bootstrap/.circular_block_permute must return a permutation of the provided indices.")
           }
-          y_all[perm_idx]
+          perm_time <- y_all[perm_idx]
+          pos <- match(te_idx, te_idx_sorted)
+          if (anyNA(pos)) {
+            stop("Failed to align permuted time-series labels to fold order.", call. = FALSE)
+          }
+          perm_time[pos]
         },
         {
           sample(y_all[te_idx])

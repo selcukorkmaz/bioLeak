@@ -1,6 +1,6 @@
 test_that("fit_resample supports multiclass custom learners", {
   df <- make_multiclass_df(15, k = 3)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- list(
@@ -36,7 +36,7 @@ test_that("fit_resample supports survival tasks with custom learners", {
     stringsAsFactors = FALSE
   )
   df$surv <- survival::Surv(df$time, df$status)
-  splits <- make_splits_quiet(df, outcome = "surv",
+  splits <- make_split_plan_quiet(df, outcome = "surv",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1, stratify = FALSE)
   custom <- list(

@@ -1,6 +1,6 @@
 test_that("fit_resample validates custom learner specifications", {
   df <- make_class_df(10)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1)
 
@@ -20,7 +20,7 @@ test_that("fit_resample validates custom learner specifications", {
 
 test_that("fit_resample validates class weights and positive class", {
   df <- make_class_df(12)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -41,7 +41,7 @@ test_that("fit_resample validates class weights and positive class", {
 test_that("fit_resample supports class weights with parsnip learners", {
   skip_if_not_installed("parsnip")
   df <- make_class_df(12)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   spec <- parsnip::logistic_reg() |> parsnip::set_engine("glm")
@@ -54,7 +54,7 @@ test_that("fit_resample supports class weights with parsnip learners", {
 
 test_that("fit_resample drops invalid metrics with warnings", {
   df <- make_class_df(10)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1)
   custom <- make_custom_learners()
@@ -68,25 +68,25 @@ test_that("fit_resample drops invalid metrics with warnings", {
   expect_true(nrow(fit@metrics) > 0)
 })
 
-# test_that("fit_resample summarizes metrics with all-NA columns", {
-#   df <- make_class_df(10)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
-#                               mode = "subject_grouped", group = "subject",
-#                               v = 2, seed = 1)
-#   custom <- make_custom_learners()
-#   na_metric <- function(y, pred) NA_real_
-#
-#   fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
-#                             learner = "glm", custom_learners = custom,
-#                             metrics = list(auc = "auc", na_metric = na_metric),
-#                             refit = FALSE)
-#   expect_true(nrow(fit@metric_summary) > 0)
-#   expect_true("na_metric" %in% colnames(fit@metric_summary))
-# })
+test_that("fit_resample summarizes metrics with all-NA columns", {
+  df <- make_class_df(10)
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 2, seed = 1)
+  custom <- make_custom_learners()
+  na_metric <- function(y, pred) NA_real_
+
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = custom,
+                            metrics = list(auc = "auc", na_metric = na_metric),
+                            refit = FALSE)
+  expect_true(nrow(fit@metric_summary) > 0)
+  expect_true("na_metric" %in% colnames(fit@metric_summary))
+})
 
 test_that("fit_resample handles gaussian tasks and ignores classification options", {
   df <- make_regression_df(12)
-  splits <- make_splits_quiet(df, outcome = "y",
+  splits <- make_split_plan_quiet(df, outcome = "y",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -106,19 +106,19 @@ test_that("fit_resample handles gaussian tasks and ignores classification option
 test_that("fit_resample errors on unsupported outcomes", {
   df <- make_class_df(10)
   df$outcome <- factor(c("a", "b", "c", "a", "b", "c", "a", "b", "c", "a"))
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1)
   custom <- make_custom_learners()
   expect_error(fit_resample_quiet(df, outcome = "outcome", splits = splits,
                                   learner = "glm", custom_learners = custom),
-               "require binomial")
+               "No successful folds were completed. Check learner and preprocessing settings.")
 })
 
 test_that("fit_resample respects positive_class releveling", {
   df <- make_class_df(12)
   df$outcome <- factor(ifelse(df$outcome == 1, "yes", "no"), levels = c("no", "yes"))
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -131,7 +131,7 @@ test_that("fit_resample respects positive_class releveling", {
 
 test_that("fit_resample surfaces custom learner prediction length errors", {
   df <- make_class_df(10)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 2, seed = 1)
   custom <- list(
@@ -172,7 +172,7 @@ test_that("fit_resample warns when a fold lacks both classes", {
 
 test_that("fit_resample errors for compact time_series without time metadata", {
   df <- make_class_df(10)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "time_series", time = "time",
                               v = 2, seed = 1, compact = TRUE)
   splits@info$time <- NULL
@@ -185,7 +185,7 @@ test_that("fit_resample errors for compact time_series without time metadata", {
 
 test_that("fit_resample handles compact splits with repeats", {
   df <- make_class_df(30)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped",
                               group = "subject",
                               v = 3, repeats = 2,
@@ -202,7 +202,7 @@ test_that("fit_resample handles compact splits with repeats", {
 test_that("fit_resample supports parsnip learners when available", {
   skip_if_not_installed("parsnip")
   df <- make_class_df(12)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   spec <- parsnip::logistic_reg() |>

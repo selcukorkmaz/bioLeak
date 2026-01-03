@@ -61,9 +61,55 @@ test_that("audit_leakage reports batch association and duplicates", {
   expect_true(nrow(audit@duplicates) >= 1)
 })
 
+test_that("audit_leakage batch association respects repeated CV folds", {
+  set.seed(3)
+  df <- make_class_df(8)
+  df$batch <- rep(c("A", "B"), each = 4)
+  df <- df[, c("batch", "outcome", "x1", "x2")]
+
+  fold1 <- c(1L, 2L, 5L, 6L)
+  fold2 <- c(3L, 4L, 7L, 8L)
+  fold3 <- c(1L, 2L, 7L, 8L)
+  fold4 <- c(3L, 4L, 5L, 6L)
+  indices <- list(
+    list(train = setdiff(seq_len(8), fold1), test = fold1, fold = 1, repeat_id = 1),
+    list(train = setdiff(seq_len(8), fold2), test = fold2, fold = 2, repeat_id = 1),
+    list(train = setdiff(seq_len(8), fold3), test = fold3, fold = 1, repeat_id = 2),
+    list(train = setdiff(seq_len(8), fold4), test = fold4, fold = 2, repeat_id = 2)
+  )
+  splits <- bioLeak:::LeakSplits(mode = "custom", indices = indices,
+                                 info = list(outcome = "outcome", coldata = df, batch = "batch"))
+
+  custom <- make_custom_learners()
+  fit <- fit_resample_quiet(
+    df,
+    outcome = "outcome",
+    splits = splits,
+    learner = "glm",
+    custom_learners = custom,
+    metrics = "auc",
+    refit = FALSE,
+    seed = 1
+  )
+
+  audit <- audit_leakage(
+    fit,
+    metric = "auc",
+    B = 2,
+    perm_stratify = FALSE,
+    batch_cols = "batch",
+    return_perm = FALSE,
+    target_scan = FALSE,
+    target_scan_multivariate = FALSE
+  )
+
+  expect_equal(sort(unique(audit@batch_assoc$repeat_id)), c(1, 2))
+  expect_true(all(audit@batch_assoc$df == 1))
+})
+
 test_that("audit_leakage supports refit-based permutations", {
   df <- make_class_df(20)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -92,7 +138,7 @@ test_that("audit_leakage supports refit-based permutations", {
 
 test_that("audit_leakage supports perm_refit auto mode", {
   df <- make_class_df(20)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()
@@ -131,7 +177,7 @@ test_that("audit_leakage supports perm_refit auto mode", {
 
 test_that("audit_leakage multivariate target scan runs", {
   df <- make_class_df(24)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   custom <- make_custom_learners()

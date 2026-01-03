@@ -44,7 +44,7 @@ df <- data.frame(
   x1 = rnorm(12),
   x2 = rnorm(12)
 )
-splits <- make_splits(
+splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "subject_grouped",

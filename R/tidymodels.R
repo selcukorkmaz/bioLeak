@@ -7,6 +7,22 @@
 .bio_is_workflow <- function(x) inherits(x, "workflow")
 .bio_is_yardstick_metric <- function(x) inherits(x, "metric") || inherits(x, "metric_function")
 
+.bio_perm_mode <- function(splits) {
+  if (!inherits(splits, "LeakSplits")) return(NA_character_)
+  mode <- splits@mode %||% NA_character_
+  valid_modes <- c("subject_grouped", "batch_blocked", "study_loocv", "time_series")
+  if (!identical(mode, "rsample")) {
+    return(mode)
+  }
+  perm_mode <- splits@info$perm_mode %||% NULL
+  if (is.null(perm_mode)) return(mode)
+  perm_mode <- as.character(perm_mode)
+  perm_mode <- perm_mode[!is.na(perm_mode) & nzchar(perm_mode)]
+  if (!length(perm_mode)) return(mode)
+  perm_mode <- perm_mode[[1]]
+  if (perm_mode %in% valid_modes) perm_mode else mode
+}
+
 .bio_rsample_col_name <- function(val) {
   if (is.null(val) || is.logical(val)) return(NULL)
   if (is.character(val)) {
@@ -97,7 +113,8 @@
     repeat_map <- as.integer(factor(split_ids2, levels = unique(split_ids2)))
   }
 
-  rsample_cols <- .bio_rsample_split_cols(splits)
+  rsample_cols_attr <- .bio_rsample_split_cols(splits)
+  rsample_cols <- rsample_cols_attr
   split_cols_norm <- NULL
   auto_cols <- FALSE
   if (!is.null(split_cols)) {
@@ -152,6 +169,88 @@
     }
   }
 
+  valid_modes <- c("subject_grouped", "batch_blocked", "study_loocv", "time_series")
+  mode_attr <- attr(splits, "bioLeak_mode", exact = TRUE)
+  if (!is.null(mode_attr)) {
+    mode_attr <- as.character(mode_attr)
+    mode_attr <- mode_attr[!is.na(mode_attr) & nzchar(mode_attr)]
+    mode_attr <- if (length(mode_attr)) mode_attr[[1]] else NULL
+  }
+  perm_mode_attr <- attr(splits, "bioLeak_perm_mode", exact = TRUE)
+  if (!is.null(perm_mode_attr)) {
+    perm_mode_attr <- as.character(perm_mode_attr)
+    perm_mode_attr <- perm_mode_attr[!is.na(perm_mode_attr) & nzchar(perm_mode_attr)]
+    perm_mode_attr <- if (length(perm_mode_attr)) perm_mode_attr[[1]] else NULL
+  }
+  mode_attr_valid <- !is.null(mode_attr) && mode_attr %in% valid_modes
+  perm_mode_attr_valid <- !is.null(perm_mode_attr) && perm_mode_attr %in% valid_modes
+  if (isTRUE(mode_attr_valid) && isTRUE(perm_mode_attr_valid) &&
+      !identical(mode_attr, perm_mode_attr)) {
+    stop("bioLeak_mode and bioLeak_perm_mode conflict; supply only one or ensure they match.",
+         call. = FALSE)
+  }
+  split_mode <- "rsample"
+  perm_mode <- NULL
+  if (isTRUE(mode_attr_valid)) {
+    split_mode <- mode_attr
+    perm_mode <- mode_attr
+  } else if (isTRUE(perm_mode_attr_valid)) {
+    perm_mode <- perm_mode_attr
+  } else {
+    time_ok <- function(col, cd) {
+      if (is.null(cd)) return(FALSE)
+      if (!is.null(col)) {
+        col <- col[!is.na(col) & nzchar(col)]
+        col <- if (length(col)) col[[1]] else NULL
+      }
+      if (is.null(col)) {
+        if (!"time" %in% names(cd)) return(FALSE)
+        col <- "time"
+      }
+      if (!col %in% names(cd)) return(FALSE)
+      vals <- cd[[col]]
+      is.numeric(vals) || inherits(vals, c("POSIXct", "Date"))
+    }
+    time_col <- rsample_cols$time
+    time_series_classes <- c("rolling_origin", "sliding_index", "sliding_period", "sliding_window")
+    if (inherits(splits, time_series_classes) && time_ok(time_col, coldata)) {
+      perm_mode <- "time_series"
+    } else if (inherits(splits, "group_rset")) {
+      perm_mode <- "subject_grouped"
+    } else {
+      explicit_cols <- rsample_cols_attr
+      if (!is.null(split_cols_norm)) {
+        for (nm in names(split_cols_norm)) {
+          explicit_cols[[nm]] <- split_cols_norm[[nm]]
+        }
+      }
+      has_explicit <- any(vapply(explicit_cols, function(x) {
+        !is.null(x) && length(x)
+      }, logical(1)))
+      perm_cols <- if (isTRUE(has_explicit)) explicit_cols else rsample_cols
+      candidates <- character(0)
+      if (!is.null(perm_cols$time) && time_ok(perm_cols$time, coldata)) {
+        candidates <- c(candidates, "time_series")
+      }
+      if (!is.null(perm_cols$study)) {
+        candidates <- c(candidates, "study_loocv")
+      }
+      if (!is.null(perm_cols$batch)) {
+        candidates <- c(candidates, "batch_blocked")
+      }
+      if (!is.null(perm_cols$group)) {
+        candidates <- c(candidates, "subject_grouped")
+      }
+      if (length(candidates) == 1L) perm_mode <- candidates[[1]]
+    }
+  }
+  if (is.null(perm_mode)) {
+    stop(paste0("rsample splits require an explicit perm_mode (set attr(splits, ",
+                "'bioLeak_perm_mode') or 'bioLeak_mode') or a single inferable ",
+                "group/batch/study/time column via split_cols."),
+         call. = FALSE)
+  }
+
   indices <- vector("list", length(split_list))
   summary_rows <- vector("list", length(split_list))
   for (i in seq_along(split_list)) {
@@ -177,7 +276,8 @@
     v = length(unique(fold_map)),
     repeats = length(unique(repeat_map)),
     seed = NA_integer_,
-    mode = "rsample",
+    mode = split_mode,
+    perm_mode = perm_mode,
     group = rsample_cols$group,
     batch = rsample_cols$batch,
     study = rsample_cols$study,
@@ -197,7 +297,7 @@
     split_cols_override = split_cols_norm
   )
 
-  methods::new("LeakSplits", mode = "rsample", indices = indices, info = info)
+  methods::new("LeakSplits", mode = split_mode, indices = indices, info = info)
 }
 
 .bio_resolve_fold_indices <- function(splits, fold, n, data = NULL) {
@@ -247,17 +347,20 @@
 }
 
 .bio_make_rsplit <- function(train, test, data, id = NULL) {
-  make_splits <- getFromNamespace("make_splits", "rsample")
-  args <- list(list(analysis = train, assessment = test))
-  make_formals <- names(formals(make_splits))
-  if ("data" %in% make_formals) args$data <- data
-  if (!is.null(id) && "id" %in% make_formals) args$id <- id
-  do.call(make_splits, args)
+  rsample_make_splits <- getFromNamespace("make_splits", "rsample")
+  args <- list(list(analysis = train, assessment = test), data = data)
+  if (!is.null(id)) args$id <- id
+  out <- try(do.call(rsample_make_splits, args), silent = TRUE)
+  if (inherits(out, "try-error") && !is.null(id)) {
+    args$id <- NULL
+    out <- do.call(rsample_make_splits, args)
+  }
+  out
 }
 
 #' Convert LeakSplits to an rsample resample set
 #'
-#' @param x LeakSplits object created by [make_splits()].
+#' @param x LeakSplits object created by [make_split_plan()].
 #' @param data Optional data.frame used to populate rsample splits. When NULL,
 #'   the stored `coldata` from `x` is used (if available).
 #' @return An rsample `rset` object.
@@ -269,7 +372,7 @@
 #'   x1 = rnorm(20),
 #'   x2 = rnorm(20)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' rset <- as_rsample(splits, data = df)
 #' }
@@ -323,5 +426,6 @@ as_rsample.LeakSplits <- function(x, data = NULL) {
   if (!is.null(info$batch)) attr(rset, "batch") <- info$batch
   if (!is.null(info$study)) attr(rset, "study") <- info$study
   if (!is.null(info$time)) attr(rset, "time") <- info$time
+  if (!is.null(info$mode)) attr(rset, "bioLeak_mode") <- info$mode
   rset
 }

@@ -8,7 +8,7 @@
 \title{S4 Classes for bioLeak Pipeline}
 \description{
 These classes capture splits, model fits, and audit diagnostics produced by
-\code{make_splits()}, \code{fit_resample()}, and \code{audit_leakage()}.
+\code{make_split_plan()}, \code{fit_resample()}, and \code{audit_leakage()}.
 }
 \section{Slots}{
 
@@ -57,7 +57,7 @@ These classes capture splits, model fits, and audit diagnostics produced by
 }}
 
 \seealso{
-[make_splits()], [fit_resample()], [audit_leakage()]
+[make_split_plan()], [fit_resample()], [audit_leakage()]
 
 [fit_resample()]
 

@@ -36,7 +36,7 @@ the simulated outcome (default 0.5). Changing this alters class imbalance
 and can affect AUC and the permutation gap.}
 
 \item{mode}{Character scalar. Cross-validation scheme passed to
-\code{make_splits()}; one of \code{"subject_grouped"},
+\code{make_split_plan()}; one of \code{"subject_grouped"},
 \code{"batch_blocked"}, \code{"study_loocv"}, \code{"time_series"}.
 Defaults to \code{"subject_grouped"}. This controls how samples are grouped
 into folds (by subject, batch, study, or time) and therefore which leakage

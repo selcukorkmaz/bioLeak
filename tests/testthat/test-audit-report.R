@@ -12,7 +12,7 @@ test_that("audit_report renders an HTML report", {
     x1 = rnorm(12),
     x2 = rnorm(12)
   )
-  splits <- make_splits(df, outcome = "outcome",
+  splits <- make_split_plan(df, outcome = "outcome",
                         mode = "subject_grouped", group = "subject",
                         v = 3, seed = 1, progress = FALSE)
 
@@ -53,7 +53,7 @@ test_that("audit_report validates inputs and dependencies", {
 
   if (!requireNamespace("rmarkdown", quietly = TRUE)) {
     df <- make_class_df(10)
-    splits <- make_splits_quiet(df, outcome = "outcome",
+    splits <- make_split_plan_quiet(df, outcome = "outcome",
                                 mode = "subject_grouped", group = "subject",
                                 v = 2, seed = 1)
     custom <- make_custom_learners()

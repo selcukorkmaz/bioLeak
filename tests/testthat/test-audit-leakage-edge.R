@@ -1,6 +1,6 @@
 # test_that("audit_leakage validates predictions and learner selection", {
 #   df <- make_class_df(12)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 3, seed = 1)
 #   custom <- make_custom_learners()
@@ -23,7 +23,7 @@
 
 # test_that("audit_leakage warns when learner IDs are missing", {
 #   df <- make_class_df(12)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 3, seed = 1)
 #   custom <- make_custom_learners()
@@ -57,7 +57,7 @@
 #   df <- make_class_df(12)
 #   df$x1[6] <- df$x1[1]
 #   df$x2[6] <- df$x2[1]
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 3, seed = 1)
 #   custom <- make_custom_learners()
@@ -109,7 +109,7 @@ test_that("audit_leakage warns when observed metric is non-finite", {
 
 test_that("audit_leakage warns on misaligned coldata for permutations", {
   df <- make_class_df(12)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
@@ -127,7 +127,7 @@ test_that("audit_leakage warns on misaligned coldata for permutations", {
 
 test_that("audit_leakage duplicate_scope filters within-fold duplicates", {
   df <- make_class_df(12)
-  splits <- make_splits_quiet(df, outcome = "outcome",
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
                               mode = "subject_grouped", group = "subject",
                               v = 3, seed = 1)
   fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
@@ -157,7 +157,7 @@ test_that("audit_leakage duplicate_scope filters within-fold duplicates", {
 
 # test_that("audit_leakage warns on misaligned coldata", {
 #   df <- make_class_df(12)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 3, seed = 1)
 #   custom <- make_custom_learners()
@@ -182,7 +182,7 @@ test_that("audit_leakage duplicate_scope filters within-fold duplicates", {
 
 # test_that("audit_leakage_by_learner validates inputs", {
 #   df <- make_class_df(12)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 3, seed = 1)
 #   custom <- make_custom_learners()
@@ -206,7 +206,7 @@ test_that("audit_leakage duplicate_scope filters within-fold duplicates", {
 
 # test_that("print.LeakAuditList returns an invisible object", {
 #   df <- make_class_df(10)
-#   splits <- make_splits_quiet(df, outcome = "outcome",
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
 #                               mode = "subject_grouped", group = "subject",
 #                               v = 2, seed = 1)
 #   custom <- make_custom_learners()

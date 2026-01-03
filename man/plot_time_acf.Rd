@@ -16,7 +16,8 @@ A list with the autocorrelation results, \code{lag.max}, and a ggplot object.
 }
 \description{
 Uses the autocorrelation function of out-of-fold predictions to detect
-temporal dependence that may indicate leakage. Requires numeric predictions
+temporal dependence that may indicate leakage. Predictions are ordered by
+the split time column before computing the ACF. Requires numeric predictions
 (regression or survival). Requires ggplot2.
 }
 \examples{

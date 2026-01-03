@@ -1,4 +1,4 @@
-test_that("make_splits respects grouping constraints", {
+test_that("make_split_plan respects grouping constraints", {
   set.seed(1)
   df <- data.frame(
     outcome = rep(c(0, 1), each = 10),
@@ -10,7 +10,7 @@ test_that("make_splits respects grouping constraints", {
     x2 = rnorm(20)
   )
 
-  splits_subject <- make_splits(df, outcome = "outcome",
+  splits_subject <- make_split_plan(df, outcome = "outcome",
                                 mode = "subject_grouped", group = "subject",
                                 v = 5, repeats = 1, stratify = TRUE,
                                 seed = 1, progress = FALSE)
@@ -20,7 +20,7 @@ test_that("make_splits respects grouping constraints", {
     expect_equal(length(intersect(unique(tr), unique(te))), 0)
   }
 
-  splits_batch <- make_splits(df, outcome = "outcome",
+  splits_batch <- make_split_plan(df, outcome = "outcome",
                               mode = "batch_blocked", batch = "batch",
                               v = 4, repeats = 1, stratify = FALSE,
                               seed = 1, progress = FALSE)
@@ -30,7 +30,7 @@ test_that("make_splits respects grouping constraints", {
     expect_equal(length(intersect(unique(tr), unique(te))), 0)
   }
 
-  splits_study <- make_splits(df, outcome = "outcome",
+  splits_study <- make_split_plan(df, outcome = "outcome",
                               mode = "study_loocv", study = "study",
                               seed = 1, progress = FALSE)
   for (fold in splits_study@indices) {
@@ -39,7 +39,7 @@ test_that("make_splits respects grouping constraints", {
     expect_false(te_study %in% unique(df$study[fold$train]))
   }
 
-  splits_time <- make_splits(df, outcome = "outcome",
+  splits_time <- make_split_plan(df, outcome = "outcome",
                              mode = "time_series", time = "time",
                              v = 4, horizon = 1, seed = 1, progress = FALSE)
   expect_true(length(splits_time@indices) > 0)

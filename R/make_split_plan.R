@@ -13,8 +13,9 @@
 #'   metadata are taken from x (columns referenced by \code{group}, \code{batch}, \code{study}, \code{time}, \code{outcome}).
 #' @param outcome character, outcome column name (used for stratification).
 #' @param mode one of "subject_grouped","batch_blocked","study_loocv","time_series".
-#' @param group optional subject/group id column (for subject_grouped). If NULL,
-#'   each sample is treated as its own group (plain k-fold CV).
+#' @param group subject/group id column (for subject_grouped). Required when
+#'   mode is `subject_grouped`; use `group = "row_id"` to explicitly request
+#'   sample-wise CV.
 #' @param batch batch/plate/center column (for batch_blocked).
 #' @param study study id column (for study_loocv).
 #' @param time time column (numeric or POSIXct) for time_series.
@@ -33,6 +34,8 @@
 #' @param compact logical; store fold assignments instead of explicit train/test
 #'   indices to reduce memory usage for large datasets. Not supported when
 #'   \code{nested = TRUE}.
+#' @param strict logical; deprecated and ignored. `subject_grouped` always
+#'   requires a non-NULL `group`.
 #'
 #' @return LeakSplits S4 object
 #' @examples
@@ -43,14 +46,15 @@
 #'   x1 = rnorm(20),
 #'   x2 = rnorm(20)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' @export
-make_splits <- function(x, outcome = NULL,
+make_split_plan <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
                         group = NULL, batch = NULL, study = NULL, time = NULL,
                         v = 5, repeats = 1, stratify = FALSE, nested = FALSE,
-                        seed = 1, horizon = 0, progress = TRUE, compact = FALSE) {
+                        seed = 1, horizon = 0, progress = TRUE, compact = FALSE,
+                        strict = TRUE) {
 
   mode <- match.arg(mode)
   stopifnot(is.numeric(v), v >= 2 || mode == "study_loocv")
@@ -90,8 +94,7 @@ make_splits <- function(x, outcome = NULL,
   # Column checks
   if (mode == "subject_grouped") {
     if (is.null(group)) {
-      group <- "row_id"  # auto-assign for plain CV
-      message("No 'group' column provided -> using sample-wise CV (each sample = its own group).")
+      stop("subject_grouped mode requires a non-NULL 'group' column.", call. = FALSE)
     }
     .need_col(group, "group")
   }
@@ -349,7 +352,7 @@ make_splits <- function(x, outcome = NULL,
       tr_idx <- indices[[i]]$train
       x_inner <- if (.bio_is_se(x)) x[, tr_idx] else cd[tr_idx, , drop = FALSE]
       set.seed(seed + 1L)
-      inner <- make_splits(
+      inner <- make_split_plan(
         x_inner, outcome = outcome, mode = mode, group = group,
         batch = batch, study = study, time = time, v = v,
         repeats = 1, stratify = stratify, nested = FALSE,
@@ -417,7 +420,7 @@ make_splits <- function(x, outcome = NULL,
 #'   x1 = rnorm(20),
 #'   x2 = rnorm(20)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' show(splits)
 #' }

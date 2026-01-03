@@ -88,7 +88,7 @@ df <- data.frame(
   x2 = rnorm(12)
 )
 
-splits <- make_splits(df, outcome = "outcome",
+splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject",
                       v = 3, progress = FALSE)
 

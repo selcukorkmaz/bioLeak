@@ -7,7 +7,7 @@ test_that("fit_resample supports custom learners", {
     x2 = rnorm(20)
   )
 
-  splits <- make_splits(
+  splits <- make_split_plan(
     df,
     outcome = "outcome",
     mode = "subject_grouped",

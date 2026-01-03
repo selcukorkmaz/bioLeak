@@ -58,7 +58,7 @@ df <- data.frame(
   x1 = rnorm(12),
   x2 = rnorm(12)
 )
-splits <- make_splits(df, outcome = "outcome",
+splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 3)
 custom <- list(
   glm = list(

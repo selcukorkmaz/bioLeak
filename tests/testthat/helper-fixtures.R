@@ -67,8 +67,8 @@ make_custom_learners <- function() {
   )
 }
 
-make_splits_quiet <- function(...) {
-  make_splits(..., progress = FALSE)
+make_split_plan_quiet <- function(...) {
+  make_split_plan(..., progress = FALSE)
 }
 
 fit_resample_quiet <- function(...) {

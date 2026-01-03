@@ -33,7 +33,7 @@
 #'   the simulated outcome (default 0.5). Changing this alters class imbalance
 #'   and can affect AUC and the permutation gap.
 #' @param mode Character scalar. Cross-validation scheme passed to
-#'   \code{make_splits()}; one of \code{"subject_grouped"},
+#'   \code{make_split_plan()}; one of \code{"subject_grouped"},
 #'   \code{"batch_blocked"}, \code{"study_loocv"}, \code{"time_series"}.
 #'   Defaults to \code{"subject_grouped"}. This controls how samples are grouped
 #'   into folds (by subject, batch, study, or time) and therefore which leakage
@@ -132,7 +132,7 @@ simulate_leakage_suite <- function(
     set.seed(s)
     sim <- .simulate_dataset(n, p, prevalence, mode, leakage, rho, signal_strength)
 
-    splits <- make_splits(
+    splits <- make_split_plan(
       sim$data, outcome = "y", mode = mode,
       group = sim$group_col, batch = sim$batch_col,
       study = sim$study_col, time = sim$time_col,

@@ -29,12 +29,16 @@
 #' @param metrics Character vector of metric names (`auc`, `pr_auc`, `accuracy`,
 #'   `macro_f1`, `log_loss`, `rmse`) or a yardstick metric set/list. Metrics are
 #'   computed with yardstick; unsupported metrics are dropped with a warning.
+#'   For binomial tasks, if any inner assessment fold contains a single class,
+#'   probability metrics (`auc`, `roc_auc`, `pr_auc`) are dropped for tuning with
+#'   a warning.
 #' @param positive_class Optional value indicating the positive class for
 #'   binomial outcomes. When set, the outcome levels are reordered so the
 #'   positive class is second.
 #' @param selection Selection rule for tuning, either `"best"` or `"one_std_err"`.
 #' @param selection_metric Metric name used for selecting hyperparameters.
-#'   Defaults to the first metric in `metrics`.
+#'   Defaults to the first metric in `metrics`. If the chosen metric yields
+#'   no valid results, the first available metric is used with a warning.
 #' @param inner_v Optional number of folds for inner CV when inner splits are
 #'   not precomputed. Defaults to the outer `v`.
 #' @param inner_repeats Optional number of repeats for inner CV when inner
@@ -60,9 +64,9 @@
 #'   x1 = rnorm(20),
 #'   x2 = rnorm(20)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject",
-#'                       v = 3, nested = TRUE)
+#'                       v = 3, nested = TRUE, stratify = TRUE)
 #' spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
 #'   parsnip::set_engine("glmnet")
 #' rec <- recipes::recipe(outcome ~ x1 + x2, data = df)
@@ -145,7 +149,9 @@ tune_resample <- function(x, outcome, splits,
   }
 
   Xall <- .bio_get_x(x)
-  yall <- .bio_get_y(x, outcome)
+  y_orig <- .bio_get_y(x, outcome)
+  yall <- y_orig # logic variable
+  y_data <- y_orig # data variable
 
   if (.bio_is_survival(yall)) {
     stop("tune_resample does not yet support survival tasks.", call. = FALSE)
@@ -160,9 +166,6 @@ tune_resample <- function(x, outcome, splits,
                         split_info$time))
   drop_cols <- drop_cols[!is.na(drop_cols) & nzchar(drop_cols)]
   if (length(drop_cols) && !is.null(colnames(Xall))) {
-    drop_cols <- intersect(colnames(Xall), drop_cols)
-  }
-  if (length(drop_cols)) {
     Xall <- Xall[, setdiff(colnames(Xall), drop_cols), drop = FALSE]
   }
 
@@ -175,11 +178,17 @@ tune_resample <- function(x, outcome, splits,
 
   class_levels <- NULL
   if (task == "binomial") {
-    if (!is.factor(yall)) yall <- factor(yall)
+    if (!is.factor(yall)) {
+      yall <- factor(yall)
+      y_data <- factor(y_data)
+    }
+
+    # Logic variable: aggressively cleaned
     yall <- droplevels(yall)
     if (nlevels(yall) != 2) {
       stop("Binomial task requires exactly two outcome levels.", call. = FALSE)
     }
+
     if (!is.null(positive_class)) {
       pos_chr <- as.character(positive_class)
       if (length(pos_chr) != 1L) {
@@ -193,11 +202,18 @@ tune_resample <- function(x, outcome, splits,
       if (!identical(pos_chr, levels_y[2])) {
         levels_y <- c(setdiff(levels_y, pos_chr), pos_chr)
         yall <- factor(yall, levels = levels_y)
+        # Only reorder data variable if NO recipe is present to avoid breaking it
+        if (!inherits(preprocess, "recipe")) {
+          y_data <- factor(y_data, levels = levels_y)
+        }
       }
     }
     class_levels <- levels(yall)
   } else if (task == "multiclass") {
-    if (!is.factor(yall)) yall <- factor(yall)
+    if (!is.factor(yall)) {
+      yall <- factor(yall)
+      y_data <- factor(y_data)
+    }
     yall <- droplevels(yall)
     if (nlevels(yall) < 3) {
       stop("Multiclass task requires 3 or more outcome levels.", call. = FALSE)
@@ -208,6 +224,7 @@ tune_resample <- function(x, outcome, splits,
     class_levels <- levels(yall)
   } else if (!is.numeric(yall)) {
     yall <- as.numeric(yall)
+    y_data <- as.numeric(y_data)
     if (anyNA(yall)) stop("Gaussian task requires numeric outcome values.", call. = FALSE)
   }
 
@@ -215,6 +232,8 @@ tune_resample <- function(x, outcome, splits,
 
   resolve_metrics <- function(metrics, task) {
     macro_f1 <- yardstick::metric_tweak("macro_f1", yardstick::f_meas, estimator = "macro")
+    # Note: event_level="second" assumes (Neg, Pos) order. If y_data is not reordered (due to recipe),
+    # this might be incorrect, but recipes usually standardize levels.
     auc_metric <- yardstick::metric_tweak("auc", yardstick::roc_auc, event_level = "second")
     roc_metric <- yardstick::metric_tweak("roc_auc", yardstick::roc_auc, event_level = "second")
     pr_metric <- yardstick::metric_tweak("pr_auc", yardstick::pr_auc, event_level = "second")
@@ -285,6 +304,12 @@ tune_resample <- function(x, outcome, splits,
     list(set = metric_set, names = metric_names)
   }
 
+  subset_metric_set <- function(metric_set, keep) {
+    metric_list <- attr(metric_set, "metrics")
+    metric_list <- metric_list[names(metric_list) %in% keep]
+    do.call(yardstick::metric_set, metric_list)
+  }
+
   metrics_resolved <- resolve_metrics(metrics, task)
   tune_metrics <- metrics_resolved$set
   metric_names <- metrics_resolved$names
@@ -300,6 +325,27 @@ tune_resample <- function(x, outcome, splits,
     df <- as.data.frame(X, check.names = FALSE)
     df[[outcome]] <- y
     df[, c(outcome, setdiff(names(df), outcome)), drop = FALSE]
+  }
+
+  has_two_classes <- function(y) {
+    y <- y[!is.na(y)]
+    length(unique(y)) >= 2L
+  }
+
+  available_metrics <- function(metrics_df) {
+    if (is.null(metrics_df) || !nrow(metrics_df)) return(character())
+    if (!".metric" %in% names(metrics_df)) return(character())
+    value_col <- NULL
+    if (".estimate" %in% names(metrics_df)) {
+      value_col <- ".estimate"
+    } else if ("estimate" %in% names(metrics_df)) {
+      value_col <- "estimate"
+    } else if ("mean" %in% names(metrics_df)) {
+      value_col <- "mean"
+    }
+    if (is.null(value_col)) return(character())
+    metric_ok <- tapply(!is.na(metrics_df[[value_col]]), metrics_df$.metric, any)
+    names(metric_ok)[metric_ok]
   }
 
   build_workflow <- function() {
@@ -365,7 +411,13 @@ tune_resample <- function(x, outcome, splits,
   inner_v <- inner_v %||% (splits@info$v %||% 5L)
   inner_repeats <- inner_repeats %||% 1L
 
-  df_all <- make_fold_df(Xall, yall)
+  # IMPORTANT: Construct df_all carefully to preserve attributes/levels for recipes
+  df_all <- if (is.data.frame(x)) {
+    x # Use original dataframe as-is to satisfy recipes
+  } else {
+    make_fold_df(Xall, y_data) # Construct with compatible y_data
+  }
+
   coldata <- if (.bio_is_se(x)) {
     as.data.frame(SummarizedExperiment::colData(x))
   } else if (is.data.frame(x)) {
@@ -381,6 +433,13 @@ tune_resample <- function(x, outcome, splits,
   best_rows <- list()
   inner_results <- list()
   outer_fits <- list()
+  skipped_single_class_outer <- 0L
+  skipped_single_class_inner <- 0L
+  skipped_no_results <- 0L
+  metrics_used <- character()
+  selection_metric_requested <- selection_metric
+  selection_metric_used <- selection_metric
+  selection_metric_warned <- FALSE
 
   for (i in seq_along(folds)) {
     fold <- folds[[i]]
@@ -394,6 +453,16 @@ tune_resample <- function(x, outcome, splits,
 
     df_train <- df_all[tr, , drop = FALSE]
 
+    # Use yall (logic variable) for checks, not df_train[[outcome]] which might be raw
+    y_train_logic <- yall[tr]
+
+    if (task %in% c("binomial", "multiclass") && !has_two_classes(y_train_logic)) {
+      warning(sprintf("Outer fold %d skipped: training data has a single outcome class.", i),
+              call. = FALSE)
+      skipped_single_class_outer <- skipped_single_class_outer + 1L
+      next
+    }
+
     inner_idx <- NULL
     if (!is.null(splits@info$inner) && length(splits@info$inner) >= i) {
       inner_idx <- splits@info$inner[[i]]
@@ -403,7 +472,7 @@ tune_resample <- function(x, outcome, splits,
         stop("Outer splits from rsample require precomputed inner splits.", call. = FALSE)
       }
       x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
-      inner <- make_splits(
+      inner <- make_split_plan(
         x_inner,
         outcome = outcome,
         mode = splits@mode,
@@ -422,19 +491,129 @@ tune_resample <- function(x, outcome, splits,
       inner_idx <- inner@indices
     }
 
+    if (task %in% c("binomial", "multiclass")) {
+      inner_has_class <- vapply(inner_idx, function(fold) {
+        idx <- fold$train
+        if (is.null(idx)) return(FALSE)
+        has_two_classes(y_train_logic[idx])
+      }, logical(1))
+      if (!any(inner_has_class)) {
+        warning(sprintf(
+          "Outer fold %d skipped: inner training folds have a single outcome class. Consider `stratify = TRUE` or reducing `inner_v`.",
+          i
+        ), call. = FALSE)
+        skipped_single_class_inner <- skipped_single_class_inner + 1L
+        next
+      }
+      if (task == "binomial") {
+        drop_count <- sum(!inner_has_class)
+        if (drop_count > 0L) {
+          inner_idx <- inner_idx[inner_has_class]
+          warning(sprintf(
+            "Outer fold %d: dropped %d inner fold(s) with single-class training data.",
+            i, drop_count
+          ), call. = FALSE)
+        }
+      }
+    }
+
+    tune_metrics_fold <- tune_metrics
+    metric_names_fold <- metric_names
+    if (task == "binomial") {
+      inner_assess_two <- vapply(inner_idx, function(fold) {
+        idx <- fold$test
+        if (is.null(idx)) return(FALSE)
+        has_two_classes(y_train_logic[idx])
+      }, logical(1))
+      if (!all(inner_assess_two)) {
+        drop_metrics <- intersect(metric_names_fold, c("auc", "roc_auc", "pr_auc"))
+        keep_metrics <- setdiff(metric_names_fold, drop_metrics)
+        if (length(drop_metrics) && length(keep_metrics)) {
+          tune_metrics_fold <- subset_metric_set(tune_metrics_fold, keep_metrics)
+          metric_names_fold <- keep_metrics
+          warning(sprintf(
+            "Outer fold %d: inner assessment folds lack both classes; dropping metrics %s for tuning.",
+            i, paste(drop_metrics, collapse = ", ")
+          ), call. = FALSE)
+        }
+      }
+    }
+
+    metrics_used <- unique(c(metrics_used, metric_names_fold))
+
     inner_rset <- make_inner_rset(inner_idx, df_train)
     set.seed(seed + i)
     tune_res <- tune::tune_grid(
       base_workflow,
       resamples = inner_rset,
       grid = grid,
-      metrics = tune_metrics,
+      metrics = tune_metrics_fold,
       control = control
     )
-    best_params <- if (selection == "best") {
-      tune::select_best(tune_res, metric = selection_metric)
-    } else {
-      tune::select_by_one_std_err(tune_res, metric = selection_metric)
+    inner_results[[i]] <- tune_res
+    no_results <- FALSE
+    metrics_raw <- tryCatch(
+      tune::collect_metrics(tune_res, summarize = FALSE),
+      error = function(e) {
+        if (grepl("No results are available", conditionMessage(e), fixed = TRUE)) {
+          no_results <<- TRUE
+          return(NULL)
+        }
+        stop(e)
+      }
+    )
+    if (isTRUE(no_results) || is.null(metrics_raw) || !nrow(metrics_raw)) {
+      warning(sprintf(
+        "Outer fold %d skipped: inner tuning produced no results. Check `tune::collect_notes()` for failures and consider `stratify = TRUE`.",
+        i
+      ), call. = FALSE)
+      skipped_no_results <- skipped_no_results + 1L
+      next
+    }
+    avail_metrics <- available_metrics(metrics_raw)
+    metric_used <- selection_metric_used
+    if (!metric_used %in% avail_metrics) {
+      fallback <- metric_names_fold[metric_names_fold %in% avail_metrics]
+      if (!length(fallback)) {
+        warning(sprintf(
+          "Outer fold %d skipped: inner tuning produced no usable metrics. Check `tune::collect_notes()` for failures and consider `stratify = TRUE`.",
+          i
+        ), call. = FALSE)
+        skipped_no_results <- skipped_no_results + 1L
+        next
+      }
+      fallback <- fallback[[1]]
+      if (!selection_metric_warned || !identical(selection_metric_used, fallback)) {
+        warning(sprintf(
+          "Selection metric '%s' produced no results; falling back to '%s' for tuning.",
+          selection_metric_used, fallback
+        ), call. = FALSE)
+        selection_metric_warned <- TRUE
+      }
+      selection_metric_used <- fallback
+      metric_used <- fallback
+    }
+    best_params <- tryCatch(
+      if (selection == "best") {
+        tune::select_best(tune_res, metric = metric_used)
+      } else {
+        tune::select_by_one_std_err(tune_res, metric = metric_used)
+      },
+      error = function(e) {
+        if (grepl("No results are available", conditionMessage(e), fixed = TRUE)) {
+          no_results <<- TRUE
+          return(NULL)
+        }
+        stop(e)
+      }
+    )
+    if (isTRUE(no_results)) {
+      warning(sprintf(
+        "Outer fold %d skipped: inner tuning produced no results. Check `tune::collect_notes()` for failures and consider `stratify = TRUE`.",
+        i
+      ), call. = FALSE)
+      skipped_no_results <- skipped_no_results + 1L
+      next
     }
     if (!nrow(best_params)) {
       warning(sprintf("Outer fold %d skipped: no tuning results.", i), call. = FALSE)
@@ -448,7 +627,7 @@ tune_resample <- function(x, outcome, splits,
       splits = outer_splits,
       preprocess = list(),
       learner = final_workflow,
-      metrics = tune_metrics,
+      metrics = tune_metrics_fold,
       positive_class = if (task == "binomial") class_levels[2] else NULL,
       parallel = parallel,
       refit = FALSE,
@@ -456,8 +635,6 @@ tune_resample <- function(x, outcome, splits,
     )
 
     outer_fits[[i]] <- outer_fit
-    inner_results[[i]] <- tune_res
-
     fold_metrics <- outer_fit@metrics
     fold_metrics$fold <- i
     metrics_rows[[length(metrics_rows) + 1L]] <- fold_metrics
@@ -468,7 +645,22 @@ tune_resample <- function(x, outcome, splits,
   }
 
   if (!length(metrics_rows)) {
-    stop("No successful outer folds were completed.", call. = FALSE)
+    msg <- "No successful outer folds were completed."
+    reasons <- character()
+    if (skipped_single_class_outer) {
+      reasons <- c(reasons, "Some outer training folds had a single outcome class.")
+    }
+    if (skipped_single_class_inner) {
+      reasons <- c(reasons, "Some inner training folds had a single outcome class.")
+    }
+    if (skipped_no_results) {
+      reasons <- c(reasons, "Inner tuning produced no results for some folds.")
+    }
+    if (length(reasons)) {
+      msg <- paste(msg, paste(reasons, collapse = " "),
+                   "Consider `stratify = TRUE` in make_split_plan() or reducing `inner_v`.")
+    }
+    stop(msg, call. = FALSE)
   }
 
   metrics_df <- do.call(rbind, metrics_rows)
@@ -490,10 +682,12 @@ tune_resample <- function(x, outcome, splits,
       outer_fits = outer_fits,
       info = list(
         task = task,
-        metrics_used = metric_names,
+        metrics_requested = metric_names,
+        metrics_used = if (length(metrics_used)) metrics_used else metric_names,
         positive_class = if (task == "binomial") class_levels[2] else NULL,
         selection = selection,
-        selection_metric = selection_metric,
+        selection_metric = selection_metric_used,
+        selection_metric_requested = selection_metric_requested,
         grid = grid,
         seed = seed
       )

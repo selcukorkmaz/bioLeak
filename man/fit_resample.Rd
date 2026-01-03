@@ -29,7 +29,7 @@ fit_resample(
 \item{outcome}{outcome column name (if x is SE or data.frame), or a length-2
 character vector of time/event column names for survival outcomes.}
 
-\item{splits}{LeakSplits object from make_splits(), or an `rsample` rset/rsplit.}
+\item{splits}{LeakSplits object from make_split_plan(), or an `rsample` rset/rsplit.}
 
 \item{preprocess}{list(impute, normalize, filter=list(...), fs) or a
 `recipes::recipe` object. When a recipe is supplied, the guarded preprocessing
@@ -112,7 +112,7 @@ df <- data.frame(
   x1 = rnorm(20),
   x2 = rnorm(20)
 )
-splits <- make_splits(df, outcome = "outcome",
+splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 5)
 fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     learner = "glmnet", metrics = "auc")

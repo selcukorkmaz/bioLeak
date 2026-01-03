@@ -8,7 +8,7 @@ test_that("compact splits are resolved during fitting", {
   )
   rownames(df) <- paste0("S", seq_len(nrow(df)))
 
-  splits <- make_splits(df,
+  splits <- make_split_plan(df,
                         outcome = "outcome",
                         mode = "subject_grouped",
                         group = "subject",

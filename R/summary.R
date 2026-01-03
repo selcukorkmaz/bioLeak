@@ -44,7 +44,7 @@
 #'   x1 = rnorm(12),
 #'   x2 = rnorm(12)
 #' )
-#' splits <- make_splits(df, outcome = "outcome",
+#' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 3)
 #' custom <- list(
 #'   glm = list(
@@ -144,9 +144,15 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     ba <- object@batch_assoc
     cat("Batch / Study Association:\n")
     if ("batch_col" %in% names(ba)) {
+      has_repeat <- "repeat_id" %in% names(ba)
       for (i in seq_len(nrow(ba))) {
+        label <- if (has_repeat && is.finite(ba$repeat_id[i])) {
+          sprintf("%s (repeat %s)", ba$batch_col[i], ba$repeat_id[i])
+        } else {
+          ba$batch_col[i]
+        }
         cat(sprintf("  %s: %s = %s (df = %s), p = %s\n",
-                    ba$batch_col[i],
+                    label,
                     sym_chi,
                     formatC(ba$stat[i], digits = digits, format = "f"),
                     formatC(ba$df[i], digits = digits, format = "f"),
@@ -276,7 +282,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 #'   x1 = rnorm(12),
 #'   x2 = rnorm(12)
 #' )
-#' splits <- make_splits(
+#' splits <- make_split_plan(
 #'   df,
 #'   outcome = "outcome",
 #'   mode = "subject_grouped",

@@ -108,29 +108,35 @@ as.data.frame(table(df$outcome))
 
 The table preview displays the metadata columns (`subject`, `batch`, `study`, `time`), the binary outcome, and three numeric predictors (`x1`, `x2`, `x3`).
 
-The class count table indicates a slight imbalance (91 controls vs. 69 cases). This represents the baseline prevalence, which is preserved when using stratified splits.
+The class count table shows the baseline prevalence. Stratified splits try to preserve these proportions (for grouped modes, stratification is applied at the group level).
 
 
-### Create leakage-aware splits with `make_splits()`
+### Create leakage-aware splits with `make_split_plan()`
 
-`make_splits()` is the foundation. It returns a `LeakSplits` object with
-explicit train/test indices and metadata. It assumes that the grouping columns
-you provide are complete and that samples sharing a group must not cross folds.
+`make_split_plan()` is the foundation. It returns a `LeakSplits` object with
+explicit train/test indices (or compact fold assignments) and metadata. For
+data.frame inputs, a unique `row_id` column is added automatically, so
+`group = "row_id"` is the explicit way to request sample-wise CV. It assumes
+that the grouping columns you provide are complete and that samples sharing a
+group must not cross folds. Grouped stratification uses the majority class per
+group and is ignored for `study_loocv`, `time_series`, and survival outcomes.
 Misuse to avoid:
 
-- leaving `group = NULL` when subjects repeat
+- using `group = "row_id"` (sample-wise CV) when subjects repeat
 - using the wrong grouping column (for example batch instead of subject)
 - using time-series CV with unsorted or missing time values
-- relying on stratification when the outcome is missing or has only one class
+- relying on stratification when the outcome is missing, single-class at the
+  group level, or a time/event outcome
+- assuming `time_series` will always return exactly `v` folds
 
 **Leaky example: row-wise CV when subjects repeat**
 
 ```{r leaky-splits}
-leaky_splits <- make_splits(
+leaky_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
-  group = NULL,
+  group = "row_id",
   v = 5,
   repeats = 1,
   stratify = TRUE
@@ -142,13 +148,13 @@ leaky_splits
 
 The printed `LeakSplits` summary reports the split mode, number of folds, and fold-level training and test set sizes.
 
-Because `group = NULL`, each sample is treated as its own group. As a result, repeated samples from the same subject may appear in both the training and test sets, which introduces information leakage.
+Because `group = "row_id"`, each sample is treated as its own group. As a result, repeated samples from the same subject may appear in both the training and test sets, which introduces information leakage.
 
 
 **Leakage-safe alternative: group by subject**
 
 ```{r safe-splits}
-safe_splits <- make_splits(
+safe_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
@@ -163,15 +169,18 @@ cat("Leakage-safe splits summary (subject-grouped CV):\n")
 safe_splits
 ```
 
-Here, each subject is confined to a single fold. The test set sizes (36, 32, 28) are all multiples of 4 (samples per subject), confirming that subjects were not split across folds.
+Here, each subject is confined to a single fold. Test set sizes are multiples
+of the number of samples per subject, confirming that subjects were not split
+across folds.
 
-The fold sizes remain comparable because `stratify = TRUE` balances the outcome proportions across folds while respecting subject-level boundaries.
+The fold sizes remain comparable because `stratify = TRUE` balances outcome
+proportions across folds while respecting subject-level boundaries.
 
 
 **Other leakage-aware modes**
 
 ```{r splits-other-modes}
-batch_splits <- make_splits(
+batch_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "batch_blocked",
@@ -183,7 +192,7 @@ batch_splits <- make_splits(
 cat("Batch-blocked splits summary:\n")
 batch_splits
 
-study_splits <- make_splits(
+study_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "study_loocv",
@@ -193,7 +202,7 @@ study_splits <- make_splits(
 cat("Study leave-one-out splits summary:\n")
 study_splits
 
-time_splits <- make_splits(
+time_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "time_series",
@@ -205,13 +214,14 @@ time_splits <- make_splits(
 cat("Time-series splits summary:\n")
 time_splits
 
-nested_splits <- make_splits(
+nested_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
   group = "subject",
   v = 3,
-  nested = TRUE
+  nested = TRUE,
+  stratify = TRUE
 )
 
 cat("Nested CV splits summary:\n")
@@ -220,18 +230,23 @@ nested_splits
 
 Each summary reports the number of folds and the fold sizes for the corresponding split strategy.
 
-- **Batch & Study:** The test set sizes vary substantially (e.g., 87 vs. 22 for `batch_blocked`). This reflects the unequal sizes of the underlying batches or studies that are held out in each fold.
+- **Batch & Study:** The test set sizes vary because batches/studies are not evenly sized. `study_loocv` uses one study per fold, so `v` and `repeats` are ignored.
 
-- **Time series:** The training set size increases across folds (39 $\to$ 79 $\to$ 119), while the test set size remains constant. Although `v = 4` was requested, the output reports 3 folds. This is expected for rolling-origin splits, where the first slice serves as the initial training window (the burn-in period) rather than a test fold.
+- **Time series:** The training set size increases across folds while the test set size follows the block size. Early blocks with no prior training data (or too-small test windows) are skipped, so you may see fewer than `v` folds.
 
 **Assumptions and intent by mode**
 
 - `subject_grouped`: keeps all samples from a subject together  
-- `batch_blocked`: keeps entire batches or centers together (leave-one-group-out)  
+- `batch_blocked`: keeps batches/centers together (leave-one-group-out when `v`
+  is at least the number of batches; otherwise multiple batches per fold)  
 - `study_loocv`: holds out each study in turn for external validation  
 - `time_series`: rolling-origin splits with an optional horizon to prevent lookahead
 
-Use `repeats` for repeated cross-validation, `stratify = TRUE` to balance outcome proportions, and `nested = TRUE` to attach inner folds. For large datasets, `progress = TRUE` reports progress; supplying explicit indices can be memory intensive.
+Use `repeats` for repeated CV in grouped/batch modes (it is ignored for
+`study_loocv` and `time_series`), `stratify = TRUE` to balance outcome
+proportions at the group level when applicable, and `nested = TRUE` to attach
+inner folds (one repeat). For large datasets, `progress = TRUE` reports
+progress; storing explicit indices can be memory intensive.
 
 
 ### Scalability
@@ -242,10 +257,13 @@ For large datasets (e.g., $N > 50,000$) with many repeats, storing explicit
 integer indices for every fold can consume gigabytes of memory. Use `compact = TRUE`
 to store a lightweight vector of fold assignments instead. `fit_resample()` will
 automatically reconstruct the indices on the fly.
+Compact mode is not supported when `nested = TRUE` (it falls back to full
+indices). For `time_series` compact splits, the time column must be present in
+the stored split metadata so folds can be reconstructed.
 
 ```{r compact-splits}
 # Efficient storage for large N
-big_splits <- make_splits(
+big_splits <- make_split_plan(
   df,
   outcome = "outcome",
   mode = "subject_grouped",
@@ -274,7 +292,8 @@ scaling, and feature selection. The low-level API is:
 - `impute_guarded()` as a convenience wrapper for leakage-safe imputation
 
 `.guard_fit()` fits a pipeline that can winsorize, impute, normalize, filter,
-and select features. Assumptions and misuse to avoid:
+and select features. It one-hot encodes non-numeric columns and carries factor
+levels forward to new data. Assumptions and misuse to avoid:
 
 - `fs = "ttest"` requires a binary outcome with enough samples per class
 - `fs = "lasso"` requires `glmnet`
@@ -284,8 +303,11 @@ and select features. Assumptions and misuse to avoid:
 
 Supported preprocessing options include imputation (`median`, `knn`,
 `missForest`, `none`), normalization (`zscore`, `robust`, `none`), filtering by
-variance or IQR, and feature selection (`ttest`, `lasso`, `pca`). In
-`impute_guarded()`, `winsor` and `winsor_thresh` control MAD-based clipping.
+variance or IQR (optionally `min_keep`), and feature selection (`ttest`,
+`lasso`, `pca`). Winsorization is controlled via `impute$winsor` and
+`impute$winsor_k` in guarded steps; in `impute_guarded()`, use `winsor` and
+`winsor_thresh`. `impute_guarded()` returns a `LeakImpute` object with guarded
+data, diagnostics, and the fitted guard state.
 
 **Leaky example: global scaling before CV**
 
@@ -419,6 +441,10 @@ imp$test
 Here, the imputation statistics are computed from the training set only. The missing value in the test set (column `a`) is replaced by 2, which is the training median. In contrast, in the leaky example above, it was replaced by 3, the global median.
 
 This confirms that the test set is transformed using fixed values learned from the training data, preserving a clean separation between training and evaluation.
+The `LeakImpute` object also contains missingness diagnostics in
+`imp$summary$diagnostics`, and guarded outputs use the same encoding as
+`.guard_fit()` (categorical variables are one-hot encoded). Use `vars` to
+impute only a subset of columns when needed.
 
 ### Fit and resample with `fit_resample()`
 
@@ -426,23 +452,30 @@ This confirms that the test set is transformed using fixed values learned from t
 model fitting. It supports:
 
 - built-in learners (`glmnet`, `ranger`)
-- `parsnip` model specifications (recommended)
-- custom learners via `custom_learners` (advanced)
-- multiple metrics, class weights, and a positive class override
+- `parsnip` model specifications or `workflows::workflow` objects (recommended)
+- `recipes::recipe` preprocessing (prepped on training folds only)
+- `rsample` resamples (`rset`/`rsplit`) via `splits`, with `split_cols` to map metadata
+- custom learners via `custom_learners` (legacy/advanced)
+- multiple metrics, class weights, positive class override, and yardstick metrics
 
 Assumptions and misuse to avoid:
 
-- outcome must be binary or multiclass (factor) for classification, numeric for regression,
-  or a survival outcome (a `Surv` column or time/event columns)
+- outcome must be binary or multiclass (factor) for classification, numeric for
+  regression, or a survival outcome (a `Surv` column or time/event columns)
 - `positive_class` must be a single value that exists in the outcome levels
+- `class_weights` only applies to binomial/multiclass tasks; workflows must
+  handle weights internally
 - if you supply a matrix without metadata, you must remove leakage columns
   yourself (group, batch, study, time)
 
 Use `learner_args` to pass model-specific arguments. For custom learners
 (advanced), you can supply separate `fit` and `predict` argument lists. Set
 `parallel = TRUE` to use future.apply for fold-level parallelism when available.
-When `learner` is a
-parsnip specification, `learner_args` and `custom_learners` are ignored.
+When `learner` is a parsnip specification, `learner_args` and
+`custom_learners` are ignored. When `learner` is a workflow, `preprocess` and
+`learner_args` are ignored.
+When a recipe or workflow is used, the built-in guarded preprocessing list is
+bypassed, so ensure the recipe/workflow itself is leakage-safe.
 
 Metrics used in this vignette:
 
@@ -450,13 +483,18 @@ Metrics used in this vignette:
 - **PR AUC**: area under the precision-recall curve (0 to 1; higher is better)
 - **Accuracy**: fraction of correct predictions (0 to 1; higher is better)
 - **RMSE**: root mean squared error (0 to infinity; lower is better)
+- **Macro F1**: average F1 across classes (multiclass; higher is better)
+- **Log loss**: cross-entropy for probabilities (lower is better)
+- **C-index**: concordance for regression/survival (higher is better)
 
 Always report the mean and variability across folds, not a single fold value.
+When using yardstick metrics, the positive class is the second factor level;
+set `positive_class` to control this.
 
 **Parsnip model specification (recommended)**
 
 ```{r parsnip-spec}
-spec <- parsnip::logistic_reg() |>
+spec <- parsnip::logistic_reg(mode = "classification") |>
   parsnip::set_engine("glm")
 ```
 
@@ -537,9 +575,93 @@ in `fit_safe@info$final_model` and `fit_safe@info$final_preprocess`.
 The mean +/- SD table is the primary performance summary to report, while the
 per-fold metrics reveal variability and potential instability across folds.
 
+By default, `fit_resample()` stores refit inputs in `fit_safe@info$perm_refit_spec`
+to enable `audit_leakage(perm_refit = "auto")`. Set `store_refit_data = FALSE`
+to reduce memory and provide `perm_refit_spec` manually when you want refit-based
+permutations. When multiple learners are passed, `refit = TRUE` refits only the
+first learner; set `refit = FALSE` if you do not need a final model.
+
 The examples above use a parsnip model specification. To swap in other models,
 replace `spec` with another parsnip spec (see the gradient boosting example
 below).
+
+**Multiclass classification (optional)**
+
+```{r multiclass-example}
+if (requireNamespace("ranger", quietly = TRUE)) {
+  set.seed(11)
+  df_multi <- df
+  df_multi$outcome3 <- factor(sample(c("A", "B", "C"),
+                                     nrow(df_multi), replace = TRUE))
+
+  multi_splits <- make_split_plan(
+    df_multi,
+    outcome = "outcome3",
+    mode = "subject_grouped",
+    group = "subject",
+    v = 4,
+    stratify = TRUE,
+    seed = 11
+  )
+
+  fit_multi <- fit_resample(
+    df_multi,
+    outcome = "outcome3",
+    splits = multi_splits,
+    learner = "ranger",
+    metrics = c("accuracy", "macro_f1", "log_loss"),
+    refit = FALSE
+  )
+
+  cat("Multiclass fit summary:\n")
+  summary(fit_multi)
+} else {
+  cat("ranger not installed; skipping multiclass example.\n")
+}
+```
+
+Multiclass fits compute accuracy, macro-F1, and log loss when class
+probabilities are available. `positive_class` is ignored for multiclass tasks.
+
+**Survival outcomes (optional)**
+
+```{r survival-example}
+if (requireNamespace("survival", quietly = TRUE) &&
+    requireNamespace("glmnet", quietly = TRUE)) {
+  set.seed(12)
+  df_surv <- df
+  df_surv$time_to_event <- rexp(nrow(df_surv), rate = 0.1)
+  df_surv$event <- rbinom(nrow(df_surv), 1, 0.7)
+
+  surv_splits <- make_split_plan(
+    df_surv,
+    outcome = c("time_to_event", "event"),
+    mode = "subject_grouped",
+    group = "subject",
+    v = 4,
+    stratify = FALSE,
+    seed = 12
+  )
+
+  fit_surv <- fit_resample(
+    df_surv,
+    outcome = c("time_to_event", "event"),
+    splits = surv_splits,
+    learner = "glmnet",
+    metrics = "cindex",
+    refit = FALSE
+  )
+
+  cat("Survival fit summary:\n")
+  summary(fit_surv)
+} else {
+  cat("survival or glmnet not installed; skipping survival example.\n")
+}
+```
+
+For survival tasks, supply `outcome = c(time_col, event_col)` or a `Surv`
+column; `stratify` is ignored for time/event outcomes and `class_weights` are
+not used.
 
 **Passing learner-specific arguments (optional)**
 
@@ -579,7 +701,7 @@ if (requireNamespace("SummarizedExperiment", quietly = TRUE)) {
     colData = df[, c("subject", "batch", "study", "time", "outcome"), drop = FALSE]
   )
 
-  se_splits <- make_splits(
+  se_splits <- make_split_plan(
     se,
     outcome = "outcome",
     mode = "subject_grouped",
@@ -603,7 +725,126 @@ if (requireNamespace("SummarizedExperiment", quietly = TRUE)) {
 
 The summary is identical in structure to the `data.frame` case because `fit_resample()` extracts predictors and metadata from the `SummarizedExperiment` object.
 
-Note that `features_final = 3` here (compared to 13 in previous examples). This is because the assay was explicitly constructed using only the genomic predictors (`x1`, `x2`, `x3`), which automatically excludes metadata columns from the model.
+Note that `features_final` here reflects only the assay predictors (`x1`, `x2`,
+`x3`), because the assay was constructed without metadata columns.
+
+
+### Tidymodels interoperability
+
+`bioLeak` integrates with `rsample`, `recipes`, `workflows`, and `yardstick`:
+
+- `splits` can be an `rsample` rset/rsplit; use `split_cols` (default `"auto"`)
+  or `bioLeak_mode` / `bioLeak_perm_mode` attributes to map
+  group/batch/study/time metadata.
+- `preprocess` can be a `recipes::recipe` (prepped on training folds only).
+- `learner` can be a `workflows::workflow`.
+- `metrics` can be a `yardstick::metric_set`.
+- `as_rsample()` converts `LeakSplits` to an `rsample` object.
+
+```{r tidymodels-interop}
+if (requireNamespace("rsample", quietly = TRUE) &&
+    requireNamespace("recipes", quietly = TRUE) &&
+    requireNamespace("yardstick", quietly = TRUE) &&
+    requireNamespace("parsnip", quietly = TRUE)) {
+  set.seed(13)
+  rs <- rsample::group_vfold_cv(df, group = subject, v = 5)
+
+  rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
+    recipes::step_impute_median(recipes::all_numeric_predictors()) |>
+    recipes::step_normalize(recipes::all_numeric_predictors())
+
+  metrics_set <- yardstick::metric_set(yardstick::roc_auc, yardstick::accuracy)
+
+  fit_rs <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = rs,
+    split_cols = list(group = "subject"),
+    learner = spec,
+    preprocess = rec,
+    metrics = metrics_set,
+    refit = FALSE
+  )
+
+  rs_export <- as_rsample(safe_splits, data = df)
+} else {
+  cat("rsample/recipes/yardstick/parsnip not installed; skipping tidymodels example.\n")
+}
+```
+
+Use `split_cols` to ensure split-defining metadata are dropped from predictors
+when using rsample inputs.
+
+```{r workflow-example}
+if (requireNamespace("workflows", quietly = TRUE)) {
+  wf <- workflows::workflow() |>
+    workflows::add_model(spec) |>
+    workflows::add_formula(outcome ~ x1 + x2 + x3)
+
+  fit_wf <- fit_resample(
+    df,
+    outcome = "outcome",
+    splits = safe_splits,
+    learner = wf,
+    metrics = "auc",
+    refit = FALSE
+  )
+
+  cat("Workflow fit summary:\n")
+  summary(fit_wf)
+} else {
+  cat("workflows not installed; skipping workflow example.\n")
+}
+```
+
+When auditing rsample-based fits, pass `perm_mode = "subject_grouped"` (or set
+`attr(rs, "bioLeak_perm_mode") <- "subject_grouped"`) so restricted permutations
+respect the intended split design.
+
+
+### Nested tuning with `tune_resample()`
+
+`tune_resample()` runs leakage-aware nested tuning with tidymodels. It expects
+outer splits that include inner folds (use `nested = TRUE` in
+`make_split_plan()`), and a parsnip model spec or workflow. Survival tasks are
+not yet supported. Use `inner_v`, `inner_repeats`, and `inner_seed` to control
+inner resampling when inner folds are not precomputed.
+
+```{r tune-example}
+if (requireNamespace("tune", quietly = TRUE) &&
+    requireNamespace("dials", quietly = TRUE) &&
+    requireNamespace("recipes", quietly = TRUE) &&
+    requireNamespace("parsnip", quietly = TRUE) &&
+    requireNamespace("glmnet", quietly = TRUE) &&
+    requireNamespace("yardstick", quietly = TRUE) &&
+    requireNamespace("rsample", quietly = TRUE) &&
+    requireNamespace("workflows", quietly = TRUE)) {
+  rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
+    recipes::step_normalize(recipes::all_numeric_predictors())
+
+  spec_tune <- parsnip::logistic_reg(
+    penalty = tune::tune(),
+    mixture = 1,
+    mode = "classification"
+  ) |>
+    parsnip::set_engine("glmnet")
+
+  tuned <- tune_resample(
+    df,
+    outcome = "outcome",
+    splits = nested_splits,
+    learner = spec_tune,
+    preprocess = rec,
+    grid = 5,
+    metrics = c("auc", "accuracy"),
+    seed = 14
+  )
+
+  tuned$metric_summary
+} else {
+  cat("tune/dials/recipes/parsnip/glmnet/yardstick/rsample/workflows not installed; skipping tuning example.\n")
+}
+```
 
 
 ### Advanced: Using Gradient Boosting with Parsnip
@@ -649,11 +890,10 @@ if (requireNamespace("parsnip", quietly = TRUE) &&
 }
 ```
 
-The summary reports cross-validated AUC for a non-linear gradient boosting model. For reporting, use the mean $\pm$ SD table.
-
-In this case, the XGBoost model achieved a slightly higher mean AUC (0.732) compared with the linear model in the previous section (0.713). This suggests that non-linear interactions may be capturing additional signal.
-
-These metrics should be compared to assess whether the added model complexity improves performance without introducing information leakage.
+The summary reports cross-validated AUC for a non-linear gradient boosting
+model. Use the mean $\pm$ SD table to compare against baseline models, and
+confirm that any gains do not coincide with leakage signals in the audit
+diagnostics.
 
 
 ### Advanced: Custom learners
@@ -705,14 +945,22 @@ fit_resample(
 - `plot_calibration()` shows reliability of binomial probabilities.  
 - `plot_confounder_sensitivity()` summarizes performance by batch/study strata.
 
+Tabular helpers are also available:
+
+- `calibration_summary()` returns calibration curve data and ECE/MCE/Brier metrics.
+- `confounder_sensitivity()` returns per-stratum performance summaries.
+
 **Misuse to avoid**
 
 - Plotting without predictions (fits with no successful folds).  
 - Using `plot_overlap_checks()` when the column is not present in the split metadata.  
-- Using `plot_time_acf()` for non-temporal data.
-- Using `plot_calibration()` or `plot_confounder_sensitivity()` for non-classification tasks.
+- Using `plot_time_acf()` without a time column or for non-temporal data.
+- Using `plot_calibration()` outside binomial tasks.
+- Using `plot_confounder_sensitivity()` with a metric unsupported by the task.
 
-For classification, `plot_fold_balance()` uses the positive class recorded in `fit@info$positive_class`, or defaults to the second factor level if this is not set.
+For classification, `plot_fold_balance()` uses the positive class recorded in
+`fit@info$positive_class`, or defaults to the second factor level if this is not
+set. For multiclass tasks, it shows per-class counts without a proportion line.
 
 ```{r plot-fold-balance}
 if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -722,9 +970,12 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
-The bar chart shows the counts of Positives (blue) and Negatives (tan) in each fold. The dashed blue line represents the proportion of the positive class.
+The bar chart shows the counts of Positives (blue) and Negatives (tan) in each
+fold. The dashed blue line represents the proportion of the positive class.
 
-In this stratified fit, the line remains relatively stable, hovering around 40%, indicating that the class ratio is preserved across folds. Large fluctuations in this line would indicate poor stratification, which can lead to unstable fold-level performance estimates.
+In a well-stratified fit, this line remains relatively stable across folds.
+Large fluctuations indicate poor stratification, which can lead to unstable
+fold-level performance estimates.
 
 ```{r plot-calibration}
 if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -735,6 +986,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 ```
 
 Calibration curves compare predicted probabilities to observed event rates. Large deviations from the diagonal indicate miscalibration.
+Use `min_bin_n` to suppress tiny bins and `learner =` to select a model when
+multiple learners are stored in the fit.
 
 ```{r plot-confounder-sensitivity}
 if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -746,6 +999,20 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 ```
 
 Confounder sensitivity plots highlight whether performance varies substantially across batch or study strata.
+
+```{r diagnostics-tables}
+cal <- calibration_summary(fit_safe, bins = 10, min_bin_n = 5)
+conf_tbl <- confounder_sensitivity(fit_safe,
+                                   confounders = c("batch", "study"),
+                                   metric = "auc",
+                                   min_n = 3)
+
+# Calibration metrics
+cal$metrics
+
+# Confounder sensitivity table (first 6 rows)
+head(conf_tbl)
+```
 
 
 ```{r plot-overlap}
@@ -777,25 +1044,37 @@ The overlap line remains flat at zero across all folds. This confirms that `subj
 
 Assumptions and misuse to avoid:
 
-- `coldata` must align with the original sample order
-- `X_ref` must match the rows used in training (same order)
+- `coldata` (or stored split metadata) must align with prediction IDs; rownames
+  or a `row_id` column help alignment
+- `X_ref` must align to prediction IDs (rownames, `row_id`, or matching order)
 - `plot_perm_distribution()` requires `return_perm = TRUE`
 - `target_threshold` should be set high enough to flag only strong proxies
-- target leakage scan includes univariate associations plus a multivariate/interaction check by default when `X_ref` is available; proxies outside `X_ref` can still pass undetected
+- target leakage scan includes univariate associations plus an optional
+  multivariate/interaction check (`target_scan_multivariate`, `*_components`,
+  `*_interactions`, `*_B`); proxies outside `X_ref` can still pass undetected
+- for rsample splits, set `perm_mode` (or `bioLeak_perm_mode`) so restricted
+  permutations respect the intended design
+- for time-series audits, ensure a valid time column and set `time_block` /
+  `block_len` as needed
 
-**Interpretation Note:** The label-permutation test refits models by default when refit
-data are available (auto mode); otherwise it keeps predictions fixed, so the p-value
-quantifies prediction-label association rather than a full refit null. A large gap
-indicates a non-random association. To determine if that signal is *real* or *leaked*,
-check the **Batch Association** (confounding), **Target Leakage Scan** (proxy features),
-and **Duplicate Detection** (memorization) tables. Use `perm_refit = FALSE` to force
-fixed-prediction shuffles or `perm_refit = TRUE` with `perm_refit_spec` to always refit.
+**Interpretation Note:** The label-permutation test refits models by default when
+refit inputs are available (`perm_refit = "auto"` with `store_refit_data = TRUE`)
+and `B <= perm_refit_auto_max`. Otherwise it keeps predictions fixed, so the
+p-value quantifies prediction-label association rather than a full refit null.
+A large gap indicates a non-random association. To determine if that signal is
+*real* or *leaked*, check the **Batch Association** (confounding),
+**Target Leakage Scan** (proxy features), and **Duplicate Detection**
+(memorization) tables. Use `perm_refit = FALSE` to force fixed-prediction
+shuffles or `perm_refit = TRUE` with `perm_refit_spec` to always refit.
 
 Use `feature_space = "rank"` to compare samples by rank profiles, and
 `sim_method` (`cosine` or `pearson`) to control similarity. For large `n`, `nn_k`
 and `max_pairs` limit duplicate searches. Use `duplicate_scope = "all"` to
-include within-fold duplicates (data-quality checks). Use `ci_method = "bootstrap"`
-with `boot_B` if you want a confidence interval for the permutation gap.
+include within-fold duplicates (data-quality checks). Use `ci_method = "if"`
+(influence-function) or `ci_method = "bootstrap"` with `boot_B` to obtain a
+confidence interval for the permutation gap; `include_z` controls whether a
+z-score is reported. Set `perm_stratify = "auto"` to stratify permutations only
+when outcomes support it.
 
 **Leakage-aware audit**
 
@@ -843,13 +1122,20 @@ if (!is.null(audit@duplicates) && nrow(audit@duplicates) > 0) {
 
 The permutation table reports the observed metric, the mean under random label permutation, the gap (difference), and a permutation *p*-value. For metrics where higher values indicate better performance, larger gaps reflect stronger non-random signal.
 
-The batch association table reports chi-square statistics. Here, the p-values (0.650, 0.661) are well above 0.05, which is the desired result. It indicates that there is no significant confounding between your folds and the batch or study labels.
+The batch association table reports chi-square statistics and Cramer's V. Large
+p-values and small V values indicate that folds are not aligned with batch or
+study labels (which is the desired outcome when these should be independent).
 
-The target scan table lists features with the strongest associations with the outcome. For numeric features, the score is \(|\mathrm{AUC} - 0.5| \times 2\) for classification or the absolute correlation for regression. For categorical features, the score is Cramér’s V or eta-squared. Scores closer to 1 indicate stronger outcome association. In this result, `x1` has the highest score (0.356), which is expected since it drives the outcome, but it remains far below the 0.90 threshold that would trigger a leakage warning.
+The target scan table lists features with the strongest associations with the
+outcome. For numeric features, the score is \(|\mathrm{AUC} - 0.5| \times 2\) for
+classification or the absolute correlation for regression. For categorical
+features, the score is Cramér’s V or eta-squared. Scores closer to 1 indicate
+stronger outcome association.
 
-The duplicate table lists pairs of samples with near-identical profiles that cross train/test folds (by default). Notably, the top row flags the pair (1, 5) with a similarity score of 1.0.
-
-This confirms that the audit successfully detected the artificial duplicate injected during setup (`X_ref[c(1, 5), ] <- X_ref[1, ]`). Use `duplicate_scope = "all"` to include within-fold duplicates.
+The duplicate table lists pairs of samples with near-identical profiles that
+cross train/test folds (by default). In this setup, the artificially duplicated
+pair (`X_ref[c(1, 5), ] <- X_ref[1, ]`) should appear near the top of the list.
+Use `duplicate_scope = "all"` to include within-fold duplicates.
 
 ```{r plot-perm}
 if (requireNamespace("ggplot2", quietly = TRUE)) {
@@ -863,7 +1149,8 @@ The histogram shows the null distribution (gray bars) of the performance metric 
 
 The blue dashed line represents the average performance of a random model (the permuted mean). The red solid line represents the observed performance of the fitted model.
 
-A genuine signal is indicated when the red line lies well to the right of the gray distribution. In this plot, the large separation between the red line and the histogram confirms that the model’s performance is statistically distinguishable from random chance.
+A genuine signal is indicated when the red line lies well to the right of the
+gray distribution; overlap suggests weak or unstable signal.
 
 
 **Audit per learner**
@@ -896,14 +1183,19 @@ This example uses **ranger** for the random forest specification; if it is not i
 
 Use `parallel_learners = TRUE` to audit learners concurrently when **future.apply** is available.
 
-The printed table summarizes each learner’s observed metric, permutation gap, and leakage flags. In this comparison, the random forest (`rf`) achieves a higher observed AUC (0.691) and a larger gap (0.137) than the GLM (0.656). Both models show high batch *p*-values (0.65), indicating that the random forest’s performance gain is not driven by batch confounding.
-
-Use this table to select the model that maximizes signal (permutation gap) while minimizing leakage risks.
+The printed table summarizes each learner’s observed metric, permutation gap,
+p-value, and key batch/duplicate summaries. Use it to compare signal strength
+across models while checking for leakage risks. Pass `learners =` to audit a
+subset, or `mc.cores =` to control parallel workers.
 
 
 **HTML audit report**
 
-`audit_report()` accepts either a `LeakAudit` or a `LeakFit` object. When a `LeakFit` is provided, it first runs `audit_leakage()` and then forwards any additional arguments to the audit step.
+`audit_report()` accepts either a `LeakAudit` or a `LeakFit` object. When a
+`LeakFit` is provided, it first runs `audit_leakage()` and then forwards any
+additional arguments to the audit step. If multiple learners were fit, pass
+`learner =` via `...` to select one. Use `open = TRUE` to open the report in a
+browser after rendering.
 
 ```{r audit-report, eval = FALSE}
 if (requireNamespace("rmarkdown", quietly = TRUE) && rmarkdown::pandoc_available()) {
@@ -920,12 +1212,14 @@ The report path points to a standalone HTML file containing the same audit table
 
 Time-series data require special handling. Random splits can leak information
 from the future into the past. Use `mode = "time_series"` with a prediction
-`horizon`, and audit with block permutations.
+`horizon`, and audit with block permutations. Choose `time_block = "circular"`
+or `"stationary"`; when `block_len` is NULL, the audit uses a default block
+length (~10% of the test block size, minimum 5).
 
 **Leaky example: lookahead feature**
 
 ```{r time-series-fit}
-time_splits <- make_splits(
+time_splits <- make_split_plan(
   df_time,
   outcome = "outcome",
   mode = "time_series",
@@ -949,7 +1243,10 @@ cat("Time-series leaky fit summary:\n")
 summary(fit_time_leaky)
 ```
 
-The summary reports time-series cross-validated AUC (0.661). Note: While lookahead leakage typically inflates metrics, the AUC here is lower than the previous cross-validation results (0.713). This is expected because time-series splitting forces the model to train on much smaller, growing datasets (N=40, 80, 120) compared to the full training folds in standard CV (N=128). Regardless of the score, the presence of the `leak_future` feature makes this estimate methodologically invalid.
+Time-series splitting trains on growing windows, so performance can differ from
+standard CV simply because early folds have smaller training sets. Regardless of
+the score, the presence of the `leak_future` feature makes this estimate
+methodologically invalid.
 
 **Leakage-safe alternative: remove lookahead and audit with blocks**
 
@@ -990,14 +1287,21 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
-The safe fit summary provides the leakage-resistant performance estimate (AUC 0.661). Note: In this specific simulation, the score matches the previous "leaky" model, likely due to the small sample size or the specific random seed used. However, `features_final` has dropped from 14 to 13, confirming that the lookahead feature was successfully removed.
+The safe fit summary provides the leakage-resistant performance estimate. Compare
+leaky vs. safe fits to gauge inflation risk; `features_final` should drop when
+the lookahead feature is removed.
 
-The ACF plot shows the autocorrelation of out-of-fold predictions by lag. The dashed red lines represent the 95% confidence interval for white noise. In this plot, most bars fall within the dashed red lines. This is the desired result, indicating that the model's residuals do not contain significant temporal structure (autocorrelation), which implies the time-series splitting was effective.
+The ACF plot shows the autocorrelation of out-of-fold predictions by lag. The
+dashed red lines represent the 95% confidence interval for white noise; large
+bars outside the bands indicate residual temporal dependence. `plot_time_acf()`
+requires numeric predictions and time metadata aligned to the fit.
 
 ## Parallel Processing
 
-`bioLeak` uses the `future` framework for parallelism. This works on Windows,
-macOS, and Linux. To speed up simulations or audits, simply set a plan:
+`bioLeak` uses the `future` framework for parallelism (Windows, macOS, Linux).
+`fit_resample()`, `audit_leakage()`, `audit_leakage_by_learner()`, and
+`simulate_leakage_suite()` honor the active plan when `parallel = TRUE` (or
+`parallel_learners = TRUE`).
 
 ```{r parallel-setup, eval=FALSE}
 library(future)
@@ -1007,6 +1311,11 @@ plan(multisession, workers = 4)
 
 # Run a heavy simulation
 sim <- simulate_leakage_suite(..., parallel = TRUE)
+
+# Parallel folds or audits
+# fit_resample(..., parallel = TRUE)
+# audit_leakage(..., parallel = TRUE)
+# audit_leakage_by_learner(..., parallel_learners = TRUE)
 
 # Return to sequential processing
 plan(sequential)
@@ -1021,7 +1330,10 @@ object. Use it as a template before running compute-heavy functions.
 leakage mechanisms and then evaluates detection with the audit pipeline. It is
 useful for validating your leakage checks before applying them to real data.
 Available leakage types include `none`, `subject_overlap`, `batch_confounded`,
-`peek_norm`, and `lookahead`. Use `signal_strength` to control difficulty.
+`peek_norm`, and `lookahead`. Use `signal_strength`, `prevalence`, `rho`, `K`,
+`repeats`, `horizon`, and `preprocess` to control the simulation. The output is
+a `LeakSimResults` data frame with one row per seed. Metrics are selected
+automatically based on outcome type (AUC for binary classification).
 
 ```{r simulate-suite}
 if (requireNamespace("glmnet", quietly = TRUE)) {
@@ -1046,7 +1358,8 @@ if (requireNamespace("glmnet", quietly = TRUE)) {
 
 Each row corresponds to one simulation seed.
 
-- `metric_obs` is the observed performance (AUC). The consistently high values (≈0.85-0.87) indicate that the `subject_overlap` leakage mechanism injected a strong artificial signal.
+- `metric_obs` is the observed performance (AUC for this simulation). Higher
+  values suggest stronger apparent signal, which can be inflated by leakage.
 
 - `gap` and `p_value` indicate that the leaked signal is statistically distinguishable from random noise.
 
@@ -1055,13 +1368,16 @@ Use `metric_obs` to gauge the magnitude of the leakage effect, and `gap` to asse
 
 ### Objects and summaries
 
-bioLeak uses S4 classes to capture provenance and diagnostics:
+bioLeak uses S4 classes and list-like results to capture provenance and diagnostics:
 
-- `LeakSplits`: returned by `make_splits()`, printed with `show()`
+- `LeakSplits`: returned by `make_split_plan()`, printed with `show()`
 - `LeakFit`: returned by `fit_resample()`, summarized with `summary()`
 - `LeakAudit`: returned by `audit_leakage()`, summarized with `summary()`
 - `LeakAuditList`: returned by `audit_leakage_by_learner()`, printed directly
 - `GuardFit`: returned by `.guard_fit()`, printed and summarized
+- `LeakImpute`: returned by `impute_guarded()` (guarded data + diagnostics)
+- `LeakTune`: returned by `tune_resample()` (nested tuning summaries)
+- `LeakSimResults`: returned by `simulate_leakage_suite()` (per-seed results)
 
 These objects store hashes and metadata that help reproduce and audit the
 workflow. Inspect their slots (`@metrics`, `@predictions`, `@permutation_gap`,
