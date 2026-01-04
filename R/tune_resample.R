@@ -127,6 +127,30 @@ tune_resample <- function(x, outcome, splits,
     stop("Package 'recipes' is required when preprocess is a recipe.", call. = FALSE)
   }
 
+  # --- Learner Name Extraction ---
+  derive_learner_label <- function(obj) {
+    spec <- obj
+    if (inherits(obj, "workflow")) {
+      if (requireNamespace("workflows", quietly = TRUE)) {
+        spec <- tryCatch(workflows::extract_spec_parsnip(obj), error = function(e) NULL)
+      }
+    }
+    if (inherits(spec, "model_spec")) {
+      cls <- class(spec)
+      cls <- cls[!cls %in% c("model_spec", "object")]
+      model_type <- if (length(cls) > 0) cls[1] else "model"
+      engine <- spec$engine
+      if (!is.null(engine)) {
+        return(paste0(model_type, "/", engine))
+      } else {
+        return(model_type)
+      }
+    }
+    return("tuned_model")
+  }
+  learner_label <- derive_learner_label(learner)
+  # -------------------------------
+
   if (!inherits(splits, "LeakSplits")) {
     if (.bio_is_rsample(splits)) {
       coldata <- if (.bio_is_se(x)) {
@@ -150,8 +174,8 @@ tune_resample <- function(x, outcome, splits,
 
   Xall <- .bio_get_x(x)
   y_orig <- .bio_get_y(x, outcome)
-  yall <- y_orig # logic variable
-  y_data <- y_orig # data variable
+  yall <- y_orig
+  y_data <- y_orig
 
   if (.bio_is_survival(yall)) {
     stop("tune_resample does not yet support survival tasks.", call. = FALSE)
@@ -182,13 +206,10 @@ tune_resample <- function(x, outcome, splits,
       yall <- factor(yall)
       y_data <- factor(y_data)
     }
-
-    # Logic variable: aggressively cleaned
     yall <- droplevels(yall)
     if (nlevels(yall) != 2) {
       stop("Binomial task requires exactly two outcome levels.", call. = FALSE)
     }
-
     if (!is.null(positive_class)) {
       pos_chr <- as.character(positive_class)
       if (length(pos_chr) != 1L) {
@@ -202,7 +223,6 @@ tune_resample <- function(x, outcome, splits,
       if (!identical(pos_chr, levels_y[2])) {
         levels_y <- c(setdiff(levels_y, pos_chr), pos_chr)
         yall <- factor(yall, levels = levels_y)
-        # Only reorder data variable if NO recipe is present to avoid breaking it
         if (!inherits(preprocess, "recipe")) {
           y_data <- factor(y_data, levels = levels_y)
         }
@@ -232,8 +252,6 @@ tune_resample <- function(x, outcome, splits,
 
   resolve_metrics <- function(metrics, task) {
     macro_f1 <- yardstick::metric_tweak("macro_f1", yardstick::f_meas, estimator = "macro")
-    # Note: event_level="second" assumes (Neg, Pos) order. If y_data is not reordered (due to recipe),
-    # this might be incorrect, but recipes usually standardize levels.
     auc_metric <- yardstick::metric_tweak("auc", yardstick::roc_auc, event_level = "second")
     roc_metric <- yardstick::metric_tweak("roc_auc", yardstick::roc_auc, event_level = "second")
     pr_metric <- yardstick::metric_tweak("pr_auc", yardstick::pr_auc, event_level = "second")
@@ -243,30 +261,6 @@ tune_resample <- function(x, outcome, splits,
     defaults <- if (task == "binomial") c("auc", "pr_auc", "accuracy")
     else if (task == "multiclass") c("accuracy", "macro_f1")
     else c("rmse")
-
-    allowed <- if (task == "binomial") c("auc", "roc_auc", "pr_auc", "accuracy")
-    else if (task == "multiclass") c("accuracy", "macro_f1", "log_loss", "mn_log_loss")
-    else c("rmse")
-
-    if (is.null(metrics)) metrics <- defaults
-
-    metric_set <- NULL
-    if (inherits(metrics, "metric_set")) {
-      metric_set <- metrics
-    } else if (is.list(metrics) && length(metrics) &&
-               all(vapply(metrics, .bio_is_yardstick_metric, logical(1)))) {
-      metric_set <- do.call(yardstick::metric_set, metrics)
-    } else if (is.character(metrics)) {
-      invalid <- setdiff(metrics, allowed)
-      if (length(invalid)) {
-        warning(sprintf("Dropping metrics not applicable to %s task: %s", task,
-                        paste(invalid, collapse = ", ")))
-        metrics <- setdiff(metrics, invalid)
-      }
-      if (!length(metrics)) metrics <- defaults
-    } else {
-      stop("metrics must be a character vector or yardstick metric set.", call. = FALSE)
-    }
 
     metric_map <- list(
       auc = auc_metric,
@@ -278,30 +272,36 @@ tune_resample <- function(x, outcome, splits,
       mn_log_loss = mn_log_loss_metric,
       rmse = yardstick::rmse
     )
-    if (is.null(metric_set)) {
-      metric_fns <- metric_map[metrics]
-      metric_set <- do.call(yardstick::metric_set, metric_fns)
+
+    if (is.null(metrics)) metrics <- defaults
+
+    if (is.character(metrics)) {
+      metrics[metrics == "auc"] <- "roc_auc"
+      valid_keys <- intersect(metrics, names(metric_map))
+      invalid <- setdiff(metrics, names(metric_map))
+
+      if (length(invalid)) {
+        warning(sprintf("Dropping unsupported metrics for %s task: %s", task,
+                        paste(invalid, collapse = ", ")))
+      }
+
+      if (length(valid_keys) == 0) valid_keys <- defaults[defaults %in% names(metric_map)]
+
+      fns <- metric_map[valid_keys]
+      metric_set <- do.call(yardstick::metric_set, fns)
+      return(list(set = metric_set, names = valid_keys))
     }
 
-    metric_list <- attr(metric_set, "metrics")
-    metric_names <- names(metric_list)
-    invalid <- setdiff(metric_names, allowed)
-    if (length(invalid)) {
-      warning(sprintf("Dropping metrics not applicable to %s task: %s", task,
-                      paste(invalid, collapse = ", ")))
-      metric_list <- metric_list[setdiff(metric_names, invalid)]
+    if (inherits(metrics, "metric_set")) {
+      return(list(set = metrics, names = names(attr(metrics, "metrics"))))
     }
-    if (task == "binomial" && length(metric_list)) {
-      if ("roc_auc" %in% names(metric_list)) metric_list[["roc_auc"]] <- roc_metric
-      if ("auc" %in% names(metric_list)) metric_list[["auc"]] <- auc_metric
-      if ("pr_auc" %in% names(metric_list)) metric_list[["pr_auc"]] <- pr_metric
+
+    if (is.list(metrics)) {
+      metric_set <- do.call(yardstick::metric_set, metrics)
+      return(list(set = metric_set, names = names(attr(metric_set, "metrics"))))
     }
-    if (!length(metric_list)) {
-      metric_list <- metric_map[defaults]
-    }
-    metric_set <- do.call(yardstick::metric_set, metric_list)
-    metric_names <- names(attr(metric_set, "metrics"))
-    list(set = metric_set, names = metric_names)
+
+    stop("metrics must be a character vector or yardstick metric set.", call. = FALSE)
   }
 
   subset_metric_set <- function(metric_set, keep) {
@@ -315,10 +315,15 @@ tune_resample <- function(x, outcome, splits,
   metric_names <- metrics_resolved$names
 
   if (is.null(selection_metric)) {
-    selection_metric <- metric_names[[1]]
+    if ("roc_auc" %in% metric_names) selection_metric <- "roc_auc"
+    else if ("auc" %in% metric_names) selection_metric <- "auc"
+    else selection_metric <- metric_names[[1]]
   }
+
   if (!selection_metric %in% metric_names) {
-    stop(sprintf("selection_metric '%s' not found in metrics.", selection_metric), call. = FALSE)
+    if (selection_metric == "auc" && "roc_auc" %in% metric_names) selection_metric <- "roc_auc"
+    else if (selection_metric == "roc_auc" && "auc" %in% metric_names) selection_metric <- "auc"
+    else stop(sprintf("selection_metric '%s' not found in metrics.", selection_metric), call. = FALSE)
   }
 
   make_fold_df <- function(X, y) {
@@ -411,11 +416,10 @@ tune_resample <- function(x, outcome, splits,
   inner_v <- inner_v %||% (splits@info$v %||% 5L)
   inner_repeats <- inner_repeats %||% 1L
 
-  # IMPORTANT: Construct df_all carefully to preserve attributes/levels for recipes
   df_all <- if (is.data.frame(x)) {
-    x # Use original dataframe as-is to satisfy recipes
+    x
   } else {
-    make_fold_df(Xall, y_data) # Construct with compatible y_data
+    make_fold_df(Xall, y_data)
   }
 
   coldata <- if (.bio_is_se(x)) {
@@ -452,8 +456,6 @@ tune_resample <- function(x, outcome, splits,
     }
 
     df_train <- df_all[tr, , drop = FALSE]
-
-    # Use yall (logic variable) for checks, not df_train[[outcome]] which might be raw
     y_train_logic <- yall[tr]
 
     if (task %in% c("binomial", "multiclass") && !has_two_classes(y_train_logic)) {
@@ -469,9 +471,16 @@ tune_resample <- function(x, outcome, splits,
     }
     if (is.null(inner_idx)) {
       if (identical(splits@mode, "rsample")) {
-        stop("Outer splits from rsample require precomputed inner splits.", call. = FALSE)
+        inner_mode <- "subject_grouped"
+        if (!is.null(splits@info$perm_mode)) inner_mode <- splits@info$perm_mode
+        grp <- splits@info$group
+        if(is.null(grp) && "subject" %in% names(df_train)) grp <- "subject"
+        if(is.null(grp) && "id" %in% names(df_train)) grp <- "id"
+        x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
+      } else {
+        x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
       }
-      x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
+
       inner <- make_split_plan(
         x_inner,
         outcome = outcome,
@@ -564,7 +573,7 @@ tune_resample <- function(x, outcome, splits,
     )
     if (isTRUE(no_results) || is.null(metrics_raw) || !nrow(metrics_raw)) {
       warning(sprintf(
-        "Outer fold %d skipped: inner tuning produced no results. Check `tune::collect_notes()` for failures and consider `stratify = TRUE`.",
+        "Outer fold %d skipped: inner tuning produced no results. Check `tune::collect_notes()` for failures.",
         i
       ), call. = FALSE)
       skipped_no_results <- skipped_no_results + 1L
@@ -572,61 +581,56 @@ tune_resample <- function(x, outcome, splits,
     }
     avail_metrics <- available_metrics(metrics_raw)
     metric_used <- selection_metric_used
+
     if (!metric_used %in% avail_metrics) {
-      fallback <- metric_names_fold[metric_names_fold %in% avail_metrics]
-      if (!length(fallback)) {
-        warning(sprintf(
-          "Outer fold %d skipped: inner tuning produced no usable metrics. Check `tune::collect_notes()` for failures and consider `stratify = TRUE`.",
-          i
-        ), call. = FALSE)
-        skipped_no_results <- skipped_no_results + 1L
-        next
-      }
-      fallback <- fallback[[1]]
-      if (!selection_metric_warned || !identical(selection_metric_used, fallback)) {
-        warning(sprintf(
-          "Selection metric '%s' produced no results; falling back to '%s' for tuning.",
-          selection_metric_used, fallback
-        ), call. = FALSE)
-        selection_metric_warned <- TRUE
-      }
-      selection_metric_used <- fallback
-      metric_used <- fallback
-    }
-    best_params <- tryCatch(
-      if (selection == "best") {
-        tune::select_best(tune_res, metric = metric_used)
+      if ("<prb_mtrc>" %in% avail_metrics && metric_used %in% c("roc_auc", "auc", "pr_auc")) {
+        metric_used <- "<prb_mtrc>"
+      } else if ("<clss_mtr>" %in% avail_metrics && metric_used %in% c("accuracy", "kap")) {
+        metric_used <- "<clss_mtr>"
       } else {
-        tune::select_by_one_std_err(tune_res, metric = metric_used)
-      },
-      error = function(e) {
-        if (grepl("No results are available", conditionMessage(e), fixed = TRUE)) {
-          no_results <<- TRUE
-          return(NULL)
+        if (length(avail_metrics)) {
+          metric_used <- avail_metrics[1]
+          if (!selection_metric_warned) {
+            warning(sprintf("Selected metric not found; falling back to '%s'.", metric_used), call. = FALSE)
+            selection_metric_warned <- TRUE
+          }
+        } else {
+          warning(sprintf("Outer fold %d skipped: no usable metrics found.", i), call. = FALSE)
+          skipped_no_results <- skipped_no_results + 1L
+          next
         }
-        stop(e)
       }
-    )
-    if (isTRUE(no_results)) {
-      warning(sprintf(
-        "Outer fold %d skipped: inner tuning produced no results. Check `tune::collect_notes()` for failures and consider `stratify = TRUE`.",
-        i
-      ), call. = FALSE)
-      skipped_no_results <- skipped_no_results + 1L
+    }
+
+    res_sub <- metrics_raw[metrics_raw$.metric == metric_used, ]
+    res_agg <- aggregate(.estimate ~ .config, data = res_sub, FUN = mean, na.rm = TRUE)
+
+    minimize <- metric_used %in% c("rmse", "mae", "log_loss", "mn_log_loss")
+    best_idx <- if(minimize) which.min(res_agg$.estimate) else which.max(res_agg$.estimate)
+
+    if (length(best_idx) == 0) {
+      warning(sprintf("Outer fold %d skipped: could not determine best parameters.", i), call. = FALSE)
       next
     }
-    if (!nrow(best_params)) {
-      warning(sprintf("Outer fold %d skipped: no tuning results.", i), call. = FALSE)
-      next
-    }
+
+    best_config <- res_agg$.config[best_idx]
+    param_cols <- setdiff(names(metrics_raw), c(".metric", ".estimator", ".estimate", "n", "std_err", ".config"))
+    best_params_row <- metrics_raw[metrics_raw$.config == best_config, param_cols, drop = FALSE]
+    best_params <- best_params_row[1, , drop = FALSE]
+
     final_workflow <- tune::finalize_workflow(base_workflow, best_params)
     outer_splits <- make_outer_splits(tr, te)
+
+    # CRITICAL: Force the correct name in fit_resample by passing a named list
+    learner_for_fit <- list()
+    learner_for_fit[[learner_label]] <- final_workflow
+
     outer_fit <- fit_resample(
       x,
       outcome = outcome,
       splits = outer_splits,
       preprocess = list(),
-      learner = final_workflow,
+      learner = learner_for_fit, # Passed as named list
       metrics = tune_metrics_fold,
       positive_class = if (task == "binomial") class_levels[2] else NULL,
       parallel = parallel,

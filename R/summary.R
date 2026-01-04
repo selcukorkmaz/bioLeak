@@ -360,3 +360,91 @@ summary.LeakFit <- function(object, digits = 3, ...) {
 
   invisible(object@metric_summary)
 }
+
+#' Summarize a nested tuning result
+#'
+#' Prints a concise report for a `LeakTune` object produced by [tune_resample()].
+#' The report highlights the tuning strategy, selection metric, and
+#' cross-validated performance across outer folds, plus a glimpse of the selected
+#' hyperparameters.
+#'
+#' @param object A [LeakTune] object returned by [tune_resample()].
+#' @param digits Integer scalar. Number of decimal places to print in numeric
+#'   summary tables. Defaults to 3.
+#' @param ... Unused. Included for S3 method compatibility.
+#' @return Invisibly returns `object$metric_summary`, the data frame of per-learner
+#'   metric means and standard deviations computed across outer folds.
+#' @export
+summary.LeakTune <- function(object, digits = 3, ...) {
+  if (!inherits(object, "LeakTune"))
+    stop("Object must be of class 'LeakTune'.", call. = FALSE)
+
+  cat("\n============================\n")
+  cat(" bioLeak Tuning Summary\n")
+  cat("============================\n\n")
+
+  sym_pm <- .bio_symbol("pm")
+  info <- object$info
+
+  # Retrieve outcome from the first outer fit if available
+  outcome_label <- "Unknown"
+  if (length(object$outer_fits) > 0) {
+    # outer_fits contains LeakFit objects (S4)
+    outcome_label <- object$outer_fits[[1]]@outcome
+  }
+
+  cat(sprintf("Task: %s\n", info$task))
+  cat(sprintf("Outcome: %s\n", outcome_label))
+
+  if (identical(info$task, "binomial") && !is.null(info$positive_class)) {
+    cat(sprintf("Positive class: %s\n", as.character(info$positive_class)))
+  }
+
+  # Tuning Info
+  grid_info <- if (is.data.frame(info$grid)) paste(nrow(info$grid), "combinations") else info$grid
+  cat(sprintf("Tuning Grid: %s\n", grid_info))
+  cat(sprintf("Selection Rule: %s (Metric: %s)\n", info$selection, info$selection_metric))
+  cat(sprintf("Outer Folds: %d\n\n", length(object$outer_fits)))
+
+  # Metric Summary
+  if (nrow(object$metric_summary) > 0) {
+    cat(sprintf("Outer Loop Metrics (mean %s SD):\n", sym_pm))
+    ms <- object$metric_summary
+    metrics_fmt <- as.data.frame(ms)
+    num_cols <- vapply(metrics_fmt, is.numeric, logical(1))
+    if (any(num_cols)) {
+      metrics_fmt[num_cols] <- lapply(metrics_fmt[num_cols], round, digits = digits)
+    }
+    print(metrics_fmt)
+    cat("\n")
+  } else {
+    cat("No metric summary available.\n\n")
+  }
+
+  # Best Params Snapshot (Cleaned)
+  if (nrow(object$best_params) > 0) {
+    cat("Best Parameters (First 5 Folds):\n")
+    bp <- head(object$best_params, 5)
+
+    # Remove internal bookkeeping columns
+    bp$id <- NULL
+    bp$.config <- NULL
+
+    # Check if any actual parameters remain
+    param_cols <- setdiff(names(bp), c("fold", "learner"))
+
+    if (length(param_cols) == 0) {
+      cat("  (No tunable parameters detected in model spec)\n")
+    } else {
+      # rounding for display
+      num_cols_bp <- vapply(bp, is.numeric, logical(1))
+      if (any(num_cols_bp)) {
+        bp[num_cols_bp] <- lapply(bp[num_cols_bp], round, digits = digits)
+      }
+      print(bp, row.names = FALSE)
+    }
+    cat("\n")
+  }
+
+  invisible(object$metric_summary)
+}
