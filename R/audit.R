@@ -799,6 +799,70 @@ audit_leakage <- function(fit,
                           duplicate_scope = c("train_test", "all"),
                           learner = NULL) {
 
+  if (inherits(fit, "LeakTune")) {
+    # If using 'tune_resample', we construct a proxy LeakFit object
+    # by aggregating predictions from the outer resampling folds.
+
+    # 1. Collect all predictions
+    all_preds_list <- list()
+    for (i in seq_along(fit$outer_fits)) {
+      of <- fit$outer_fits[[i]]
+      # LeakFit predictions are lists of dataframes
+      if (length(of@predictions) > 0) {
+        # Combine inner predictions (usually just one DF for outer fit)
+        p_df <- do.call(rbind, lapply(of@predictions, as.data.frame))
+
+        # CRITICAL FIX: Overwrite 'fold' index to match the outer loop index 'i'.
+        # Individual outer_fits are trained as single-fold objects, so they all
+        # default to 'fold = 1'. We must re-index them to 1..5 (or v).
+        if (nrow(p_df) > 0) {
+          p_df$fold <- i
+        }
+
+        all_preds_list[[i]] <- p_df
+      }
+    }
+
+    if (length(all_preds_list) == 0) {
+      stop("LeakTune object contains no outer loop predictions to audit.")
+    }
+
+    # 2. Reconstruct a minimal LeakFit for auditing
+    first_fit <- fit$outer_fits[[1]]
+
+    # Extract feature names safely to satisfy S4 validation (must be character)
+    fnames <- tryCatch(first_fit@feature_names, error = function(e) character(0))
+    if (is.null(fnames)) fnames <- character(0)
+
+    # Create the proxy S4 object
+    fit <- new("LeakFit",
+               splits = fit$splits,
+               metrics = fit$metrics,
+               metric_summary = fit$metric_summary,
+               audit = data.frame(),
+               predictions = all_preds_list,
+               preprocess = list(),
+               learners = list(),
+               outcome = fit$info$outcome %||% first_fit@outcome,
+               task = fit$info$task %||% first_fit@task,
+               feature_names = fnames,
+               info = list(
+                 hash = fit$splits@info$hash,
+                 metrics_requested = fit$info$metrics_requested,
+                 metrics_used = fit$info$metrics_used,
+                 class_weights = NULL,
+                 positive_class = fit$info$positive_class,
+                 sample_ids = first_fit@info$sample_ids,
+                 fold_seeds = NULL,
+                 refit = FALSE,
+                 final_model = NULL,
+                 final_preprocess = NULL,
+                 learner_names = unique(fit$metrics$learner),
+                 perm_refit_spec = NULL
+               )
+    )
+  }
+
   metric <- match.arg(metric)
   feature_space <- match.arg(feature_space)
   sim_method    <- match.arg(sim_method)
