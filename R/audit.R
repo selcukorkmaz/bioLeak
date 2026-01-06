@@ -769,7 +769,7 @@
 audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
                           B = 200,
-                          perm_stratify = TRUE,
+                          perm_stratify = FALSE,
                           perm_refit = "auto",
                           perm_refit_auto_max = 200,
                           perm_refit_spec = NULL,
@@ -799,6 +799,7 @@ audit_leakage <- function(fit,
                           duplicate_scope = c("train_test", "all"),
                           learner = NULL) {
 
+  # --- CRITICAL PATCH: Support LeakTune objects (via tune_resample) ---
   if (inherits(fit, "LeakTune")) {
     # If using 'tune_resample', we construct a proxy LeakFit object
     # by aggregating predictions from the outer resampling folds.
@@ -812,9 +813,9 @@ audit_leakage <- function(fit,
         # Combine inner predictions (usually just one DF for outer fit)
         p_df <- do.call(rbind, lapply(of@predictions, as.data.frame))
 
-        # CRITICAL FIX: Overwrite 'fold' index to match the outer loop index 'i'.
-        # Individual outer_fits are trained as single-fold objects, so they all
-        # default to 'fold = 1'. We must re-index them to 1..5 (or v).
+        # CRITICAL FIX 1: Overwrite 'fold' index to match the outer loop index 'i'.
+        # Individual outer_fits are trained as single-fold objects (fold=1),
+        # so we must re-index them to match the original splits (1..5).
         if (nrow(p_df) > 0) {
           p_df$fold <- i
         }
@@ -830,11 +831,12 @@ audit_leakage <- function(fit,
     # 2. Reconstruct a minimal LeakFit for auditing
     first_fit <- fit$outer_fits[[1]]
 
-    # Extract feature names safely to satisfy S4 validation (must be character)
+    # CRITICAL FIX 2: Safely extract feature names to satisfy S4 validation
+    # (must be character, not NULL)
     fnames <- tryCatch(first_fit@feature_names, error = function(e) character(0))
     if (is.null(fnames)) fnames <- character(0)
 
-    # Create the proxy S4 object
+    # Create the proxy S4 object using new() to bypass validation if needed
     fit <- new("LeakFit",
                splits = fit$splits,
                metrics = fit$metrics,
@@ -852,6 +854,7 @@ audit_leakage <- function(fit,
                  metrics_used = fit$info$metrics_used,
                  class_weights = NULL,
                  positive_class = fit$info$positive_class,
+                 # CRITICAL FIX 3: Use sample_ids from the first outer fit to enable valid permutation
                  sample_ids = first_fit@info$sample_ids,
                  fold_seeds = NULL,
                  refit = FALSE,
@@ -862,6 +865,7 @@ audit_leakage <- function(fit,
                )
     )
   }
+  # --- END PATCH ---
 
   metric <- match.arg(metric)
   feature_space <- match.arg(feature_space)

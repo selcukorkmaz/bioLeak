@@ -8,7 +8,7 @@ audit_leakage(
   fit,
   metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
   B = 200,
-  perm_stratify = TRUE,
+  perm_stratify = FALSE,
   perm_refit = "auto",
   perm_refit_auto_max = 200,
   perm_refit_spec = NULL,
