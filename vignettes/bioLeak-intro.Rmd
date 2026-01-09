@@ -833,39 +833,61 @@ not yet supported. Use `inner_v`, `inner_repeats`, and `inner_seed` to control
 inner resampling when inner folds are not precomputed.
 
 ```{r tune-example}
-if (requireNamespace("tune", quietly = TRUE) &&
-    requireNamespace("dials", quietly = TRUE) &&
-    requireNamespace("recipes", quietly = TRUE) &&
-    requireNamespace("parsnip", quietly = TRUE) &&
-    requireNamespace("glmnet", quietly = TRUE) &&
-    requireNamespace("yardstick", quietly = TRUE) &&
-    requireNamespace("rsample", quietly = TRUE) &&
-    requireNamespace("workflows", quietly = TRUE)) {
-  rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
-    recipes::step_normalize(recipes::all_numeric_predictors())
+library(bioLeak)
+library(parsnip)
+library(recipes)
+library(tune)
+library(glmnet)
 
-  spec_tune <- parsnip::logistic_reg(
-    penalty = tune::tune(),
-    mixture = 1,
-    mode = "classification"
-  ) |>
-    parsnip::set_engine("glmnet")
+# --- 1. Create Data  ---
+set.seed(123)
+N <- 100
+df <- data.frame(
+  subject = factor(rep(paste0("S", 1:20), length.out = N)), 
+  # FIX: Use sample() to randomize outcome and avoid perfect subject-confounding
+  outcome = factor(sample(c("ClassA", "ClassB"), N, replace = TRUE)),
+  x1 = rnorm(N),
+  x2 = rnorm(N),
+  x3 = rnorm(N)
+)
 
-  tuned <- tune_resample(
-    df,
-    outcome = "outcome",
-    splits = nested_splits,
-    learner = spec_tune,
-    preprocess = rec,
-    grid = 5,
-    metrics = c("auc", "accuracy"),
-    seed = 14
-  )
+# --- 2. Generate Nested Splits ---
+set.seed(1)
+nested_splits <- make_split_plan(
+  df, 
+  outcome = "outcome", 
+  mode = "subject_grouped", 
+  group = "subject", 
+  v = 5, 
+  nested = TRUE  
+)
 
-  tuned$metric_summary
-} else {
-  cat("tune/dials/recipes/parsnip/glmnet/yardstick/rsample/workflows not installed; skipping tuning example.\n")
-}
+# --- 3. Define Recipe & Model ---
+rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
+  recipes::step_impute_median(recipes::all_numeric_predictors()) |>
+  recipes::step_normalize(recipes::all_numeric_predictors())
+
+spec_tune <- parsnip::logistic_reg(
+  penalty = tune::tune(),
+  mixture = 1,
+  mode = "classification"
+) |>
+  parsnip::set_engine("glmnet")
+
+# --- 4. Run Tuning ---
+tuned <- tune_resample(
+  df,
+  outcome = "outcome",
+  splits = nested_splits,
+  learner = spec_tune,
+  preprocess = rec,
+  inner_v = 2,
+  grid = 5,
+  metrics = c("auc", "accuracy"),
+  seed = 14
+)
+  
+summary(tuned)
 ```
 
 
@@ -878,9 +900,10 @@ preprocessing remains guarded.
 
 ```{r fit-xgboost}
 if (requireNamespace("parsnip", quietly = TRUE) &&
-    requireNamespace("xgboost", quietly = TRUE)) {
-
-  # 1. Define the model spec (no wrappers needed!)
+    requireNamespace("xgboost", quietly = TRUE) &&
+    requireNamespace("recipes", quietly = TRUE)) {
+  
+  # 1. Define the model spec
   xgb_spec <- parsnip::boost_tree(
     mode = "classification",
     trees = 500,
@@ -888,27 +911,31 @@ if (requireNamespace("parsnip", quietly = TRUE) &&
     learn_rate = 0.01
   ) |>
     parsnip::set_engine("xgboost")
-
-  # 2. Fit with guards
-  # Note: bioLeak automatically handles the training/test splits and guards
+  
+  # 2. Define a Recipe (CORRECTED)
+  # FIX: Define the recipe on data WITHOUT 'subject'.
+  # This matches the data bioLeak passes (which has subject removed).
+  df_for_rec <- df[, !names(df) %in% "subject"]
+  
+  rec_xgb <- recipes::recipe(outcome ~ ., data = df_for_rec) |>
+    recipes::step_dummy(recipes::all_nominal_predictors()) |>
+    recipes::step_impute_median(recipes::all_numeric_predictors())
+  # Note: No need for step_rm(subject) because it's already gone!
+  
+  # 3. Fit
   fit_xgb <- fit_resample(
     df,
     outcome = "outcome",
-    splits = safe_splits,
-    learner = xgb_spec,   # Pass the spec directly
+    splits = nested_splits,
+    learner = xgb_spec,
     metrics = "auc",
-    preprocess = list(
-      impute = list(method = "median"),
-      # XGBoost handles interactions, but we still guard global stats
-      normalize = list(method = "none"),
-      filter = list(var_thresh = 0)
-    )
+    preprocess = rec_xgb 
   )
-
+  
   cat("XGBoost parsnip fit summary:\n")
-  summary(fit_xgb)
+  print(summary(fit_xgb))
 } else {
-  cat("parsnip or xgboost not installed; skipping gradient boosting example.\n")
+  cat("parsnip/xgboost/recipes not installed.\n")
 }
 ```
 
@@ -1178,26 +1205,37 @@ gray distribution; overlap suggests weak or unstable signal.
 **Audit per learner**
 
 ```{r audit-by-learner}
-if (requireNamespace("ranger", quietly = TRUE)) {
-  spec_rf <- parsnip::rand_forest(
-    mode = "classification",
-    trees = 500
-  ) |>
-    parsnip::set_engine("ranger")
-
-  fit_multi <- fit_resample(
-    df,
-    outcome = "outcome",
-    splits = safe_splits,
-    learner = list(glm = spec, rf = spec_rf),
-    metrics = "auc"
-  )
-
-  audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 100)
-  cat("Per-learner audit summary:\n")
-  audits
+if (requireNamespace("ranger", quietly = TRUE) && 
+    requireNamespace("parsnip", quietly = TRUE)) {
+    
+    # 1. Define specs
+    # Standard GLM (no tuning)
+    spec_glm <- parsnip::logistic_reg() |> 
+        parsnip::set_engine("glm")
+    
+    # Random Forest
+    spec_rf <- parsnip::rand_forest(
+        mode = "classification",
+        trees = 500
+    ) |>
+        parsnip::set_engine("ranger")
+    
+    # 2. Fit with CORRECT splits
+    fit_multi <- fit_resample(
+        df,
+        outcome = "outcome",
+        splits = nested_splits,  # <--- FIX: Use the valid split object
+        learner = list(glm = spec_glm, rf = spec_rf),
+        metrics = "auc"
+    )
+    
+    # 3. Run the audit
+    audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 100)
+    cat("Per-learner audit summary:\n")
+    print(audits)
+    
 } else {
-  cat("ranger not installed; skipping per-learner audit example.\n")
+    cat("ranger/parsnip not installed.\n")
 }
 ```
 

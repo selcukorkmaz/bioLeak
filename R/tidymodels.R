@@ -29,10 +29,6 @@
     val <- val[!is.na(val) & nzchar(val)]
     return(if (length(val)) val else NULL)
   }
-  if (inherits(val, "quosure")) {
-    if (!requireNamespace("rlang", quietly = TRUE)) return(NULL)
-    val <- rlang::quo_get_expr(val)
-  }
   if (inherits(val, "formula")) {
     vars <- all.vars(val)
     return(if (length(vars)) vars else NULL)
@@ -347,7 +343,7 @@
 }
 
 .bio_make_rsplit <- function(train, test, data, id = NULL) {
-  rsample_make_splits <- getFromNamespace("make_splits", "rsample")
+  rsample_make_splits <- utils::getFromNamespace("make_splits", "rsample")
   args <- list(list(analysis = train, assessment = test), data = data)
   if (!is.null(id)) args$id <- id
   out <- try(do.call(rsample_make_splits, args), silent = TRUE)
@@ -363,6 +359,7 @@
 #' @param x LeakSplits object created by [make_split_plan()].
 #' @param data Optional data.frame used to populate rsample splits. When NULL,
 #'   the stored `coldata` from `x` is used (if available).
+#' @param ... Additional arguments passed to methods (unused).
 #' @return An rsample `rset` object.
 #' @examples
 #' \dontrun{
@@ -377,10 +374,10 @@
 #' rset <- as_rsample(splits, data = df)
 #' }
 #' @export
-as_rsample <- function(x, ...) UseMethod("as_rsample")
+as_rsample <- function(x, data = NULL, ...) UseMethod("as_rsample")
 
 #' @export
-as_rsample.LeakSplits <- function(x, data = NULL) {
+as_rsample.LeakSplits <- function(x, data = NULL, ...) {
   if (!requireNamespace("rsample", quietly = TRUE)) {
     stop("Package 'rsample' is required to export rsample splits.", call. = FALSE)
   }
@@ -415,7 +412,7 @@ as_rsample.LeakSplits <- function(x, data = NULL) {
     .bio_make_rsplit(fold$train, fold$test, data = data, id = ids[[i]])
   })
 
-  manual_rset <- getFromNamespace("manual_rset", "rsample")
+  manual_rset <- utils::getFromNamespace("manual_rset", "rsample")
   args <- list(splits = split_objs, ids = ids)
   if (!is.null(ids2) && "ids2" %in% names(formals(manual_rset))) {
     args$ids2 <- ids2

@@ -5,11 +5,13 @@ Version: 0.1.0
 Authors@R: c(
   person("Selcuk", "Korkmaz", role = c("aut","cre"), email = "selcukorkmaz@gmail.com"))
 Description: Tools to prevent and detect information leakage in biomedical machine learning.
- Provides leakage-resistant split policies (subject-grouped, batch-blocked, study leave-out, time-ordered),
- guarded preprocessing (train-only imputation, normalization, filtering, feature selection),
- cross-validated fitting with common learners, permutation-gap auditing, batch/fold association tests,
- duplicate detection, and a one-click HTML audit report. Accepts SummarizedExperiment or plain matrices.
+    Provides leakage-resistant split policies (subject-grouped, batch-blocked, study leave-out, time-ordered),
+    guarded preprocessing (train-only imputation, normalization, filtering, feature selection),
+    cross-validated fitting with common learners, permutation-gap auditing, batch/fold association tests,
+    duplicate detection, and a one-click HTML audit report. Accepts SummarizedExperiment or plain matrices.
 License: MIT + file LICENSE
+URL: https://github.com/selcukorkmaz/bioLeak
+BugReports: https://github.com/selcukorkmaz/bioLeak/issues
 Encoding: UTF-8
 LazyData: true
 Depends: R (>= 4.3)

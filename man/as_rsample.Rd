@@ -4,13 +4,15 @@
 \alias{as_rsample}
 \title{Convert LeakSplits to an rsample resample set}
 \usage{
-as_rsample(x, ...)
+as_rsample(x, data = NULL, ...)
 }
 \arguments{
 \item{x}{LeakSplits object created by [make_split_plan()].}
 
 \item{data}{Optional data.frame used to populate rsample splits. When NULL,
 the stored `coldata` from `x` is used (if available).}
+
+\item{...}{Additional arguments passed to methods (unused).}
 }
 \value{
 An rsample `rset` object.

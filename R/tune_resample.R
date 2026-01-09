@@ -388,7 +388,7 @@ tune_resample <- function(x, outcome, splits,
       }
       .bio_make_rsplit(fold$train, fold$test, data = data, id = ids[[i]])
     })
-    manual_rset <- getFromNamespace("manual_rset", "rsample")
+    manual_rset <- utils::getFromNamespace("manual_rset", "rsample")
     do.call(manual_rset, list(splits = split_objs, ids = ids))
   }
 
@@ -466,8 +466,10 @@ tune_resample <- function(x, outcome, splits,
     }
 
     inner_idx <- NULL
+    inner_precomputed <- FALSE
     if (!is.null(splits@info$inner) && length(splits@info$inner) >= i) {
       inner_idx <- splits@info$inner[[i]]
+      inner_precomputed <- TRUE
     }
     if (is.null(inner_idx)) {
       if (identical(splits@mode, "rsample")) {
@@ -500,11 +502,43 @@ tune_resample <- function(x, outcome, splits,
       inner_idx <- inner@indices
     }
 
+    inner_global <- FALSE
+    if (inner_precomputed) {
+      inner_positions <- unlist(lapply(inner_idx, function(fold) {
+        c(fold$train, fold$test)
+      }), use.names = FALSE)
+      inner_positions <- inner_positions[!is.na(inner_positions)]
+      if (!length(inner_positions)) {
+        stop(sprintf("Outer fold %d: inner splits are empty.", i), call. = FALSE)
+      }
+      if (any(inner_positions < 1L)) {
+        stop(sprintf("Outer fold %d: inner split indices must be positive.", i), call. = FALSE)
+      }
+      if (any(inner_positions > nrow(df_all))) {
+        stop(sprintf("Outer fold %d: inner split indices exceed available rows.", i),
+             call. = FALSE)
+      }
+      inner_in_train <- all(inner_positions %in% seq_len(nrow(df_train)))
+      inner_in_outer <- all(inner_positions %in% tr)
+      if (!inner_in_train && inner_in_outer) {
+        inner_global <- TRUE
+      } else if (inner_in_outer && !identical(tr, seq_len(nrow(df_train)))) {
+        inner_global <- TRUE
+      } else if (!inner_in_train && !inner_in_outer) {
+        stop(sprintf(
+          "Outer fold %d: inner split indices do not match outer training data.",
+          i
+        ), call. = FALSE)
+      }
+    }
+
+    # Precomputed inner indices may be global; choose the matching data source.
+    y_inner <- if (inner_global) yall else y_train_logic
     if (task %in% c("binomial", "multiclass")) {
       inner_has_class <- vapply(inner_idx, function(fold) {
         idx <- fold$train
         if (is.null(idx)) return(FALSE)
-        has_two_classes(y_train_logic[idx])
+        has_two_classes(y_inner[idx])
       }, logical(1))
       if (!any(inner_has_class)) {
         warning(sprintf(
@@ -532,7 +566,7 @@ tune_resample <- function(x, outcome, splits,
       inner_assess_two <- vapply(inner_idx, function(fold) {
         idx <- fold$test
         if (is.null(idx)) return(FALSE)
-        has_two_classes(y_train_logic[idx])
+        has_two_classes(y_inner[idx])
       }, logical(1))
       if (!all(inner_assess_two)) {
         drop_metrics <- intersect(metric_names_fold, c("auc", "roc_auc", "pr_auc"))
@@ -550,7 +584,8 @@ tune_resample <- function(x, outcome, splits,
 
     metrics_used <- unique(c(metrics_used, metric_names_fold))
 
-    inner_rset <- make_inner_rset(inner_idx, df_train)
+    inner_data <- if (inner_global) df_all else df_train
+    inner_rset <- make_inner_rset(inner_idx, inner_data)
     set.seed(seed + i)
     tune_res <- tune::tune_grid(
       base_workflow,
