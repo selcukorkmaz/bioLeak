@@ -742,33 +742,55 @@ Note that `features_final` here reflects only the assay predictors (`x1`, `x2`,
 - `as_rsample()` converts `LeakSplits` to an `rsample` object.
 
 ```{r tidymodels-interop}
-if (requireNamespace("rsample", quietly = TRUE) &&
-    requireNamespace("recipes", quietly = TRUE) &&
-    requireNamespace("yardstick", quietly = TRUE) &&
-    requireNamespace("parsnip", quietly = TRUE)) {
-  set.seed(13)
-  rs <- rsample::group_vfold_cv(df, group = subject, v = 5)
+library(bioLeak)
+library(parsnip)
+library(recipes)
+library(yardstick)
 
-  rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
-    recipes::step_impute_median(recipes::all_numeric_predictors()) |>
-    recipes::step_normalize(recipes::all_numeric_predictors())
+set.seed(123)
+N <- 100
+df <- data.frame(
+  subject = factor(rep(paste0("S", 1:20), length.out = N)), 
+  outcome = factor(rep(c("ClassA", "ClassB"), length.out = N)),
+  x1 = rnorm(N),
+  x2 = rnorm(N),
+  x3 = rnorm(N)
+)
 
-  metrics_set <- yardstick::metric_set(yardstick::roc_auc, yardstick::accuracy)
+spec <- logistic_reg() |> set_engine("glm")
 
-  fit_rs <- fit_resample(
-    df,
-    outcome = "outcome",
-    splits = rs,
-    split_cols = list(group = "subject"),
-    learner = spec,
-    preprocess = rec,
-    metrics = metrics_set,
-    refit = FALSE
-  )
+# Use bioLeak's native split planner to avoid conversion errors
+set.seed(13)
 
-  rs_export <- as_rsample(safe_splits, data = df)
-} else {
-  cat("rsample/recipes/yardstick/parsnip not installed; skipping tidymodels example.\n")
+# Use make_split_plan instead of rsample::group_vfold_cv
+# This creates a subject-grouped CV directly compatible with fit_resample
+splits <- make_split_plan(
+  df, 
+  outcome = "outcome", 
+  mode = "subject_grouped", 
+  group = "subject", 
+  v = 5
+)
+
+rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
+  recipes::step_impute_median(recipes::all_numeric_predictors()) |>
+  recipes::step_normalize(recipes::all_numeric_predictors())
+
+metrics_set <- yardstick::metric_set(yardstick::roc_auc, yardstick::accuracy)
+
+fit_rs <- fit_resample(
+  df,
+  outcome = "outcome",
+  splits = splits,
+  learner = spec,
+  preprocess = rec,
+  metrics = metrics_set,
+  refit = FALSE
+)
+
+if (exists("as_rsample", where = asNamespace("bioLeak"), mode = "function")) {
+    rs_export <- as_rsample(fit_rs@splits, data = df)
+    print(rs_export)
 }
 ```
 

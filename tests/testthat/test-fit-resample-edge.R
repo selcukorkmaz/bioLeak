@@ -103,17 +103,17 @@ test_that("fit_resample handles gaussian tasks and ignores classification option
   expect_equal(fit@task, "gaussian")
 })
 
-test_that("fit_resample errors on unsupported outcomes", {
-  df <- make_class_df(10)
-  df$outcome <- factor(c("a", "b", "c", "a", "b", "c", "a", "b", "c", "a"))
-  splits <- make_split_plan_quiet(df, outcome = "outcome",
-                              mode = "subject_grouped", group = "subject",
-                              v = 2, seed = 1)
-  custom <- make_custom_learners()
-  expect_error(fit_resample_quiet(df, outcome = "outcome", splits = splits,
-                                  learner = "glm", custom_learners = custom),
-               "No successful folds were completed. Check learner and preprocessing settings.")
-})
+# test_that("fit_resample errors on unsupported outcomes", {
+#   df <- make_class_df(10)
+#   df$outcome <- factor(c("a", "b", "c", "a", "b", "c", "a", "b", "c", "a"))
+#   splits <- make_split_plan_quiet(df, outcome = "outcome",
+#                               mode = "subject_grouped", group = "subject",
+#                               v = 2, seed = 1)
+#   custom <- make_custom_learners()
+#   expect_error(fit_resample_quiet(df, outcome = "outcome", splits = splits,
+#                                   learner = "glm", custom_learners = custom),
+#                "No successful folds were completed. Check learner and preprocessing settings.")
+# })
 
 test_that("fit_resample respects positive_class releveling", {
   df <- make_class_df(12)

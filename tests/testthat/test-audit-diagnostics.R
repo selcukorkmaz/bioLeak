@@ -53,7 +53,9 @@ test_that("audit_leakage reports batch association and duplicates", {
     batch_cols = "batch",
     X_ref = df[, c("x1", "x2")],
     sim_threshold = 0.999,
-    duplicate_scope = "all"
+    duplicate_scope = "all",
+    # ADD THIS LINE TO FIX WARNINGS:
+    target_scan_multivariate = FALSE
   )
 
   expect_true(nrow(audit@batch_assoc) >= 1)

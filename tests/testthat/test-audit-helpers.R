@@ -50,3 +50,4 @@ test_that("coerce_truth_like preserves types", {
   expect_true(is.logical(bioLeak:::.coerce_truth_like(c(TRUE, FALSE), c(1, 0))))
   expect_true(is.numeric(bioLeak:::.coerce_truth_like(c(1, 2), c("3", "4"))))
 })
+

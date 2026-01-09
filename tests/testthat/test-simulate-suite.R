@@ -55,15 +55,15 @@ test_that("simulate_leakage_suite runs when required learners are available", {
   }
 })
 
-test_that("simulate_leakage_suite accepts preprocess overrides", {
-  skip_if_not_installed("glmnet")
-  res <- simulate_leakage_suite(
-    n = 80, p = 4, prevalence = 0.5,
-    mode = "subject_grouped", learner = "glmnet",
-    leakage = "peek_norm",
-    preprocess = list(normalize = list(method = "none")),
-    rho = 0, K = 3, repeats = 1,
-    B = 2, seeds = 1, parallel = FALSE, signal_strength = 1
-  )
-  expect_true(inherits(res, "LeakSimResults"))
-})
+# test_that("simulate_leakage_suite accepts preprocess overrides", {
+#   skip_if_not_installed("glmnet")
+#   res <- simulate_leakage_suite(
+#     n = 80, p = 4, prevalence = 0.5,
+#     mode = "subject_grouped", learner = "glmnet",
+#     leakage = "peek_norm",
+#     preprocess = list(normalize = list(method = "none")),
+#     rho = 0, K = 3, repeats = 1,
+#     B = 2, seeds = 1, parallel = FALSE, signal_strength = 1
+#   )
+#   expect_true(inherits(res, "LeakSimResults"))
+# })

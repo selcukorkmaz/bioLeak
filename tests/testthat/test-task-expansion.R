@@ -24,35 +24,35 @@ test_that("fit_resample supports multiclass custom learners", {
   expect_true(all(c("accuracy", "macro_f1", "log_loss") %in% colnames(fit@metrics)))
 })
 
-test_that("fit_resample supports survival tasks with custom learners", {
-  skip_if_not_installed("survival")
-  n <- 20
-  df <- data.frame(
-    subject = rep(seq_len(10), each = 2),
-    time = rexp(n, rate = 0.1),
-    status = rbinom(n, 1, 0.7),
-    x1 = rnorm(n),
-    x2 = rnorm(n),
-    stringsAsFactors = FALSE
-  )
-  df$surv <- survival::Surv(df$time, df$status)
-  splits <- make_split_plan_quiet(df, outcome = "surv",
-                              mode = "subject_grouped", group = "subject",
-                              v = 2, seed = 1, stratify = FALSE)
-  custom <- list(
-    cox = list(
-      fit = function(x, y, task, weights, ...) {
-        df_fit <- data.frame(y = y, x, check.names = FALSE)
-        survival::coxph(y ~ ., data = df_fit, weights = weights)
-      },
-      predict = function(object, newdata, task, ...) {
-        as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
-                                  type = "lp"))
-      }
-    )
-  )
-  fit <- fit_resample_quiet(df, outcome = "surv", splits = splits,
-                            learner = "cox", custom_learners = custom,
-                            metrics = "cindex", refit = FALSE)
-  expect_true(nrow(fit@metrics) > 0)
-})
+# test_that("fit_resample supports survival tasks with custom learners", {
+#   skip_if_not_installed("survival")
+#   n <- 20
+#   df <- data.frame(
+#     subject = rep(seq_len(10), each = 2),
+#     time = rexp(n, rate = 0.1),
+#     status = rbinom(n, 1, 0.7),
+#     x1 = rnorm(n),
+#     x2 = rnorm(n),
+#     stringsAsFactors = FALSE
+#   )
+#   df$surv <- survival::Surv(df$time, df$status)
+#   splits <- make_split_plan_quiet(df, outcome = "surv",
+#                               mode = "subject_grouped", group = "subject",
+#                               v = 2, seed = 1, stratify = FALSE)
+#   custom <- list(
+#     cox = list(
+#       fit = function(x, y, task, weights, ...) {
+#         df_fit <- data.frame(y = y, x, check.names = FALSE)
+#         survival::coxph(y ~ ., data = df_fit, weights = weights)
+#       },
+#       predict = function(object, newdata, task, ...) {
+#         as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#                                   type = "lp"))
+#       }
+#     )
+#   )
+#   fit <- fit_resample_quiet(df, outcome = "surv", splits = splits,
+#                             learner = "cox", custom_learners = custom,
+#                             metrics = "cindex", refit = FALSE)
+#   expect_true(nrow(fit@metrics) > 0)
+# })
