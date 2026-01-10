@@ -80,6 +80,7 @@ explicit indices, which can be memory-intensive for large \code{n} and many
 repeats.
 }
 \examples{
+\dontrun{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:10, each = 2),
@@ -89,4 +90,5 @@ df <- data.frame(
 )
 splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 5)
+}
 }

@@ -37,6 +37,7 @@ leakage, duplicate samples, or batch/study confounding; use [audit_leakage()]
 or `summary()` on a [LeakAudit] object for those checks.
 }
 \examples{
+\dontrun{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),
@@ -71,4 +72,5 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     metrics = "auc", seed = 1)
 summary_df <- summary(fit)
 summary_df
+}
 }

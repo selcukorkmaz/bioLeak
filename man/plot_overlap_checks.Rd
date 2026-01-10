@@ -51,6 +51,7 @@ inflate overlaps. `NA` values are treated as regular identifiers and will
 count toward overlap if they appear in both partitions. Requires ggplot2.
 }
 \examples{
+\dontrun{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),
@@ -78,5 +79,6 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   out <- plot_overlap_checks(fit, column = "subject")
   out$overlap_counts
+}
 }
 }

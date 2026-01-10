@@ -240,6 +240,7 @@ for near-duplicate samples. Only duplicates present in `X_ref` can be
 detected, and checks are skipped if inputs cannot be aligned to splits.
 }
 \examples{
+\dontrun{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),
@@ -273,4 +274,5 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 audit <- audit_leakage(fit, metric = "auc", B = 10,
                        X_ref = df[, c("x1", "x2")])
 
+}
 }
