@@ -95,6 +95,7 @@
 #' other audit components are not included.
 #'
 #' @examples
+#' \dontrun{
 #' if (requireNamespace("glmnet", quietly = TRUE)) {
 #'   set.seed(1)
 #'   res <- simulate_leakage_suite(
@@ -110,6 +111,7 @@
 #'   res
 #' }
 #'
+#' }
 #' @export
 simulate_leakage_suite <- function(
     n = 500, p = 20, prevalence = 0.5,

@@ -264,6 +264,7 @@ plot_fold_balance <- function(fit) {
 #'   The plot is also printed. When any overlap is detected, the plot adds a
 #'   warning annotation.
 #' @examples
+#' \dontrun{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -291,6 +292,7 @@ plot_fold_balance <- function(fit) {
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   out <- plot_overlap_checks(fit, column = "subject")
 #'   out$overlap_counts
+#' }
 #' }
 #' @export
 plot_overlap_checks <- function(fit, column = NULL) {

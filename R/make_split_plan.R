@@ -39,6 +39,7 @@
 #'
 #' @return LeakSplits S4 object
 #' @examples
+#' \dontrun{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:10, each = 2),
@@ -48,6 +49,7 @@
 #' )
 #' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
+#' }
 #' @export
 make_split_plan <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),

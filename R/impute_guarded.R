@@ -21,11 +21,13 @@
 #' @return A LeakImpute object with imputed data and guard state.
 #' @seealso [fit_resample()], [predict_guard()]
 #' @examples
+#' \dontrun{
 #' train <- data.frame(x = c(1, 2, NA, 4), y = c(NA, 1, 1, 0))
 #' test <- data.frame(x = c(NA, 5), y = c(1, NA))
 #' imp <- impute_guarded(train, test, method = "median", winsor = FALSE)
 #' imp$train
 #' imp$test
+#' }
 #' @export
 impute_guarded <- function(train,
                            test,

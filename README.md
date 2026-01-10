@@ -1,4 +1,4 @@
-# bioLeak: Data Leakage Diagnostics for Biomedical ML
+# bioLeak: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data
 
 `bioLeak` is an R package for detecting, quantifying, and diagnosing data leakage in biomedical machine-learning workflows. It focuses on leakage introduced by preprocessing, dependent samples, and resampling violations in cross-validation and related evaluation settings.
 
@@ -30,6 +30,14 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 ## Installation
 Requires R >= 4.3.
+
+From CRAN:
+
+```r
+install.packages("bioLeak")
+```
+
+Development version from GitHub:
 
 ```r
 install.packages("remotes")
