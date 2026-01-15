@@ -76,13 +76,11 @@
 #' summary(fit)
 #'
 #' # Parsnip model_spec
-#' \dontrun{
 #' if (requireNamespace("parsnip", quietly = TRUE)) {
 #'   spec <- parsnip::boost_tree(mode = "classification", trees = 200) |>
 #'     parsnip::set_engine("xgboost")
 #'   fit3 <- fit_resample(df, outcome = "outcome", splits = splits,
 #'                        learner = spec, metrics = "auc")
-#' }
 #' }
 #'
 #' # Custom learner (logistic regression)
