@@ -51,7 +51,8 @@
 #'       metrics with columns \code{fold}, \code{learner}, and one column per
 #'       requested metric.}
 #'     \item{\code{metric_summary}}{Data.frame summarizing metrics across folds
-#'       (mean and standard deviation) for each learner.}
+#'       for each learner with columns \code{learner}, and \code{<metric>_mean}
+#'       and \code{<metric>_sd} for each requested metric.}
 #'     \item{\code{audit}}{Data.frame with per-fold audit information including
 #'       \code{fold}, \code{n_train}, \code{n_test}, \code{learner}, and
 #'       \code{features_final} (number of features after preprocessing).}
@@ -1295,10 +1296,22 @@ fit_resample <- function(x, outcome, splits,
   metrics_used <- setdiff(colnames(met_df), c("fold", "learner"))
 
   # summarize metrics ---------------------------------------------------------
-  metric_summary <- aggregate(. ~ learner, data = met_df[, -1, drop = FALSE],
-                              FUN = function(x) c(mean = mean(x, na.rm = TRUE),
-                                                  sd = sd(x, na.rm = TRUE)),
-                              na.action = stats::na.pass)
+  metric_summary_raw <- aggregate(. ~ learner, data = met_df[, -1, drop = FALSE],
+                                  FUN = function(x) c(mean = mean(x, na.rm = TRUE),
+                                                      sd = sd(x, na.rm = TRUE)),
+                                  na.action = stats::na.pass)
+  # flatten embedded matrices from aggregate() into separate columns
+  metric_summary <- data.frame(learner = metric_summary_raw$learner,
+                               stringsAsFactors = FALSE)
+  for (col in setdiff(colnames(metric_summary_raw), "learner")) {
+    mat <- metric_summary_raw[[col]]
+    if (is.matrix(mat)) {
+      metric_summary[[paste0(col, "_mean")]] <- mat[, "mean"]
+      metric_summary[[paste0(col, "_sd")]] <- mat[, "sd"]
+    } else {
+      metric_summary[[col]] <- mat
+    }
+  }
 
   # optional refit ------------------------------------------------------------
   final_model <- NULL

@@ -81,7 +81,7 @@ test_that("fit_resample summarizes metrics with all-NA columns", {
                             metrics = list(auc = "auc", na_metric = na_metric),
                             refit = FALSE)
   expect_true(nrow(fit@metric_summary) > 0)
-  expect_true("na_metric" %in% colnames(fit@metric_summary))
+  expect_true("na_metric_mean" %in% colnames(fit@metric_summary))
 })
 
 test_that("fit_resample handles gaussian tasks and ignores classification options", {

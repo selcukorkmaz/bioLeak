@@ -51,7 +51,9 @@
 #' @param seed Integer seed for reproducibility.
 #' @return A list of class `"LeakTune"` with components:
 #'   \item{metrics}{Outer-fold metrics.}
-#'   \item{metric_summary}{Mean/SD metrics across outer folds.}
+#'   \item{metric_summary}{Mean/SD metrics across outer folds with columns
+#'     \code{learner}, and \code{<metric>_mean} and \code{<metric>_sd} for
+#'     each metric.}
 #'   \item{best_params}{Best hyperparameters per outer fold.}
 #'   \item{inner_results}{List of inner tuning results.}
 #'   \item{outer_fits}{List of outer LeakFit objects.}
@@ -714,10 +716,22 @@ tune_resample <- function(x, outcome, splits,
   best_params_df <- if (length(best_rows)) do.call(rbind, best_rows) else data.frame()
 
   metric_cols <- setdiff(names(metrics_df), "fold")
-  metric_summary <- aggregate(. ~ learner, data = metrics_df[, metric_cols, drop = FALSE],
-                              FUN = function(x) c(mean = mean(x, na.rm = TRUE),
-                                                  sd = sd(x, na.rm = TRUE)),
-                              na.action = stats::na.pass)
+  metric_summary_raw <- aggregate(. ~ learner, data = metrics_df[, metric_cols, drop = FALSE],
+                                  FUN = function(x) c(mean = mean(x, na.rm = TRUE),
+                                                      sd = sd(x, na.rm = TRUE)),
+                                  na.action = stats::na.pass)
+  # flatten embedded matrices from aggregate() into separate columns
+  metric_summary <- data.frame(learner = metric_summary_raw$learner,
+                               stringsAsFactors = FALSE)
+  for (col in setdiff(colnames(metric_summary_raw), "learner")) {
+    mat <- metric_summary_raw[[col]]
+    if (is.matrix(mat)) {
+      metric_summary[[paste0(col, "_mean")]] <- mat[, "mean"]
+      metric_summary[[paste0(col, "_sd")]] <- mat[, "sd"]
+    } else {
+      metric_summary[[col]] <- mat
+    }
+  }
 
   structure(
     list(

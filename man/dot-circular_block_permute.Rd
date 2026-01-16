@@ -20,7 +20,9 @@ sampled circularly from the ordered sequence. Used for creating
 block-permuted surrogates that preserve short-range temporal structure.
 }
 \examples{
+\dontrun{
 set.seed(1)
 .circular_block_permute(1:10, block_len = 3)
+}
 }
 \keyword{internal}

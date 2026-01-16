@@ -20,8 +20,10 @@ which resamples contiguous blocks of variable length to preserve
 weak temporal dependence while maintaining ergodicity.
 }
 \examples{
+\dontrun{
 set.seed(1)
 .stationary_bootstrap(1:10, mean_block = 3)
+}
 }
 \references{
 Politis, D. N., & Romano, J. P. (1994).
