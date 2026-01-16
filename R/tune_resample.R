@@ -57,22 +57,30 @@
 #'   \item{outer_fits}{List of outer LeakFit objects.}
 #'   \item{info}{Metadata about the tuning run.}
 #' @examples
-#' \dontrun{
-#' df <- data.frame(
-#'   subject = rep(1:10, each = 2),
-#'   outcome = factor(rep(c(0, 1), each = 10)),
-#'   x1 = rnorm(20),
-#'   x2 = rnorm(20)
-#' )
-#' splits <- make_split_plan(df, outcome = "outcome",
-#'                       mode = "subject_grouped", group = "subject",
-#'                       v = 3, nested = TRUE, stratify = TRUE)
-#' spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
-#'   parsnip::set_engine("glmnet")
-#' rec <- recipes::recipe(outcome ~ x1 + x2, data = df)
-#' tuned <- tune_resample(df, outcome = "outcome", splits = splits,
-#'                        learner = spec, preprocess = rec, grid = 5)
-#' tuned$metric_summary
+#' \donttest{
+#' if (requireNamespace("tune", quietly = TRUE) &&
+#'     requireNamespace("recipes", quietly = TRUE) &&
+#'     requireNamespace("glmnet", quietly = TRUE) &&
+#'     requireNamespace("rsample", quietly = TRUE) &&
+#'     requireNamespace("workflows", quietly = TRUE) &&
+#'     requireNamespace("yardstick", quietly = TRUE) &&
+#'     requireNamespace("dials", quietly = TRUE)) {
+#'   df <- data.frame(
+#'     subject = rep(1:10, each = 2),
+#'     outcome = factor(rep(c(0, 1), each = 10)),
+#'     x1 = rnorm(20),
+#'     x2 = rnorm(20)
+#'   )
+#'   splits <- make_split_plan(df, outcome = "outcome",
+#'                         mode = "subject_grouped", group = "subject",
+#'                         v = 3, nested = TRUE, stratify = TRUE)
+#'   spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+#'     parsnip::set_engine("glmnet")
+#'   rec <- recipes::recipe(outcome ~ x1 + x2, data = df)
+#'   tuned <- tune_resample(df, outcome = "outcome", splits = splits,
+#'                          learner = spec, preprocess = rec, grid = 5)
+#'   tuned$metric_summary
+#' }
 #' }
 #' @export
 tune_resample <- function(x, outcome, splits,

@@ -24,7 +24,7 @@ Visualizes observed outcome rates versus predicted probabilities across
 bins to diagnose calibration (binomial tasks only). Requires ggplot2.
 }
 \examples{
-\dontrun{
+\donttest{
 # fit <- fit_resample(...)
 plot_calibration(fit, bins = 10)
 }

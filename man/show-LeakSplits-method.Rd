@@ -9,11 +9,15 @@
 \arguments{
 \item{object}{LeakSplits object.}
 }
+\value{
+No return value, called for side effects (prints a summary to the
+  console showing mode, fold count, repeats, outcome, stratification status,
+  nested status, per-fold train/test sizes, and the reproducibility hash).
+}
 \description{
 Prints fold counts, sizes, and hash metadata for quick inspection.
 }
 \examples{
-\dontrun{
 df <- data.frame(
   subject = rep(1:10, each = 2),
   outcome = rbinom(20, 1, 0.5),
@@ -23,5 +27,4 @@ df <- data.frame(
 splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 5)
 show(splits)
-}
 }

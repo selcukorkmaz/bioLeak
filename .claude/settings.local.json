@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Rscript:*)",
+      "Bash(\"/c/Program Files/R/R-4.5.1/bin/Rscript.exe\" -e \"devtools::document\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.5.1/bin/Rscript.exe\" -e \"roxygen2::roxygenize\\(\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"roxygen2::roxygenize\\(''C:/Users/Selçuk/Documents/GitHub/bioLeak''\\)\")",
+      "Bash(for f in man/*.Rd)",
+      "Bash(do if ! grep -q \"\\\\\\\\value\" \"$f\")",
+      "Bash(then echo \"MISSING \\\\value: $f\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(do if ! grep -q \"\\\\\\\\value{\" \"$f\")",
+      "Bash(then echo \"$f\")",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"tools::checkRd\\(''C:/Users/Selçuk/Documents/GitHub/bioLeak/man/show-LeakSplits-method.Rd''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"tools::checkRdaFiles\\(''man''\\)\")",
+      "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\" -e \"sapply\\(list.files\\(''man'', pattern=''[.]Rd'', full.names=TRUE\\), tools::checkRd\\)\")",
+      "Bash(xargs:*)",
+      "Bash(while read f)",
+      "Bash(do if grep -q \"\\\\\\\\examples\" \"$f\")",
+      "Bash(then if ! grep -q \"requireNamespace\" \"$f\")",
+      "Bash(! grep -q \"donttest\" \"$f\")",
+      "Bash(then echo \"May need requireNamespace: $f\")",
+      "Bash(echo:*)"
+    ]
+  }
+}

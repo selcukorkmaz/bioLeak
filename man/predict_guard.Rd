@@ -37,7 +37,6 @@ numeric-only training fit receives non-numeric predictors. It does not
 detect label leakage, duplicate samples, or train/test contamination.
 }
 \examples{
-\dontrun{
 x_train <- data.frame(a = c(1, 2, NA, 4), b = c(10, 11, 12, 13))
 fit <- .guard_fit(
   x_train,
@@ -48,5 +47,4 @@ fit <- .guard_fit(
 x_new <- data.frame(a = c(NA, 5), b = c(9, 14))
 out <- predict_guard(fit, x_new)
 out
-}
 }

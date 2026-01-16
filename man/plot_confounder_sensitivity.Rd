@@ -38,7 +38,7 @@ Shows performance metrics across confounder strata to assess sensitivity to
 batch/study effects. Requires ggplot2.
 }
 \examples{
-\dontrun{
+\donttest{
 # fit <- fit_resample(...)
 plot_confounder_sensitivity(fit, confounders = c("batch", "study"))
 }

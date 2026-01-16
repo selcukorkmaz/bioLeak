@@ -44,7 +44,40 @@
 #' @param parallel logical, use future.apply for multicore execution
 #' @param refit logical, if TRUE retrain final model on full data
 #' @param seed integer, for reproducibility
-#' @return LeakFit object
+#' @return A \code{\linkS4class{LeakFit}} S4 object containing:
+#'   \describe{
+#'     \item{\code{splits}}{The \code{LeakSplits} object used for resampling.}
+#'     \item{\code{metrics}}{Data.frame of per-fold, per-learner performance
+#'       metrics with columns \code{fold}, \code{learner}, and one column per
+#'       requested metric.}
+#'     \item{\code{metric_summary}}{Data.frame summarizing metrics across folds
+#'       (mean and standard deviation) for each learner.}
+#'     \item{\code{audit}}{Data.frame with per-fold audit information including
+#'       \code{fold}, \code{n_train}, \code{n_test}, \code{learner}, and
+#'       \code{features_final} (number of features after preprocessing).}
+#'     \item{\code{predictions}}{List of data.frames containing out-of-fold
+#'       predictions with columns \code{id} (sample identifier), \code{truth}
+#'       (true outcome), \code{pred} (predicted value or probability), \code{fold},
+#'       and \code{learner}. For classification tasks, includes \code{pred_class}.
+#'       For multiclass, includes per-class probability columns.}
+#'     \item{\code{preprocess}}{List of preprocessing state objects from each fold,
+#'       storing imputation parameters, normalization statistics, and feature
+#'       selection results.}
+#'     \item{\code{learners}}{List of fitted model objects from each fold.}
+#'     \item{\code{outcome}}{Character string naming the outcome variable.}
+#'     \item{\code{task}}{Character string indicating the task type
+#'       (\code{"binomial"}, \code{"multiclass"}, \code{"gaussian"}, or
+#'       \code{"survival"}).}
+#'     \item{\code{feature_names}}{Character vector of feature names after
+#'       preprocessing.}
+#'     \item{\code{info}}{List of additional metadata including \code{hash},
+#'       \code{metrics_used}, \code{class_weights}, \code{positive_class},
+#'       \code{sample_ids}, \code{refit}, \code{final_model} (refitted model if
+#'       \code{refit = TRUE}), \code{final_preprocess}, \code{learner_names},
+#'       and \code{perm_refit_spec} (for permutation-based audits).}
+#'   }
+#'   Use \code{summary()} to print a formatted report, or access slots directly
+#'   with \code{@}.
 #' @details
 #' Preprocessing is fit on the training fold and applied to the test fold,
 #' preventing leakage from global imputation, scaling, or feature selection.
@@ -61,7 +94,7 @@
 #' probability predictions for binomial metrics (AUC/PR-AUC/accuracy) and
 #' multiclass log-loss when requested.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:10, each = 2),
@@ -71,19 +104,24 @@
 #' )
 #' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
-#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
-#'                     learner = "glmnet", metrics = "auc")
-#' summary(fit)
 #'
-#' # Parsnip model_spec
-#' if (requireNamespace("parsnip", quietly = TRUE)) {
+#' # glmnet learner (requires glmnet package)
+#' if (requireNamespace("glmnet", quietly = TRUE)) {
+#'   fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                       learner = "glmnet", metrics = "auc")
+#'   summary(fit)
+#' }
+#'
+#' # Parsnip model_spec (requires parsnip and xgboost)
+#' if (requireNamespace("parsnip", quietly = TRUE) &&
+#'     requireNamespace("xgboost", quietly = TRUE)) {
 #'   spec <- parsnip::boost_tree(mode = "classification", trees = 200) |>
 #'     parsnip::set_engine("xgboost")
 #'   fit3 <- fit_resample(df, outcome = "outcome", splits = splits,
 #'                        learner = spec, metrics = "auc")
 #' }
 #'
-#' # Custom learner (logistic regression)
+#' # Custom learner (logistic regression) - no extra packages needed
 #' custom <- list(
 #'   glm = list(
 #'     fit = function(x, y, task, weights, ...) {

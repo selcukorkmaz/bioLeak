@@ -15,21 +15,34 @@ the stored `coldata` from `x` is used (if available).}
 \item{...}{Additional arguments passed to methods (unused).}
 }
 \value{
-An rsample `rset` object.
+An rsample \code{rset} object compatible with tidymodels workflows.
+  The returned object is a tibble with class \code{rset} containing:
+  \describe{
+    \item{\code{splits}}{List-column of \code{rsplit} objects, each with
+      \code{analysis} (training indices) and \code{assessment} (test indices).}
+    \item{\code{id}}{Character column with fold identifiers (e.g., "Fold1").}
+    \item{\code{id2}}{Character column with repeat identifiers (e.g., "Repeat1")
+      when multiple repeats are present; otherwise absent.}
+  }
+  The object also carries attributes for \code{group}, \code{batch},
+  \code{study}, \code{time} (when available from the original \code{LeakSplits}),
+  and \code{bioLeak_mode} indicating the original splitting mode. This allows
+  the splits to be used with \code{tune::tune_grid()}, \code{rsample::fit_resamples()},
+  and other tidymodels functions.
 }
 \description{
 Convert LeakSplits to an rsample resample set
 }
 \examples{
-\dontrun{
-df <- data.frame(
-  subject = rep(1:10, each = 2),
-  outcome = rbinom(20, 1, 0.5),
-  x1 = rnorm(20),
-  x2 = rnorm(20)
-)
-splits <- make_split_plan(df, outcome = "outcome",
-                      mode = "subject_grouped", group = "subject", v = 5)
-rset <- as_rsample(splits, data = df)
+if (requireNamespace("rsample", quietly = TRUE)) {
+  df <- data.frame(
+    subject = rep(1:10, each = 2),
+    outcome = rbinom(20, 1, 0.5),
+    x1 = rnorm(20),
+    x2 = rnorm(20)
+  )
+  splits <- make_split_plan(df, outcome = "outcome",
+                        mode = "subject_grouped", group = "subject", v = 5)
+  rset <- as_rsample(splits, data = df)
 }
 }

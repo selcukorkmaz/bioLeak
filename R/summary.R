@@ -37,7 +37,7 @@
 #'   arguments are ignored.
 #' @return Invisibly returns `object` after printing the summary.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -277,7 +277,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 #'   metric means and standard deviations computed across folds. This function
 #'   does not recompute metrics.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),

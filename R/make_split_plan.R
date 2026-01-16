@@ -37,9 +37,27 @@
 #' @param strict logical; deprecated and ignored. `subject_grouped` always
 #'   requires a non-NULL `group`.
 #'
-#' @return LeakSplits S4 object
+#' @return A \code{\linkS4class{LeakSplits}} S4 object containing:
+#'   \describe{
+#'     \item{\code{mode}}{Character string indicating the splitting mode
+#'       (\code{"subject_grouped"}, \code{"batch_blocked"}, \code{"study_loocv"},
+#'       or \code{"time_series"}).}
+#'     \item{\code{indices}}{List of fold descriptors, each containing
+#'       \code{train} (integer vector of training indices), \code{test}
+#'       (integer vector of test indices), \code{fold} (fold number), and
+#'       \code{repeat_id} (repeat identifier). When \code{compact = TRUE},
+#'       indices are stored as fold assignments instead.}
+#'     \item{\code{info}}{List of metadata including \code{outcome}, \code{v},
+#'       \code{repeats}, \code{seed}, grouping columns (\code{group},
+#'       \code{batch}, \code{study}, \code{time}), \code{stratify},
+#'       \code{nested}, \code{horizon}, \code{summary} (data.frame of fold
+#'       sizes), \code{hash} (reproducibility checksum), \code{inner}
+#'       (nested inner splits if \code{nested = TRUE}), and \code{coldata}
+#'       (sample metadata).}
+#'   }
+#'   Use the \code{show} method to print a summary, or access slots directly
+#'   with \code{@}.
 #' @examples
-#' \dontrun{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:10, each = 2),
@@ -49,7 +67,6 @@
 #' )
 #' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
-#' }
 #' @export
 make_split_plan <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
@@ -414,8 +431,10 @@ make_split_plan <- function(x, outcome = NULL,
 #' @title Display summary for LeakSplits objects
 #' @description Prints fold counts, sizes, and hash metadata for quick inspection.
 #' @param object LeakSplits object.
+#' @return No return value, called for side effects (prints a summary to the
+#'   console showing mode, fold count, repeats, outcome, stratification status,
+#'   nested status, per-fold train/test sizes, and the reproducibility hash).
 #' @examples
-#' \dontrun{
 #' df <- data.frame(
 #'   subject = rep(1:10, each = 2),
 #'   outcome = rbinom(20, 1, 0.5),
@@ -425,7 +444,6 @@ make_split_plan <- function(x, outcome = NULL,
 #' splits <- make_split_plan(df, outcome = "outcome",
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' show(splits)
-#' }
 #' @importMethodsFrom methods show
 #' @export
 setMethod("show", "LeakSplits", function(object) {

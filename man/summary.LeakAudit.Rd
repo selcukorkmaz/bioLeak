@@ -48,7 +48,7 @@ Sections are reported as "not available" when the corresponding audit
 component was not computed.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),

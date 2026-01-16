@@ -37,7 +37,7 @@ leakage, duplicate samples, or batch/study confounding; use [audit_leakage()]
 or `summary()` on a [LeakAudit] object for those checks.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),

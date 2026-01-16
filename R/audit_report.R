@@ -53,9 +53,16 @@
 #'   `X_ref` (matrix/data.frame), `sim_method` (character), and
 #'   `duplicate_scope` (character). When omitted, [audit_leakage()] defaults are
 #'   used. Ignored when `audit` is already a [LeakAudit].
-#' @return Path to the generated HTML report.
+#' @return Character string containing the absolute file path to the generated
+#'   HTML report. The report is a self-contained HTML file that can be opened
+#'   in any web browser. It includes sections for: cross-validated metric
+#'   summaries, label-permutation test results (gap, p-value), batch/study
+#'   association tests, confounder sensitivity analysis, calibration diagnostics
+#'   (for binomial tasks), target leakage scan results, and duplicate detection
+#'   findings. The path can be used with \code{\link[utils]{browseURL}} to open
+#'   the report programmatically.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),

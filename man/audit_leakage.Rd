@@ -186,9 +186,43 @@ are present, the function errors; if predictions lack learner IDs, this
 argument is ignored with a warning. Default is NULL.}
 }
 \value{
-A [LeakAudit] object with slots:
-  `permutation_gap` (one-row data.frame), `perm_values` (optional numeric
-  vector), `batch_assoc`, `target_assoc`, `duplicates`, and `trail`.
+A \code{\linkS4class{LeakAudit}} S4 object containing:
+  \describe{
+    \item{\code{fit}}{The \code{LeakFit} object that was audited.}
+    \item{\code{permutation_gap}}{One-row data.frame with columns:
+      \code{metric_obs} (observed cross-validated metric), \code{perm_mean}
+      (mean of permuted metrics), \code{perm_sd} (standard deviation),
+      \code{gap} (observed minus permuted mean, or vice versa for loss metrics),
+      \code{z} (standardized gap), \code{p_value} (permutation p-value), and
+      \code{n_perm} (number of permutations). A large positive gap and small
+      p-value suggest the model captures signal beyond random label assignment.}
+    \item{\code{perm_values}}{Numeric vector of length \code{B} containing
+      the metric value from each permutation. Useful for plotting the null
+      distribution. Empty if \code{return_perm = FALSE}.}
+    \item{\code{batch_assoc}}{Data.frame of chi-square association tests
+      between fold assignment and batch/study metadata, with columns:
+      \code{variable}, \code{stat} (chi-square statistic), \code{df}
+      (degrees of freedom), \code{pval}, and \code{cramer_v} (effect size).
+      Small p-values indicate potential confounding by design.}
+    \item{\code{target_assoc}}{Data.frame of per-feature outcome associations
+      with columns: \code{feature}, \code{type} (\code{"numeric"} or
+      \code{"categorical"}), \code{metric} (AUC, correlation, eta_sq, or
+      Cramer's V depending on task), \code{value}, \code{score} (scaled
+      effect size), \code{p_value}, \code{n}, and \code{flag} (TRUE if
+      \code{score >= target_threshold}). Flagged features may indicate
+      target leakage.}
+    \item{\code{duplicates}}{Data.frame of near-duplicate sample pairs with
+      columns: \code{i}, \code{j} (row indices in \code{X_ref}), \code{sim}
+      (similarity value), and \code{in_train_test} (whether the pair appears
+      in train vs test). Duplicates in train and test can inflate performance.}
+    \item{\code{trail}}{List capturing audit parameters and intermediate
+      results for reproducibility, including \code{metric}, \code{B},
+      \code{seed}, \code{perm_stratify}, \code{perm_refit}, and timing info.}
+    \item{\code{info}}{List with additional metadata including multivariate
+      scan results when \code{target_scan_multivariate = TRUE}.}
+  }
+  Use \code{summary()} to print a human-readable report, or access slots
+  directly with \code{@}.
 }
 \description{
 Computes a post-hoc leakage audit for a resampled model fit. The audit
@@ -240,7 +274,7 @@ for near-duplicate samples. Only duplicates present in `X_ref` can be
 detected, and checks are skipped if inputs cannot be aligned to splits.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),

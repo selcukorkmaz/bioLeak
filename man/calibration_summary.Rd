@@ -26,7 +26,7 @@ Computes reliability curve summaries and calibration metrics for a
 binomial [LeakFit] using out-of-fold predictions.
 }
 \examples{
-\dontrun{
+\donttest{
 fit <- fit_resample(...)
 cal <- calibration_summary(fit, bins = 10)
 cal$metrics

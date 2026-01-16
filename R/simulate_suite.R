@@ -95,7 +95,7 @@
 #' other audit components are not included.
 #'
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' if (requireNamespace("glmnet", quietly = TRUE)) {
 #'   set.seed(1)
 #'   res <- simulate_leakage_suite(

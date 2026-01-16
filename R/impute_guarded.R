@@ -12,7 +12,8 @@
 #' @param method one of "median", "knn", "missForest", or "none"
 #' @param constant_value unused; retained for backward compatibility
 #' @param k number of neighbors for kNN imputation (if method = "knn")
-#' @param seed random seed for reproducibility
+#' @param seed unused; retained for backward compatibility. Set seed before
+#'   calling this function if reproducibility is needed.
 #' @param winsor logical; apply MAD-based winsorization before imputation
 #' @param winsor_thresh numeric; MAD cutoff (default = 3)
 #' @param parallel logical; unused (kept for compatibility)
@@ -21,13 +22,11 @@
 #' @return A LeakImpute object with imputed data and guard state.
 #' @seealso [fit_resample()], [predict_guard()]
 #' @examples
-#' \dontrun{
 #' train <- data.frame(x = c(1, 2, NA, 4), y = c(NA, 1, 1, 0))
 #' test <- data.frame(x = c(NA, 5), y = c(1, NA))
 #' imp <- impute_guarded(train, test, method = "median", winsor = FALSE)
 #' imp$train
 #' imp$test
-#' }
 #' @export
 impute_guarded <- function(train,
                            test,
@@ -63,19 +62,6 @@ impute_guarded <- function(train,
     warning("constant_value is unused in impute_guarded and will be ignored.",
             call. = FALSE)
   }
-
-  has_old_seed <- exists(".Random.seed", envir = .GlobalEnv)
-  old_seed <- if (has_old_seed) get(".Random.seed", envir = .GlobalEnv) else NULL
-  on.exit({
-    if (exists("old_seed", inherits = FALSE)) {
-      if (!is.null(old_seed)) {
-        assign(".Random.seed", old_seed, envir = .GlobalEnv)
-      } else if (!has_old_seed && exists(".Random.seed", envir = .GlobalEnv)) {
-        rm(".Random.seed", envir = .GlobalEnv)
-      }
-    }
-  }, add = TRUE)
-  set.seed(seed)
 
   steps <- list(
     impute = list(method = method, k = k, winsor = winsor, winsor_k = winsor_thresh),

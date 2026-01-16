@@ -9,7 +9,7 @@
 #' @return A list containing the observed value, permuted mean, permutation values,
 #'   and a ggplot object.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # audit <- audit_leakage(fit, metric = "auc", B = 100)
 #' plot_perm_distribution(audit)
 #' }
@@ -71,7 +71,7 @@ plot_perm_distribution <- function(audit) {
 #' @return A list containing the fold summary, positive class (if binomial),
 #'   and a ggplot object.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # fit <- fit_resample(...)
 #' plot_fold_balance(fit)
 #' }
@@ -264,7 +264,7 @@ plot_fold_balance <- function(fit) {
 #'   The plot is also printed. When any overlap is detected, the plot adds a
 #'   warning annotation.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -368,7 +368,7 @@ plot_overlap_checks <- function(fit, column = NULL) {
 #' @param lag.max maximum lag to show.
 #' @return A list with the autocorrelation results, \code{lag.max}, and a ggplot object.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # fit <- fit_resample(...)
 #' plot_time_acf(fit, lag.max = 20)
 #' }
@@ -479,7 +479,7 @@ plot_time_acf <- function(fit, lag.max = 20) {
 #'   learners, selects the learner to summarize.
 #' @return A list containing the calibration curve, metrics, and a ggplot object.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # fit <- fit_resample(...)
 #' plot_calibration(fit, bins = 10)
 #' }
@@ -527,7 +527,7 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #'   learners, selects the learner to summarize.
 #' @return A list containing the sensitivity table and a ggplot object.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' # fit <- fit_resample(...)
 #' plot_confounder_sensitivity(fit, confounders = c("batch", "study"))
 #' }

@@ -134,7 +134,7 @@ are injected by adding a single extra predictor as described in
 does not change results.
 }
 \examples{
-\dontrun{
+\donttest{
 if (requireNamespace("glmnet", quietly = TRUE)) {
   set.seed(1)
   res <- simulate_leakage_suite(

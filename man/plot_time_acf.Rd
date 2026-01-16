@@ -21,7 +21,7 @@ the split time column before computing the ACF. Requires numeric predictions
 (regression or survival). Requires ggplot2.
 }
 \examples{
-\dontrun{
+\donttest{
 # fit <- fit_resample(...)
 plot_time_acf(fit, lag.max = 20)
 }

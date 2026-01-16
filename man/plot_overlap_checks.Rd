@@ -51,7 +51,7 @@ inflate overlaps. `NA` values are treated as regular identifiers and will
 count toward overlap if they appear in both partitions. Requires ggplot2.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),

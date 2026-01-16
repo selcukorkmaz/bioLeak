@@ -22,7 +22,7 @@ shows per-class counts without a proportion line. Only available for
 classification tasks. Requires ggplot2.
 }
 \examples{
-\dontrun{
+\donttest{
 # fit <- fit_resample(...)
 plot_fold_balance(fit)
 }

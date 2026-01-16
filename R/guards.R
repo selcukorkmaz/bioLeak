@@ -288,13 +288,11 @@
 #' @return An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.
 #' @seealso [predict_guard()]
 #' @examples
-#' \dontrun{
 #' x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
 #' fit <- .guard_fit(x, y = c(1, 2, 3),
 #'                   steps = list(impute = list(method = "median")),
 #'                   task = "gaussian")
 #' fit$transform(x)
-#' }
 #' @export
 .guard_fit <- function(X, y = NULL, steps = list(),
                        task = c("binomial", "multiclass", "gaussian", "survival")) {
@@ -915,7 +913,6 @@ print.summary.GuardFit <- function(x, ...) {
 #' the new data.
 #'
 #' @examples
-#' \dontrun{
 #' x_train <- data.frame(a = c(1, 2, NA, 4), b = c(10, 11, 12, 13))
 #' fit <- .guard_fit(
 #'   x_train,
@@ -926,7 +923,6 @@ print.summary.GuardFit <- function(x, ...) {
 #' x_new <- data.frame(a = c(NA, 5), b = c(9, 14))
 #' out <- predict_guard(fit, x_new)
 #' out
-#' }
 #' @export
 predict_guard <- function(fit, newdata) {
   stopifnot(inherits(fit, "GuardFit"))

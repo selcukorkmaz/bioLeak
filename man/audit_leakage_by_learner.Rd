@@ -49,7 +49,15 @@ See [audit_leakage()] for full definitions; changing these values changes
 each learner's audit.}
 }
 \value{
-Named list of [LeakAudit] objects, keyed by learner ID.
+A named list of \code{\linkS4class{LeakAudit}} objects, where each
+  element is keyed by the learner ID (character string). Each
+  \code{LeakAudit} object contains the same slots as described in
+  \code{\link{audit_leakage}}: \code{fit}, \code{permutation_gap},
+  \code{perm_values}, \code{batch_assoc}, \code{target_assoc},
+  \code{duplicates}, \code{trail}, and \code{info}. Use \code{names()} to
+  retrieve learner IDs, and access individual audits with \code{[[learner_id]]}
+  or \code{$learner_id}. Each audit reflects the performance and diagnostics
+  for that specific learner's predictions.
 }
 \description{
 Runs [audit_leakage()] separately for each learner recorded in a [LeakFit]
@@ -59,7 +67,7 @@ If predictions do not include learner IDs, only a single audit can be run and
 requesting multiple learners is an error.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),

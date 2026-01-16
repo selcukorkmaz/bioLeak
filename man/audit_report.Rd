@@ -48,7 +48,14 @@ therefore change the report. Typical examples include `metric` (character),
 used. Ignored when `audit` is already a [LeakAudit].}
 }
 \value{
-Path to the generated HTML report.
+Character string containing the absolute file path to the generated
+  HTML report. The report is a self-contained HTML file that can be opened
+  in any web browser. It includes sections for: cross-validated metric
+  summaries, label-permutation test results (gap, p-value), batch/study
+  association tests, confounder sensitivity analysis, calibration diagnostics
+  (for binomial tasks), target leakage scan results, and duplicate detection
+  findings. The path can be used with \code{\link[utils]{browseURL}} to open
+  the report programmatically.
 }
 \description{
 Creates an HTML report that summarizes a leakage audit for a resampled model.
@@ -79,7 +86,7 @@ small `B` or incomplete metadata. Rendering requires the
 `rmarkdown` package and `ggplot2` for plots.
 }
 \examples{
-\dontrun{
+\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),

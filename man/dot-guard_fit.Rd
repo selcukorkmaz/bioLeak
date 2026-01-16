@@ -39,13 +39,11 @@ The pipeline applies, in order:
 All statistics are estimated on the training data and re-used for new data.
 }
 \examples{
-\dontrun{
 x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
 fit <- .guard_fit(x, y = c(1, 2, 3),
                   steps = list(impute = list(method = "median")),
                   task = "gaussian")
 fit$transform(x)
-}
 }
 \seealso{
 [predict_guard()]

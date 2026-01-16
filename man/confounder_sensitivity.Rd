@@ -42,7 +42,7 @@ Computes performance metrics within confounder strata to surface potential
 confounding. Requires aligned metadata in `coldata`.
 }
 \examples{
-\dontrun{
+\donttest{
 fit <- fit_resample(...)
 confounder_sensitivity(fit, confounders = c("batch", "study"))
 }

@@ -69,7 +69,26 @@ indices to reduce memory usage for large datasets. Not supported when
 requires a non-NULL `group`.}
 }
 \value{
-LeakSplits S4 object
+A \code{\linkS4class{LeakSplits}} S4 object containing:
+  \describe{
+    \item{\code{mode}}{Character string indicating the splitting mode
+      (\code{"subject_grouped"}, \code{"batch_blocked"}, \code{"study_loocv"},
+      or \code{"time_series"}).}
+    \item{\code{indices}}{List of fold descriptors, each containing
+      \code{train} (integer vector of training indices), \code{test}
+      (integer vector of test indices), \code{fold} (fold number), and
+      \code{repeat_id} (repeat identifier). When \code{compact = TRUE},
+      indices are stored as fold assignments instead.}
+    \item{\code{info}}{List of metadata including \code{outcome}, \code{v},
+      \code{repeats}, \code{seed}, grouping columns (\code{group},
+      \code{batch}, \code{study}, \code{time}), \code{stratify},
+      \code{nested}, \code{horizon}, \code{summary} (data.frame of fold
+      sizes), \code{hash} (reproducibility checksum), \code{inner}
+      (nested inner splits if \code{nested = TRUE}), and \code{coldata}
+      (sample metadata).}
+  }
+  Use the \code{show} method to print a summary, or access slots directly
+  with \code{@}.
 }
 \description{
 Generates leakage-safe cross-validation splits for common biomedical setups:
@@ -80,7 +99,6 @@ explicit indices, which can be memory-intensive for large \code{n} and many
 repeats.
 }
 \examples{
-\dontrun{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:10, each = 2),
@@ -90,5 +108,4 @@ df <- data.frame(
 )
 splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 5)
-}
 }

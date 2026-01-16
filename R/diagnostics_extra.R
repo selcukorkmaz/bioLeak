@@ -60,7 +60,7 @@
 #' @return A list with a `curve` data.frame and a one-row `metrics` data.frame
 #'   containing ECE, MCE, and Brier score.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' fit <- fit_resample(...)
 #' cal <- calibration_summary(fit, bins = 10)
 #' cal$metrics
@@ -167,7 +167,7 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #'   learners, selects the learner to summarize.
 #' @return A data.frame with per-confounder, per-level metrics and counts.
 #' @examples
-#' \dontrun{
+#' \donttest{
 #' fit <- fit_resample(...)
 #' confounder_sensitivity(fit, confounders = c("batch", "study"))
 #' }
