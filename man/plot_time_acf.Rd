@@ -22,7 +22,31 @@ the split time column before computing the ACF. Requires numeric predictions
 }
 \examples{
 \donttest{
-# fit <- fit_resample(...)
-plot_time_acf(fit, lag.max = 20)
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  set.seed(42)
+  df <- data.frame(
+    id = 1:30,
+    time = seq.Date(as.Date("2020-01-01"), by = "day", length.out = 30),
+    y = rnorm(30),
+    x1 = rnorm(30),
+    x2 = rnorm(30)
+  )
+  splits <- make_split_plan(df, outcome = "y", mode = "time_series",
+                            time = "time", v = 3, progress = FALSE)
+  custom <- list(
+    lm = list(
+      fit = function(x, y, task, weights, ...) {
+        stats::lm(y ~ ., data = data.frame(y = y, x))
+      },
+      predict = function(object, newdata, task, ...) {
+        as.numeric(stats::predict(object, newdata = as.data.frame(newdata)))
+      }
+    )
+  )
+  fit <- fit_resample(df, outcome = "y", splits = splits,
+                      learner = "lm", custom_learners = custom,
+                      metrics = "rmse", refit = FALSE, seed = 1)
+  plot_time_acf(fit, lag.max = 10)
+}
 }
 }

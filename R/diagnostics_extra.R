@@ -61,8 +61,32 @@
 #'   containing ECE, MCE, and Brier score.
 #' @examples
 #' \donttest{
-#' fit <- fit_resample(...)
-#' cal <- calibration_summary(fit, bins = 10)
+#' set.seed(42)
+#' df <- data.frame(
+#'   subject = rep(1:15, each = 2),
+#'   outcome = factor(rep(c(0, 1), 15)),
+#'   x1 = rnorm(30),
+#'   x2 = rnorm(30)
+#' )
+#' splits <- make_split_plan(df, outcome = "outcome",
+#'                           mode = "subject_grouped", group = "subject",
+#'                           v = 3, progress = FALSE)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#' cal <- calibration_summary(fit, bins = 5)
 #' cal$metrics
 #' }
 #' @export
@@ -168,8 +192,33 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #' @return A data.frame with per-confounder, per-level metrics and counts.
 #' @examples
 #' \donttest{
-#' fit <- fit_resample(...)
-#' confounder_sensitivity(fit, confounders = c("batch", "study"))
+#' set.seed(42)
+#' df <- data.frame(
+#'   subject = rep(1:15, each = 2),
+#'   outcome = factor(rep(c(0, 1), 15)),
+#'   batch = factor(rep(c("A", "B", "C"), 10)),
+#'   x1 = rnorm(30),
+#'   x2 = rnorm(30)
+#' )
+#' splits <- make_split_plan(df, outcome = "outcome",
+#'                           mode = "subject_grouped", group = "subject",
+#'                           v = 3, progress = FALSE)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#' confounder_sensitivity(fit, confounders = "batch", coldata = df)
 #' }
 #' @export
 confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,

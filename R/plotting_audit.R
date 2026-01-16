@@ -10,8 +10,35 @@
 #'   and a ggplot object.
 #' @examples
 #' \donttest{
-#' # audit <- audit_leakage(fit, metric = "auc", B = 100)
-#' plot_perm_distribution(audit)
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   df <- data.frame(
+#'     subject = rep(1:15, each = 2),
+#'     outcome = factor(rep(c(0, 1), 15)),
+#'     x1 = rnorm(30),
+#'     x2 = rnorm(30)
+#'   )
+#'   splits <- make_split_plan(df, outcome = "outcome",
+#'                             mode = "subject_grouped", group = "subject",
+#'                             v = 3, progress = FALSE)
+#'   custom <- list(
+#'     glm = list(
+#'       fit = function(x, y, task, weights, ...) {
+#'         stats::glm(y ~ ., data = as.data.frame(x),
+#'                    family = stats::binomial(), weights = weights)
+#'       },
+#'       predict = function(object, newdata, task, ...) {
+#'         as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                   type = "response"))
+#'       }
+#'     )
+#'   )
+#'   fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                       learner = "glm", custom_learners = custom,
+#'                       metrics = "auc", refit = FALSE, seed = 1)
+#'   audit <- audit_leakage(fit, metric = "auc", B = 20)
+#'   plot_perm_distribution(audit)
+#' }
 #' }
 #' @export
 plot_perm_distribution <- function(audit) {
@@ -49,7 +76,7 @@ plot_perm_distribution <- function(audit) {
     ggplot2::theme_minimal() +
     ggplot2::theme(legend.position = "top")
 
-  print(p)
+  if (interactive()) print(p)
   invisible(list(
     observed = obs,
     permuted_mean = perm_mean,
@@ -72,8 +99,34 @@ plot_perm_distribution <- function(audit) {
 #'   and a ggplot object.
 #' @examples
 #' \donttest{
-#' # fit <- fit_resample(...)
-#' plot_fold_balance(fit)
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   df <- data.frame(
+#'     subject = rep(1:15, each = 2),
+#'     outcome = factor(rep(c(0, 1), 15)),
+#'     x1 = rnorm(30),
+#'     x2 = rnorm(30)
+#'   )
+#'   splits <- make_split_plan(df, outcome = "outcome",
+#'                             mode = "subject_grouped", group = "subject",
+#'                             v = 3, progress = FALSE)
+#'   custom <- list(
+#'     glm = list(
+#'       fit = function(x, y, task, weights, ...) {
+#'         stats::glm(y ~ ., data = as.data.frame(x),
+#'                    family = stats::binomial(), weights = weights)
+#'       },
+#'       predict = function(object, newdata, task, ...) {
+#'         as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                   type = "response"))
+#'       }
+#'     )
+#'   )
+#'   fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                       learner = "glm", custom_learners = custom,
+#'                       metrics = "auc", refit = FALSE, seed = 1)
+#'   plot_fold_balance(fit)
+#' }
 #' }
 #' @export
 plot_fold_balance <- function(fit) {
@@ -119,7 +172,7 @@ plot_fold_balance <- function(fit) {
       ggplot2::labs(title = "Fold class balance", x = "Fold", y = "Count", fill = "Class") +
       ggplot2::theme_minimal() +
       ggplot2::theme(legend.position = "top")
-    print(p)
+    if (interactive()) print(p)
     return(invisible(list(
       fold_summary = tab,
       positive_class = NA_character_,
@@ -214,7 +267,7 @@ plot_fold_balance <- function(fit) {
                     color = ggplot2::guide_legend(order = 2),
                     linetype = ggplot2::guide_legend(order = 2),
                     shape = ggplot2::guide_legend(order = 2))
-  print(p)
+  if (interactive()) print(p)
   invisible(list(
     fold_summary = tab,
     positive_class = pos_class,
@@ -349,7 +402,7 @@ plot_overlap_checks <- function(fit, column = NULL) {
                         hjust = 1, vjust = 0,
                         color = "red", fontface = "bold")
   }
-  print(p)
+  if (interactive()) print(p)
   invisible(list(
     overlap_counts = counts,
     column = column,
@@ -369,8 +422,32 @@ plot_overlap_checks <- function(fit, column = NULL) {
 #' @return A list with the autocorrelation results, \code{lag.max}, and a ggplot object.
 #' @examples
 #' \donttest{
-#' # fit <- fit_resample(...)
-#' plot_time_acf(fit, lag.max = 20)
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   df <- data.frame(
+#'     id = 1:30,
+#'     time = seq.Date(as.Date("2020-01-01"), by = "day", length.out = 30),
+#'     y = rnorm(30),
+#'     x1 = rnorm(30),
+#'     x2 = rnorm(30)
+#'   )
+#'   splits <- make_split_plan(df, outcome = "y", mode = "time_series",
+#'                             time = "time", v = 3, progress = FALSE)
+#'   custom <- list(
+#'     lm = list(
+#'       fit = function(x, y, task, weights, ...) {
+#'         stats::lm(y ~ ., data = data.frame(y = y, x))
+#'       },
+#'       predict = function(object, newdata, task, ...) {
+#'         as.numeric(stats::predict(object, newdata = as.data.frame(newdata)))
+#'       }
+#'     )
+#'   )
+#'   fit <- fit_resample(df, outcome = "y", splits = splits,
+#'                       learner = "lm", custom_learners = custom,
+#'                       metrics = "rmse", refit = FALSE, seed = 1)
+#'   plot_time_acf(fit, lag.max = 10)
+#' }
 #' }
 #' @export
 plot_time_acf <- function(fit, lag.max = 20) {
@@ -463,7 +540,7 @@ plot_time_acf <- function(fit, lag.max = 20) {
       ggplot2::geom_hline(yintercept = c(conf, -conf),
                           color = "red", linetype = "dashed")
   }
-  print(p)
+  if (interactive()) print(p)
   invisible(list(acf = acf_res, lag.max = lag.max, plot = p))
 }
 
@@ -480,8 +557,34 @@ plot_time_acf <- function(fit, lag.max = 20) {
 #' @return A list containing the calibration curve, metrics, and a ggplot object.
 #' @examples
 #' \donttest{
-#' # fit <- fit_resample(...)
-#' plot_calibration(fit, bins = 10)
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   df <- data.frame(
+#'     subject = rep(1:15, each = 2),
+#'     outcome = factor(rep(c(0, 1), 15)),
+#'     x1 = rnorm(30),
+#'     x2 = rnorm(30)
+#'   )
+#'   splits <- make_split_plan(df, outcome = "outcome",
+#'                             mode = "subject_grouped", group = "subject",
+#'                             v = 3, progress = FALSE)
+#'   custom <- list(
+#'     glm = list(
+#'       fit = function(x, y, task, weights, ...) {
+#'         stats::glm(y ~ ., data = as.data.frame(x),
+#'                    family = stats::binomial(), weights = weights)
+#'       },
+#'       predict = function(object, newdata, task, ...) {
+#'         as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                   type = "response"))
+#'       }
+#'     )
+#'   )
+#'   fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                       learner = "glm", custom_learners = custom,
+#'                       metrics = "auc", refit = FALSE, seed = 1)
+#'   plot_calibration(fit, bins = 5)
+#' }
 #' }
 #' @export
 plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
@@ -508,7 +611,7 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
                   y = "Observed event rate",
                   size = "Bin n") +
     ggplot2::theme_minimal()
-  print(p)
+  if (interactive()) print(p)
   invisible(list(curve = df, metrics = cal$metrics, plot = p))
 }
 
@@ -528,8 +631,35 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #' @return A list containing the sensitivity table and a ggplot object.
 #' @examples
 #' \donttest{
-#' # fit <- fit_resample(...)
-#' plot_confounder_sensitivity(fit, confounders = c("batch", "study"))
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   set.seed(42)
+#'   df <- data.frame(
+#'     subject = rep(1:15, each = 2),
+#'     outcome = factor(rep(c(0, 1), 15)),
+#'     batch = factor(rep(c("A", "B", "C"), 10)),
+#'     x1 = rnorm(30),
+#'     x2 = rnorm(30)
+#'   )
+#'   splits <- make_split_plan(df, outcome = "outcome",
+#'                             mode = "subject_grouped", group = "subject",
+#'                             v = 3, progress = FALSE)
+#'   custom <- list(
+#'     glm = list(
+#'       fit = function(x, y, task, weights, ...) {
+#'         stats::glm(y ~ ., data = as.data.frame(x),
+#'                    family = stats::binomial(), weights = weights)
+#'       },
+#'       predict = function(object, newdata, task, ...) {
+#'         as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+#'                                   type = "response"))
+#'       }
+#'     )
+#'   )
+#'   fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                       learner = "glm", custom_learners = custom,
+#'                       metrics = "auc", refit = FALSE, seed = 1)
+#'   plot_confounder_sensitivity(fit, confounders = "batch", coldata = df)
+#' }
 #' }
 #' @export
 plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
@@ -559,6 +689,6 @@ plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
                   subtitle = sprintf("%s (better is %s)", df_plot$metric[1], direction),
                   x = NULL, y = "Metric value") +
     ggplot2::theme_minimal()
-  print(p)
+  if (interactive()) print(p)
   invisible(list(data = df, plot = p))
 }
