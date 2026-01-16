@@ -12,8 +12,10 @@
 #' @return Integer vector of permuted indices of the same length as `idx`.
 #'
 #' @examples
+#' \dontrun{
 #' set.seed(1)
 #' .circular_block_permute(1:10, block_len = 3)
+#' }
 #' @keywords internal
 .circular_block_permute <- function(idx, block_len) {
   stopifnot(length(idx) > 0L, is.numeric(block_len), block_len > 0L)
@@ -49,8 +51,10 @@
 #' *The stationary bootstrap.* Journal of the American Statistical Association, 89(428), 1303-1313.
 #'
 #' @examples
+#' \dontrun{
 #' set.seed(1)
 #' .stationary_bootstrap(1:10, mean_block = 3)
+#' }
 #' @keywords internal
 .stationary_bootstrap <- function(idx, mean_block) {
   stopifnot(length(idx) > 0L, is.numeric(mean_block), mean_block > 0)
