@@ -6,3 +6,4 @@
 ^example\.R$
 ^doc$
 ^Meta$
+^\.claude$

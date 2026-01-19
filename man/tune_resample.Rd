@@ -86,7 +86,9 @@ Supported names are `group`, `batch`, `study`, and `time`.}
 \value{
 A list of class `"LeakTune"` with components:
   \item{metrics}{Outer-fold metrics.}
-  \item{metric_summary}{Mean/SD metrics across outer folds.}
+  \item{metric_summary}{Mean/SD metrics across outer folds with columns
+    \code{learner}, and \code{<metric>_mean} and \code{<metric>_sd} for
+    each metric.}
   \item{best_params}{Best hyperparameters per outer fold.}
   \item{inner_results}{List of inner tuning results.}
   \item{outer_fits}{List of outer LeakFit objects.}

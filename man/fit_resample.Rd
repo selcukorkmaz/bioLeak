@@ -88,7 +88,8 @@ A \code{\linkS4class{LeakFit}} S4 object containing:
       metrics with columns \code{fold}, \code{learner}, and one column per
       requested metric.}
     \item{\code{metric_summary}}{Data.frame summarizing metrics across folds
-      (mean and standard deviation) for each learner.}
+      for each learner with columns \code{learner}, and \code{<metric>_mean}
+      and \code{<metric>_sd} for each requested metric.}
     \item{\code{audit}}{Data.frame with per-fold audit information including
       \code{fold}, \code{n_train}, \code{n_test}, \code{learner}, and
       \code{features_final} (number of features after preprocessing).}

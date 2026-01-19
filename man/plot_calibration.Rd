@@ -25,7 +25,33 @@ bins to diagnose calibration (binomial tasks only). Requires ggplot2.
 }
 \examples{
 \donttest{
-# fit <- fit_resample(...)
-plot_calibration(fit, bins = 10)
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  set.seed(42)
+  df <- data.frame(
+    subject = rep(1:15, each = 2),
+    outcome = factor(rep(c(0, 1), 15)),
+    x1 = rnorm(30),
+    x2 = rnorm(30)
+  )
+  splits <- make_split_plan(df, outcome = "outcome",
+                            mode = "subject_grouped", group = "subject",
+                            v = 3, progress = FALSE)
+  custom <- list(
+    glm = list(
+      fit = function(x, y, task, weights, ...) {
+        stats::glm(y ~ ., data = as.data.frame(x),
+                   family = stats::binomial(), weights = weights)
+      },
+      predict = function(object, newdata, task, ...) {
+        as.numeric(stats::predict(object, newdata = as.data.frame(newdata),
+                                  type = "response"))
+      }
+    )
+  )
+  fit <- fit_resample(df, outcome = "outcome", splits = splits,
+                      learner = "glm", custom_learners = custom,
+                      metrics = "auc", refit = FALSE, seed = 1)
+  plot_calibration(fit, bins = 5)
+}
 }
 }

@@ -22,7 +22,9 @@
       "Bash(then if ! grep -q \"requireNamespace\" \"$f\")",
       "Bash(! grep -q \"donttest\" \"$f\")",
       "Bash(then echo \"May need requireNamespace: $f\")",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(R -q -e:*)",
+      "Bash(R CMD build:*)"
     ]
   }
 }
