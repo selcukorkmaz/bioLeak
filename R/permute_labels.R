@@ -7,6 +7,7 @@
 #' quantiles across repeated calls in \code{audit_leakage()}.
 #'
 #' @format An environment used to cache quantile breakpoints.
+#' @return An environment (internal data object, not a function).
 #' @keywords internal
 #' @docType data
 # Cached quantile breaks for numeric stratification ------------------------

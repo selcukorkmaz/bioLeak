@@ -6,6 +6,7 @@
 #' @slot mode Splitting mode (e.g., "grouped_cv", "batch_blocked")
 #' @slot indices List of resampling descriptors (train/test indices when available)
 #' @slot info Metadata associated with split or fit
+#' @return An S4 object of the respective class.
 #' @seealso [make_split_plan()], [fit_resample()], [audit_leakage()]
 #' @rdname LeakClasses
 #' @exportClass LeakSplits

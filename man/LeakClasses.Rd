@@ -6,6 +6,9 @@
 \alias{LeakFit-class}
 \alias{LeakAudit-class}
 \title{S4 Classes for bioLeak Pipeline}
+\value{
+An S4 object of the respective class.
+}
 \description{
 These classes capture splits, model fits, and audit diagnostics produced by
 \code{make_split_plan()}, \code{fit_resample()}, and \code{audit_leakage()}.

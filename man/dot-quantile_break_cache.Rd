@@ -10,6 +10,9 @@ An environment used to cache quantile breakpoints.
 \usage{
 .quantile_break_cache
 }
+\value{
+An environment (internal data object, not a function).
+}
 \description{
 Internal environment used to cache quantile breakpoints for numeric
 outcomes during restricted permutation testing. This avoids recomputing

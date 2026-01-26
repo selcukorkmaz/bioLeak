@@ -150,20 +150,9 @@ splits <- make_split_plan(df, outcome = "outcome",
                       mode = "subject_grouped", group = "subject", v = 5)
 
 # glmnet learner (requires glmnet package)
-if (requireNamespace("glmnet", quietly = TRUE)) {
-  fit <- fit_resample(df, outcome = "outcome", splits = splits,
+fit <- fit_resample(df, outcome = "outcome", splits = splits,
                       learner = "glmnet", metrics = "auc")
-  summary(fit)
-}
-
-# Parsnip model_spec (requires parsnip and xgboost)
-if (requireNamespace("parsnip", quietly = TRUE) &&
-    requireNamespace("xgboost", quietly = TRUE)) {
-  spec <- parsnip::boost_tree(mode = "classification", trees = 200) |>
-    parsnip::set_engine("xgboost")
-  fit3 <- fit_resample(df, outcome = "outcome", splits = splits,
-                       learner = spec, metrics = "auc")
-}
+summary(fit)
 
 # Custom learner (logistic regression) - no extra packages needed
 custom <- list(
@@ -180,5 +169,7 @@ custom <- list(
 fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
                      learner = "glm", custom_learners = custom,
                      metrics = "accuracy")
+
+summary(fit2)
 }
 }
