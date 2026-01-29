@@ -748,7 +748,7 @@ library(recipes)
 library(yardstick)
 
 set.seed(123)
-N <- 100
+N <- 60
 df <- data.frame(
   subject = factor(rep(paste0("S", 1:20), length.out = N)), 
   outcome = factor(rep(c("ClassA", "ClassB"), length.out = N)),
@@ -769,7 +769,7 @@ splits <- make_split_plan(
   outcome = "outcome", 
   mode = "subject_grouped", 
   group = "subject", 
-  v = 5
+  v = 3
 )
 
 rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
@@ -841,7 +841,7 @@ library(glmnet)
 
 # --- 1. Create Data  ---
 set.seed(123)
-N <- 100
+N <- 60
 df <- data.frame(
   subject = factor(rep(paste0("S", 1:20), length.out = N)), 
   # FIX: Use sample() to randomize outcome and avoid perfect subject-confounding
@@ -858,7 +858,7 @@ nested_splits <- make_split_plan(
   outcome = "outcome", 
   mode = "subject_grouped", 
   group = "subject", 
-  v = 5, 
+  v = 3, 
   nested = TRUE  
 )
 
@@ -882,7 +882,7 @@ tuned <- tune_resample(
   learner = spec_tune,
   preprocess = rec,
   inner_v = 2,
-  grid = 5,
+  grid = 3,
   metrics = c("auc", "accuracy"),
   seed = 14
 )
@@ -906,7 +906,7 @@ if (requireNamespace("parsnip", quietly = TRUE) &&
   # 1. Define the model spec
   xgb_spec <- parsnip::boost_tree(
     mode = "classification",
-    trees = 500,
+    trees = 100,
     tree_depth = 6,
     learn_rate = 0.01
   ) |>
@@ -1134,7 +1134,7 @@ X_ref[c(1, 5), ] <- X_ref[1, ]
 audit <- audit_leakage(
   fit_safe,
   metric = "auc",
-  B = 200,
+  B = 20,
   perm_stratify = TRUE,
   batch_cols = c("batch", "study"),
   X_ref = X_ref,
@@ -1216,7 +1216,7 @@ if (requireNamespace("ranger", quietly = TRUE) &&
     # Random Forest
     spec_rf <- parsnip::rand_forest(
         mode = "classification",
-        trees = 500
+        trees = 100
     ) |>
         parsnip::set_engine("ranger")
     
@@ -1230,7 +1230,7 @@ if (requireNamespace("ranger", quietly = TRUE) &&
     )
     
     # 3. Run the audit
-    audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 100)
+    audits <- audit_leakage_by_learner(fit_multi, metric = "auc", B = 20)
     cat("Per-learner audit summary:\n")
     print(audits)
     
@@ -1328,9 +1328,9 @@ summary(fit_time_safe)
 audit_time <- audit_leakage(
   fit_time_safe,
   metric = "auc",
-  B = 200,
+  B = 20,
   time_block = "stationary",
-  block_len = 10
+  block_len = 5
 )
 
 cat("Time-series leakage audit summary:\n")
@@ -1398,13 +1398,13 @@ automatically based on outcome type (AUC for binary classification).
 ```{r simulate-suite}
 if (requireNamespace("glmnet", quietly = TRUE)) {
   sim <- simulate_leakage_suite(
-    n = 200,
-    p = 10,
+    n = 80,
+    p = 6,
     mode = "subject_grouped",
     learner = "glmnet",
     leakage = "subject_overlap",
-    seeds = 1:3,
-    B = 200,
+    seeds = 1:2,
+    B = 20,
     parallel = FALSE,
     signal_strength = 1
   )
