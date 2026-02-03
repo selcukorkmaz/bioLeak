@@ -67,7 +67,6 @@ If predictions do not include learner IDs, only a single audit can be run and
 requesting multiple learners is an error.
 }
 \examples{
-\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),
@@ -98,5 +97,5 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 audits <- audit_leakage_by_learner(fit, metric = "auc", B = 10,
                                    perm_stratify = FALSE)
 names(audits)
-}
+
 }

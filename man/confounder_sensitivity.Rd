@@ -42,7 +42,6 @@ Computes performance metrics within confounder strata to surface potential
 confounding. Requires aligned metadata in `coldata`.
 }
 \examples{
-\donttest{
 set.seed(42)
 df <- data.frame(
   subject = rep(1:15, each = 2),
@@ -70,5 +69,5 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     learner = "glm", custom_learners = custom,
                     metrics = "auc", refit = FALSE, seed = 1)
 confounder_sensitivity(fit, confounders = "batch", coldata = df)
-}
+
 }

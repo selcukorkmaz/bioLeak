@@ -766,7 +766,6 @@
 #' for near-duplicate samples. Only duplicates present in `X_ref` can be
 #' detected, and checks are skipped if inputs cannot be aligned to splits.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -800,7 +799,6 @@
 #' audit <- audit_leakage(fit, metric = "auc", B = 10,
 #'                        X_ref = df[, c("x1", "x2")])
 #'
-#' }
 #' @export
 audit_leakage <- function(fit,
                           metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),
@@ -2175,7 +2173,6 @@ audit_leakage <- function(fit,
 #'   or \code{$learner_id}. Each audit reflects the performance and diagnostics
 #'   for that specific learner's predictions.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -2206,7 +2203,7 @@ audit_leakage <- function(fit,
 #' audits <- audit_leakage_by_learner(fit, metric = "auc", B = 10,
 #'                                    perm_stratify = FALSE)
 #' names(audits)
-#' }
+#'
 #' @export
 audit_leakage_by_learner <- function(fit,
                                      metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),

@@ -19,12 +19,6 @@ Implements the stationary bootstrap of Politis & Romano (1994),
 which resamples contiguous blocks of variable length to preserve
 weak temporal dependence while maintaining ergodicity.
 }
-\examples{
-\dontrun{
-set.seed(1)
-.stationary_bootstrap(1:10, mean_block = 3)
-}
-}
 \references{
 Politis, D. N., & Romano, J. P. (1994).
 *The stationary bootstrap.* Journal of the American Statistical Association, 89(428), 1303-1313.

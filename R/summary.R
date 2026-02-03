@@ -37,7 +37,6 @@
 #'   arguments are ignored.
 #' @return Invisibly returns `object` after printing the summary.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -65,7 +64,7 @@
 #' audit <- audit_leakage(fit, metric = "auc", B = 5,
 #'                        X_ref = df[, c("x1", "x2")], seed = 1)
 #' summary(audit) # prints the audit report and returns `audit` invisibly
-#' }
+#'
 #' @export
 summary.LeakAudit <- function(object, digits = 3, ...) {
   if (!inherits(object, "LeakAudit"))
@@ -277,7 +276,6 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 #'   metric means and standard deviations computed across folds. This function
 #'   does not recompute metrics.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -312,7 +310,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 #'                     metrics = "auc", seed = 1)
 #' summary_df <- summary(fit)
 #' summary_df
-#' }
+#'
 #' @export
 summary.LeakFit <- function(object, digits = 3, ...) {
   if (!inherits(object, "LeakFit"))

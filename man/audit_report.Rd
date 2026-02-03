@@ -86,7 +86,6 @@ small `B` or incomplete metadata. Rendering requires the
 `rmarkdown` package and `ggplot2` for plots.
 }
 \examples{
-\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),
@@ -123,6 +122,5 @@ if (requireNamespace("rmarkdown", quietly = TRUE) &&
     requireNamespace("ggplot2", quietly = TRUE)) {
   out_file <- audit_report(audit, output_dir = tempdir(), quiet = TRUE)
   out_file
-}
 }
 }

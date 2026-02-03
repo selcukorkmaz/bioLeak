@@ -62,7 +62,6 @@
 #'   findings. The path can be used with \code{\link[utils]{browseURL}} to open
 #'   the report programmatically.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -99,7 +98,6 @@
 #'     requireNamespace("ggplot2", quietly = TRUE)) {
 #'   out_file <- audit_report(audit, output_dir = tempdir(), quiet = TRUE)
 #'   out_file
-#' }
 #' }
 #' @export
 audit_report <- function(audit,

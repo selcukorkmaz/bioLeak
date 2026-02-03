@@ -24,7 +24,6 @@ Visualizes observed outcome rates versus predicted probabilities across
 bins to diagnose calibration (binomial tasks only). Requires ggplot2.
 }
 \examples{
-\donttest{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   set.seed(42)
   df <- data.frame(
@@ -53,5 +52,5 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
                       metrics = "auc", refit = FALSE, seed = 1)
   plot_calibration(fit, bins = 5)
 }
-}
+
 }

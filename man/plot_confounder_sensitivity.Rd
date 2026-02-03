@@ -38,7 +38,6 @@ Shows performance metrics across confounder strata to assess sensitivity to
 batch/study effects. Requires ggplot2.
 }
 \examples{
-\donttest{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   set.seed(42)
   df <- data.frame(
@@ -68,5 +67,5 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
                       metrics = "auc", refit = FALSE, seed = 1)
   plot_confounder_sensitivity(fit, confounders = "batch", coldata = df)
 }
-}
+
 }

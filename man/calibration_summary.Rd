@@ -26,7 +26,6 @@ Computes reliability curve summaries and calibration metrics for a
 binomial [LeakFit] using out-of-fold predictions.
 }
 \examples{
-\donttest{
 set.seed(42)
 df <- data.frame(
   subject = rep(1:15, each = 2),
@@ -54,5 +53,5 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     metrics = "auc", refit = FALSE, seed = 1)
 cal <- calibration_summary(fit, bins = 5)
 cal$metrics
-}
+
 }

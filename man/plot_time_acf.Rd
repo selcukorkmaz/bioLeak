@@ -21,7 +21,6 @@ the split time column before computing the ACF. Requires numeric predictions
 (regression or survival). Requires ggplot2.
 }
 \examples{
-\donttest{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   set.seed(42)
   df <- data.frame(
@@ -48,5 +47,5 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
                       metrics = "rmse", refit = FALSE, seed = 1)
   plot_time_acf(fit, lag.max = 10)
 }
-}
+
 }

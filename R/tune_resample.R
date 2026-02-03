@@ -59,7 +59,6 @@
 #'   \item{outer_fits}{List of outer LeakFit objects.}
 #'   \item{info}{Metadata about the tuning run.}
 #' @examples
-#' \donttest{
 #' if (requireNamespace("tune", quietly = TRUE) &&
 #'     requireNamespace("recipes", quietly = TRUE) &&
 #'     requireNamespace("glmnet", quietly = TRUE) &&
@@ -83,7 +82,7 @@
 #'                          learner = spec, preprocess = rec, grid = 5)
 #'   tuned$metric_summary
 #' }
-#' }
+#'
 #' @export
 tune_resample <- function(x, outcome, splits,
                           learner,

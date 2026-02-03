@@ -18,7 +18,6 @@ Visualizes the label-permutation metric distribution and marks the observed
 and permuted-mean values to help assess leakage signals. Requires ggplot2.
 }
 \examples{
-\donttest{
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   set.seed(42)
   df <- data.frame(
@@ -48,5 +47,5 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
   audit <- audit_leakage(fit, metric = "auc", B = 20)
   plot_perm_distribution(audit)
 }
-}
+
 }

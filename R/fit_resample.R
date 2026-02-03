@@ -95,7 +95,6 @@
 #' probability predictions for binomial metrics (AUC/PR-AUC/accuracy) and
 #' multiclass log-loss when requested.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:10, each = 2),
@@ -128,7 +127,6 @@
 #'                      metrics = "accuracy")
 #'
 #' summary(fit2)
-#' }
 #' @export
 fit_resample <- function(x, outcome, splits,
                          preprocess = list(

@@ -48,7 +48,6 @@ Sections are reported as "not available" when the corresponding audit
 component was not computed.
 }
 \examples{
-\donttest{
 set.seed(1)
 df <- data.frame(
   subject = rep(1:6, each = 2),
@@ -76,7 +75,7 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 audit <- audit_leakage(fit, metric = "auc", B = 5,
                        X_ref = df[, c("x1", "x2")], seed = 1)
 summary(audit) # prints the audit report and returns `audit` invisibly
-}
+
 }
 \seealso{
 [plot_perm_distribution()], [plot_fold_balance()], [plot_overlap_checks()]

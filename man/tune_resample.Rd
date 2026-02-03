@@ -102,7 +102,6 @@ packages and a workflow or recipe-based preprocessing. Survival tasks are
 not yet supported.
 }
 \examples{
-\donttest{
 if (requireNamespace("tune", quietly = TRUE) &&
     requireNamespace("recipes", quietly = TRUE) &&
     requireNamespace("glmnet", quietly = TRUE) &&
@@ -126,5 +125,5 @@ if (requireNamespace("tune", quietly = TRUE) &&
                          learner = spec, preprocess = rec, grid = 5)
   tuned$metric_summary
 }
-}
+
 }

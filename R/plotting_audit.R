@@ -9,7 +9,6 @@
 #' @return A list containing the observed value, permuted mean, permutation values,
 #'   and a ggplot object.
 #' @examples
-#' \donttest{
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(42)
 #'   df <- data.frame(
@@ -39,7 +38,7 @@
 #'   audit <- audit_leakage(fit, metric = "auc", B = 20)
 #'   plot_perm_distribution(audit)
 #' }
-#' }
+#'
 #' @export
 plot_perm_distribution <- function(audit) {
   stopifnot(inherits(audit, "LeakAudit"))
@@ -98,7 +97,6 @@ plot_perm_distribution <- function(audit) {
 #' @return A list containing the fold summary, positive class (if binomial),
 #'   and a ggplot object.
 #' @examples
-#' \donttest{
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(42)
 #'   df <- data.frame(
@@ -127,7 +125,7 @@ plot_perm_distribution <- function(audit) {
 #'                       metrics = "auc", refit = FALSE, seed = 1)
 #'   plot_fold_balance(fit)
 #' }
-#' }
+#'
 #' @export
 plot_fold_balance <- function(fit) {
   stopifnot(inherits(fit, "LeakFit"))
@@ -317,7 +315,6 @@ plot_fold_balance <- function(fit) {
 #'   The plot is also printed. When any overlap is detected, the plot adds a
 #'   warning annotation.
 #' @examples
-#' \donttest{
 #' set.seed(1)
 #' df <- data.frame(
 #'   subject = rep(1:6, each = 2),
@@ -346,7 +343,7 @@ plot_fold_balance <- function(fit) {
 #'   out <- plot_overlap_checks(fit, column = "subject")
 #'   out$overlap_counts
 #' }
-#' }
+#'
 #' @export
 plot_overlap_checks <- function(fit, column = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
@@ -421,7 +418,6 @@ plot_overlap_checks <- function(fit, column = NULL) {
 #' @param lag.max maximum lag to show.
 #' @return A list with the autocorrelation results, \code{lag.max}, and a ggplot object.
 #' @examples
-#' \donttest{
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(42)
 #'   df <- data.frame(
@@ -448,7 +444,7 @@ plot_overlap_checks <- function(fit, column = NULL) {
 #'                       metrics = "rmse", refit = FALSE, seed = 1)
 #'   plot_time_acf(fit, lag.max = 10)
 #' }
-#' }
+#'
 #' @export
 plot_time_acf <- function(fit, lag.max = 20) {
   stopifnot(inherits(fit, "LeakFit"))
@@ -556,7 +552,6 @@ plot_time_acf <- function(fit, lag.max = 20) {
 #'   learners, selects the learner to summarize.
 #' @return A list containing the calibration curve, metrics, and a ggplot object.
 #' @examples
-#' \donttest{
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(42)
 #'   df <- data.frame(
@@ -585,7 +580,7 @@ plot_time_acf <- function(fit, lag.max = 20) {
 #'                       metrics = "auc", refit = FALSE, seed = 1)
 #'   plot_calibration(fit, bins = 5)
 #' }
-#' }
+#'
 #' @export
 plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
   stopifnot(inherits(fit, "LeakFit"))
@@ -630,7 +625,6 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #'   learners, selects the learner to summarize.
 #' @return A list containing the sensitivity table and a ggplot object.
 #' @examples
-#' \donttest{
 #' if (requireNamespace("ggplot2", quietly = TRUE)) {
 #'   set.seed(42)
 #'   df <- data.frame(
@@ -660,7 +654,7 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #'                       metrics = "auc", refit = FALSE, seed = 1)
 #'   plot_confounder_sensitivity(fit, confounders = "batch", coldata = df)
 #' }
-#' }
+#'
 #' @export
 plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
                                         min_n = 10, coldata = NULL, numeric_bins = 4,
