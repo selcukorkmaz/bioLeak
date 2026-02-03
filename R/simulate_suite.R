@@ -95,21 +95,22 @@
 #' other audit components are not included.
 #'
 #' @examples
-#' if (requireNamespace("glmnet", quietly = TRUE)) {
-#'   set.seed(1)
-#'   res <- simulate_leakage_suite(
-#'     n = 120, p = 6, prevalence = 0.4,
-#'     mode = "subject_grouped",
-#'     learner = "glmnet",
-#'     leakage = "subject_overlap",
-#'     K = 3, repeats = 1,
-#'     B = 50, seeds = 1,
-#'     parallel = FALSE
-#'   )
-#'   # One row per seed with observed AUC, permutation gap, and p-value
-#'   res
+#' \donttest{
+#'   if (requireNamespace("glmnet", quietly = TRUE)) {
+#'     set.seed(1)
+#'     res <- simulate_leakage_suite(
+#'       n = 120, p = 6, prevalence = 0.4,
+#'       mode = "subject_grouped",
+#'       learner = "glmnet",
+#'       leakage = "subject_overlap",
+#'       K = 3, repeats = 1,
+#'       B = 50, seeds = 1,
+#'       parallel = FALSE
+#'     )
+#'     # One row per seed with observed AUC, permutation gap, and p-value
+#'     res
+#'   }
 #' }
-#'
 #' @export
 simulate_leakage_suite <- function(
     n = 500, p = 20, prevalence = 0.5,
