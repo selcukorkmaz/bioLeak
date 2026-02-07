@@ -168,6 +168,10 @@ test_that("fit_resample warns when a fold lacks both classes", {
     "only one class"
   )
   expect_true(nrow(fit@metrics) > 0)
+  expect_true(is.data.frame(fit@info$fold_status))
+  expect_equal(nrow(fit@info$fold_status), length(splits@indices))
+  expect_true(any(fit@info$fold_status$status == "success"))
+  expect_true(any(fit@info$fold_status$status == "skipped"))
 })
 
 test_that("fit_resample errors for compact time_series without time metadata", {

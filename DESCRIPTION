@@ -1,7 +1,7 @@
 Package: bioLeak
 Type: Package
 Title: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person("Selcuk", "Korkmaz", role = c("aut","cre"), email = "selcukorkmaz@gmail.com",
            comment = c(ORCID = "0000-0003-4632-6850"))

@@ -73,7 +73,7 @@
 #'       preprocessing.}
 #'     \item{\code{info}}{List of additional metadata including \code{hash},
 #'       \code{metrics_used}, \code{class_weights}, \code{positive_class},
-#'       \code{sample_ids}, \code{refit}, \code{final_model} (refitted model if
+#'       \code{sample_ids}, \code{fold_status}, \code{refit}, \code{final_model} (refitted model if
 #'       \code{refit = TRUE}), \code{final_preprocess}, \code{learner_names},
 #'       and \code{perm_refit_spec} (for permutation-based audits).}
 #'   }
@@ -1195,6 +1195,7 @@ fit_resample <- function(x, outcome, splits,
 
   folds <- splits@indices
   nfold <- length(folds)
+  fold_errors <- rep(NA_character_, nfold)
 
   # progress bar --------------------------------------------------------------
   pb <- utils::txtProgressBar(min = 0, max = nfold, style = 3)
@@ -1202,6 +1203,7 @@ fit_resample <- function(x, outcome, splits,
   progress_wrap <- function(f) {
     fold_id <- f$fold_seq %||% f$fold
     res <- tryCatch(do_fold(f), error = function(e) {
+      fold_errors[[fold_id]] <<- conditionMessage(e)
       warning(sprintf("Fold %s failed: %s", fold_id, e$message)); NULL
     })
     pb_counter <<- pb_counter + 1
@@ -1233,9 +1235,12 @@ fit_resample <- function(x, outcome, splits,
   lears <- list()
   featn <- NULL
   audit_rows <- list()
+  fold_status_rows <- vector("list", length(out))
 
   for (fold_idx in seq_along(out)) {
     fold_res <- out[[fold_idx]]
+    learner_total <- length(learner_names)
+    learner_success <- 0L
     if (is.null(fold_res)) next
     fold_info <- resolve_fold_indices(folds[[fold_idx]])
     fold_id <- fold_idx
@@ -1243,7 +1248,10 @@ fit_resample <- function(x, outcome, splits,
       res <- fold_res[[ln]]
       if (is.null(res)) next
       m <- res$metrics
-      if (all(is.na(m))) next
+      if (all(is.na(m))) {
+        next
+      }
+      learner_success <- learner_success + 1L
       metric_row <- c(list(fold = fold_id, learner = ln), as.list(m))
       met_rows[[length(met_rows) + 1]] <- as.data.frame(metric_row,
                                                         row.names = NULL,
@@ -1274,7 +1282,37 @@ fit_resample <- function(x, outcome, splits,
         row.names = NULL
       )
     }
+    all_preds_empty <- length(fold_res) > 0 && all(vapply(fold_res, function(res) {
+      is.null(res$pred) || nrow(res$pred) == 0L
+    }, logical(1)))
+    fold_status_rows[[fold_idx]] <- data.frame(
+      fold = fold_idx,
+      stage = if (learner_success > 0L) "fold_run" else "fold_precheck",
+      status = if (learner_success > 0L) "success" else "skipped",
+      reason = if (learner_success > 0L) NA_character_ else if (all_preds_empty) {
+        "single_class_training"
+      } else {
+        "no_valid_metrics"
+      },
+      notes = sprintf("Successful learners: %d/%d", learner_success, learner_total),
+      stringsAsFactors = FALSE
+    )
   }
+
+  for (fold_idx in seq_along(out)) {
+    if (!is.null(fold_status_rows[[fold_idx]])) next
+    err_note <- fold_errors[[fold_idx]]
+    if (is.na(err_note)) err_note <- "Fold failed before producing any learner results."
+    fold_status_rows[[fold_idx]] <- data.frame(
+      fold = fold_idx,
+      stage = "fold_run",
+      status = "failed",
+      reason = "fold_error",
+      notes = err_note,
+      stringsAsFactors = FALSE
+    )
+  }
+  fold_status_df <- do.call(rbind, fold_status_rows)
 
   if (!length(met_rows)) {
     stop("No successful folds were completed. Check learner and preprocessing settings.")
@@ -1367,6 +1405,7 @@ fit_resample <- function(x, outcome, splits,
                   sample_ids = ids,
                   fold_seeds = setNames(seed + seq_along(folds),
                                         paste0("fold", seq_along(folds))),
+                  fold_status = fold_status_df,
                   refit = refit,
                   final_model = final_model,
                   final_preprocess = final_guard,

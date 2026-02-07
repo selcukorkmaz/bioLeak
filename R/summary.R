@@ -332,6 +332,12 @@ summary.LeakFit <- function(object, digits = 3, ...) {
   }
   cat(sprintf("Learners: %s\n", paste(unique(object@metrics$learner), collapse = ", ")))
   cat(sprintf("Total folds: %d\n", length(object@splits@indices)))
+  if (is.data.frame(info$fold_status) && nrow(info$fold_status) > 0) {
+    ok <- sum(info$fold_status$status == "success", na.rm = TRUE)
+    sk <- sum(info$fold_status$status == "skipped", na.rm = TRUE)
+    fl <- sum(info$fold_status$status == "failed", na.rm = TRUE)
+    cat(sprintf("Fold status: %d success, %d skipped, %d failed\n", ok, sk, fl))
+  }
   cat(sprintf("Refit performed: %s\n", if (isTRUE(info$refit)) "Yes" else "No"))
   cat(sprintf("Hash: %s\n\n", substr(info$hash, 1, 12)))
 
@@ -388,11 +394,17 @@ summary.LeakTune <- function(object, digits = 3, ...) {
   sym_pm <- .bio_symbol("pm")
   info <- object$info
 
-  # Retrieve outcome from the first outer fit if available
+  outer_fit_ok <- vapply(object$outer_fits, function(of) {
+    !is.null(of) && methods::is(of, "LeakFit")
+  }, logical(1))
+  successful_outer <- sum(outer_fit_ok)
+  total_outer <- length(object$outer_fits)
+
+  # Retrieve outcome from the first successful outer fit if available
   outcome_label <- "Unknown"
-  if (length(object$outer_fits) > 0) {
-    # outer_fits contains LeakFit objects (S4)
-    outcome_label <- object$outer_fits[[1]]@outcome
+  if (successful_outer > 0) {
+    first_outer <- object$outer_fits[[which(outer_fit_ok)[1]]]
+    outcome_label <- first_outer@outcome
   }
 
   cat(sprintf("Task: %s\n", info$task))
@@ -406,7 +418,14 @@ summary.LeakTune <- function(object, digits = 3, ...) {
   grid_info <- if (is.data.frame(info$grid)) paste(nrow(info$grid), "combinations") else info$grid
   cat(sprintf("Tuning Grid: %s\n", grid_info))
   cat(sprintf("Selection Rule: %s (Metric: %s)\n", info$selection, info$selection_metric))
-  cat(sprintf("Outer Folds: %d\n\n", length(object$outer_fits)))
+  if (is.data.frame(info$fold_status) && nrow(info$fold_status) > 0) {
+    ok <- sum(info$fold_status$status == "success", na.rm = TRUE)
+    sk <- sum(info$fold_status$status == "skipped", na.rm = TRUE)
+    fl <- sum(info$fold_status$status == "failed", na.rm = TRUE)
+    cat(sprintf("Fold status: %d success, %d skipped, %d failed\n", ok, sk, fl))
+  }
+  cat(sprintf("Refit performed: %s\n", if (isTRUE(info$refit) && !is.null(object$final_model)) "Yes" else "No"))
+  cat(sprintf("Outer Folds: %d successful / %d total\n\n", successful_outer, total_outer))
 
   # Metric Summary
   if (nrow(object$metric_summary) > 0) {

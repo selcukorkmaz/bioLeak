@@ -840,8 +840,11 @@ audit_leakage <- function(fit,
 
     # 1. Collect all predictions
     all_preds_list <- list()
+    first_fit <- NULL
     for (i in seq_along(fit$outer_fits)) {
       of <- fit$outer_fits[[i]]
+      if (is.null(of) || !methods::is(of, "LeakFit")) next
+      if (is.null(first_fit)) first_fit <- of
       # LeakFit predictions are lists of dataframes
       if (length(of@predictions) > 0) {
         # Combine inner predictions (usually just one DF for outer fit)
@@ -863,7 +866,9 @@ audit_leakage <- function(fit,
     }
 
     # 2. Reconstruct a minimal LeakFit for auditing
-    first_fit <- fit$outer_fits[[1]]
+    if (is.null(first_fit)) {
+      stop("LeakTune object contains no valid outer fit objects to audit.")
+    }
 
     # CRITICAL FIX 2: Safely extract feature names to satisfy S4 validation
     # (must be character, not NULL)

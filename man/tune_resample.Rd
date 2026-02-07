@@ -20,6 +20,7 @@ tune_resample(
   inner_seed = NULL,
   control = NULL,
   parallel = FALSE,
+  refit = FALSE,
   seed = 1,
   split_cols = "auto"
 )
@@ -75,6 +76,9 @@ are not precomputed. Defaults to the outer split seed.}
 \item{parallel}{Logical; passed to [fit_resample()] when evaluating outer
 folds (single-fold, no refit).}
 
+\item{refit}{Logical; if TRUE, refits a final tuned workflow on the full
+dataset using hyperparameters selected from the best-performing outer fold.}
+
 \item{seed}{Integer seed for reproducibility.}
 
 \item{split_cols}{Optional named list/character vector or `"auto"` (default)
@@ -92,6 +96,8 @@ A list of class `"LeakTune"` with components:
   \item{best_params}{Best hyperparameters per outer fold.}
   \item{inner_results}{List of inner tuning results.}
   \item{outer_fits}{List of outer LeakFit objects.}
+  \item{fold_status}{Outer-fold status log with stage, status, reason, and notes.}
+  \item{final_model}{Optional final workflow fit when `refit = TRUE`.}
   \item{info}{Metadata about the tuning run.}
 }
 \description{

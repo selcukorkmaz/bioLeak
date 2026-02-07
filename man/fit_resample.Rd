@@ -110,7 +110,7 @@ A \code{\linkS4class{LeakFit}} S4 object containing:
       preprocessing.}
     \item{\code{info}}{List of additional metadata including \code{hash},
       \code{metrics_used}, \code{class_weights}, \code{positive_class},
-      \code{sample_ids}, \code{refit}, \code{final_model} (refitted model if
+      \code{sample_ids}, \code{fold_status}, \code{refit}, \code{final_model} (refitted model if
       \code{refit = TRUE}), \code{final_preprocess}, \code{learner_names},
       and \code{perm_refit_spec} (for permutation-based audits).}
   }

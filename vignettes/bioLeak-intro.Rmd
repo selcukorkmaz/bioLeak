@@ -457,6 +457,7 @@ model fitting. It supports:
 - `rsample` resamples (`rset`/`rsplit`) via `splits`, with `split_cols` to map metadata
 - custom learners via `custom_learners` (legacy/advanced)
 - multiple metrics, class weights, positive class override, and yardstick metrics
+- fold-level run diagnostics in `fit@info$fold_status` (`success`/`skipped`/`failed`)
 
 Assumptions and misuse to avoid:
 
@@ -571,6 +572,7 @@ head(fit_safe@metrics)
 compact report and inspect `fit_safe@metrics` and `fit_safe@predictions` for
 details. When `refit = TRUE`, the final model and preprocessing state are stored
 in `fit_safe@info$final_model` and `fit_safe@info$final_preprocess`.
+Fold-level status diagnostics are available in `fit_safe@info$fold_status`.
 
 The mean +/- SD table is the primary performance summary to report, while the
 per-fold metrics reveal variability and potential instability across folds.
@@ -580,6 +582,25 @@ to enable `audit_leakage(perm_refit = "auto")`. Set `store_refit_data = FALSE`
 to reduce memory and provide `perm_refit_spec` manually when you want refit-based
 permutations. When multiple learners are passed, `refit = TRUE` refits only the
 first learner; set `refit = FALSE` if you do not need a final model.
+
+```{r fit-fold-status}
+# Fold-level diagnostics for reproducible troubleshooting
+head(fit_safe@info$fold_status, 5)
+```
+
+Interpretation of `fold_status`:
+
+- `status = "success"` means at least one learner produced valid metrics on that fold.
+- `status = "skipped"` typically means a data-structure issue in that fold (for example, single-class training data in classification).
+- `status = "failed"` indicates a runtime failure (for example, model fitting or preprocessing error).
+
+Use `reason` and `notes` to decide whether to:
+
+- adjust split design (for example, stronger grouping, stratification, or fewer folds),
+- adjust preprocessing/model complexity,
+- or exclude unstable configurations before formal comparison.
+
+If many folds are skipped/failed, do **not** trust aggregate metric means until the instability is resolved.
 
 The examples above use a parsnip model specification. To swap in other models,
 replace `spec` with another parsnip spec (see the gradient boosting example
@@ -832,6 +853,12 @@ outer splits that include inner folds (use `nested = TRUE` in
 not yet supported. Use `inner_v`, `inner_repeats`, and `inner_seed` to control
 inner resampling when inner folds are not precomputed.
 
+New in v0.2.0:
+
+- deterministic `selection = "one_std_err"` with an explicit simplicity tie-break
+- fold-level tuning diagnostics in `tuned$fold_status`
+- optional final refit on full data via `refit = TRUE`
+
 ```{r tune-example}
 library(bioLeak)
 library(parsnip)
@@ -884,11 +911,28 @@ tuned <- tune_resample(
   inner_v = 2,
   grid = 3,
   metrics = c("auc", "accuracy"),
+  selection = "one_std_err",
+  refit = TRUE,
   seed = 14
 )
   
 summary(tuned)
 ```
+
+```{r tune-diagnostics}
+# Fold-level status from the outer loop
+head(tuned$fold_status, 5)
+
+# Final tuned model is available when refit = TRUE
+is.null(tuned$final_model)
+```
+
+How to interpret this tuning output:
+
+- `selection = "one_std_err"` chooses a model within one standard error of the best inner-CV score, then applies a deterministic simplicity tie-break. This usually favors more regularized/simpler models with similar expected performance.
+- `tuned$metrics` and `tuned$metric_summary` remain the primary unbiased performance estimates (outer folds only).
+- `tuned$final_model` is the deployable model fit on full data using the selected hyperparameters; it is for downstream prediction, not for estimating generalization.
+- `tuned$fold_status` should be reviewed before reporting results. A large number of skipped/failed folds indicates unstable tuning and should trigger split/parameter redesign.
 
 
 ### Advanced: Using Gradient Boosting with Parsnip
