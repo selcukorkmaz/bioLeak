@@ -120,10 +120,26 @@ audit_report <- function(audit,
     stop("Report template not found. Reinstall bioLeak.", call. = FALSE)
   }
 
+  # Render from a temporary copy to avoid writing intermediates into the
+  # installed package directory, which may be read-only during checks.
+  render_dir <- tempfile("bioLeak-audit-report-")
+  ok_dir <- dir.create(render_dir, recursive = TRUE, showWarnings = FALSE)
+  if (!isTRUE(ok_dir)) {
+    stop("Failed to create temporary report directory.", call. = FALSE)
+  }
+  on.exit(unlink(render_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  render_input <- file.path(render_dir, basename(template))
+  ok_copy <- file.copy(template, render_input, overwrite = TRUE)
+  if (!isTRUE(ok_copy)) {
+    stop("Failed to prepare report template in temporary directory.", call. = FALSE)
+  }
+
   out <- rmarkdown::render(
-    input = template,
+    input = render_input,
     output_file = output_file,
     output_dir = output_dir,
+    intermediates_dir = render_dir,
     params = list(audit = audit),
     quiet = quiet,
     envir = new.env(parent = globalenv())

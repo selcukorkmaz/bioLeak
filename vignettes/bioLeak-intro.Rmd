@@ -847,84 +847,92 @@ respect the intended split design.
 
 ### Nested tuning with `tune_resample()`
 
-`tune_resample()` runs leakage-aware nested tuning with tidymodels. It expects
-outer splits that include inner folds (use `nested = TRUE` in
-`make_split_plan()`), and a parsnip model spec or workflow. Survival tasks are
-not yet supported. Use `inner_v`, `inner_repeats`, and `inner_seed` to control
-inner resampling when inner folds are not precomputed.
+`tune_resample()` runs leakage-aware nested tuning with tidymodels. It accepts a
+parsnip model specification or workflow, and supports two inner-CV modes:
 
-New in v0.2.0:
+- precomputed inner folds (for example from `make_split_plan(..., nested = TRUE)`)
+- on-the-fly inner split generation for `LeakSplits` using `inner_v`,
+  `inner_repeats`, and `inner_seed`
+
+For rsample inputs, inner folds must already be present. Survival tasks are not
+yet supported.
+
+New in the development version (planned for v0.2.0):
 
 - deterministic `selection = "one_std_err"` with an explicit simplicity tie-break
 - fold-level tuning diagnostics in `tuned$fold_status`
 - optional final refit on full data via `refit = TRUE`
 
 ```{r tune-example}
-library(bioLeak)
-library(parsnip)
-library(recipes)
-library(tune)
-library(glmnet)
+if (requireNamespace("parsnip", quietly = TRUE) &&
+    requireNamespace("recipes", quietly = TRUE) &&
+    requireNamespace("tune", quietly = TRUE) &&
+    requireNamespace("glmnet", quietly = TRUE)) {
+  # --- 1. Create Data ---
+  set.seed(123)
+  N <- 60
+  df <- data.frame(
+    subject = factor(rep(paste0("S", 1:20), length.out = N)),
+    outcome = factor(sample(c("ClassA", "ClassB"), N, replace = TRUE)),
+    x1 = rnorm(N),
+    x2 = rnorm(N),
+    x3 = rnorm(N)
+  )
 
-# --- 1. Create Data  ---
-set.seed(123)
-N <- 60
-df <- data.frame(
-  subject = factor(rep(paste0("S", 1:20), length.out = N)), 
-  # FIX: Use sample() to randomize outcome and avoid perfect subject-confounding
-  outcome = factor(sample(c("ClassA", "ClassB"), N, replace = TRUE)),
-  x1 = rnorm(N),
-  x2 = rnorm(N),
-  x3 = rnorm(N)
-)
+  # --- 2. Generate Nested Splits ---
+  set.seed(1)
+  nested_splits <- make_split_plan(
+    df,
+    outcome = "outcome",
+    mode = "subject_grouped",
+    group = "subject",
+    v = 3,
+    nested = TRUE
+  )
 
-# --- 2. Generate Nested Splits ---
-set.seed(1)
-nested_splits <- make_split_plan(
-  df, 
-  outcome = "outcome", 
-  mode = "subject_grouped", 
-  group = "subject", 
-  v = 3, 
-  nested = TRUE  
-)
+  # --- 3. Define Recipe & Model ---
+  rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
+    recipes::step_impute_median(recipes::all_numeric_predictors()) |>
+    recipes::step_normalize(recipes::all_numeric_predictors())
 
-# --- 3. Define Recipe & Model ---
-rec <- recipes::recipe(outcome ~ x1 + x2 + x3, data = df) |>
-  recipes::step_impute_median(recipes::all_numeric_predictors()) |>
-  recipes::step_normalize(recipes::all_numeric_predictors())
+  spec_tune <- parsnip::logistic_reg(
+    penalty = tune::tune(),
+    mixture = 1,
+    mode = "classification"
+  ) |>
+    parsnip::set_engine("glmnet")
 
-spec_tune <- parsnip::logistic_reg(
-  penalty = tune::tune(),
-  mixture = 1,
-  mode = "classification"
-) |>
-  parsnip::set_engine("glmnet")
+  # --- 4. Run Tuning ---
+  tuned <- tune_resample(
+    df,
+    outcome = "outcome",
+    splits = nested_splits,
+    learner = spec_tune,
+    preprocess = rec,
+    inner_v = 2,
+    grid = 3,
+    metrics = c("auc", "accuracy"),
+    selection = "one_std_err",
+    refit = TRUE,
+    seed = 14
+  )
 
-# --- 4. Run Tuning ---
-tuned <- tune_resample(
-  df,
-  outcome = "outcome",
-  splits = nested_splits,
-  learner = spec_tune,
-  preprocess = rec,
-  inner_v = 2,
-  grid = 3,
-  metrics = c("auc", "accuracy"),
-  selection = "one_std_err",
-  refit = TRUE,
-  seed = 14
-)
-  
-summary(tuned)
+  summary(tuned)
+} else {
+  cat("parsnip/recipes/tune/glmnet not installed; skipping nested tuning example.\n")
+}
 ```
 
 ```{r tune-diagnostics}
-# Fold-level status from the outer loop
-head(tuned$fold_status, 5)
+if (exists("tuned")) {
+  # Fold-level status from the outer loop
+  head(tuned$fold_status, 5)
 
-# Final tuned model is available when refit = TRUE
-is.null(tuned$final_model)
+  # Final tuned model is available when refit = TRUE
+  is.null(tuned$final_model)
+} else {
+  cat("Nested tuning object not available (dependencies missing).\n")
+}
 ```
 
 How to interpret this tuning output:
@@ -956,9 +964,8 @@ if (requireNamespace("parsnip", quietly = TRUE) &&
   ) |>
     parsnip::set_engine("xgboost")
   
-  # 2. Define a Recipe (CORRECTED)
-  # FIX: Define the recipe on data WITHOUT 'subject'.
-  # This matches the data bioLeak passes (which has subject removed).
+  # 2. Define a recipe on data without 'subject' because split metadata
+  # columns are excluded from predictors by fit_resample().
   df_for_rec <- df[, !names(df) %in% "subject"]
   
   rec_xgb <- recipes::recipe(outcome ~ ., data = df_for_rec) |>
@@ -1264,11 +1271,11 @@ if (requireNamespace("ranger", quietly = TRUE) &&
     ) |>
         parsnip::set_engine("ranger")
     
-    # 2. Fit with CORRECT splits
+    # 2. Fit using the current split object
     fit_multi <- fit_resample(
         df,
         outcome = "outcome",
-        splits = nested_splits,  # <--- FIX: Use the valid split object
+        splits = nested_splits,
         learner = list(glm = spec_glm, rf = spec_rf),
         metrics = "auc"
     )
@@ -1476,11 +1483,14 @@ bioLeak uses S4 classes and list-like results to capture provenance and diagnost
 
 - `LeakSplits`: returned by `make_split_plan()`, printed with `show()`
 - `LeakFit`: returned by `fit_resample()`, summarized with `summary()`
+  includes fold diagnostics in `fit@info$fold_status`
 - `LeakAudit`: returned by `audit_leakage()`, summarized with `summary()`
 - `LeakAuditList`: returned by `audit_leakage_by_learner()`, printed directly
 - `GuardFit`: returned by `.guard_fit()`, printed and summarized
 - `LeakImpute`: returned by `impute_guarded()` (guarded data + diagnostics)
 - `LeakTune`: returned by `tune_resample()` (nested tuning summaries)
+  includes `fold_status`, selected parameters, and optional `final_model` /
+  `final_workflow` when `refit = TRUE`
 - `LeakSimResults`: returned by `simulate_leakage_suite()` (per-seed results)
 
 These objects store hashes and metadata that help reproduce and audit the

@@ -1,10 +1,27 @@
+# Internal helper shared by explicit and compact time-series split builders.
+.bio_time_series_train_indices <- function(time_vec, test_idx, candidate_idx = seq_along(time_vec),
+                                           horizon = 0, purge = 0, embargo = 0) {
+  if (!length(test_idx)) return(integer(0))
+  tmin <- min(time_vec[test_idx])
+  train <- if (horizon == 0 && purge == 0) {
+    candidate_idx[time_vec[candidate_idx] < tmin]
+  } else {
+    candidate_idx[time_vec[candidate_idx] <= (tmin - horizon - purge)]
+  }
+  if (embargo > 0 && length(train)) {
+    tmax <- max(time_vec[test_idx])
+    train <- train[time_vec[train] <= (tmax - embargo)]
+  }
+  train
+}
+
 #' Create leakage-resistant splits
 #'
 #' @description
 #' Generates leakage-safe cross-validation splits for common biomedical setups:
 #' subject-grouped, batch-blocked, study leave-one-out, and time-series
 #' rolling-origin. Supports repeats, optional stratification, nested inner CV,
-#' and an optional prediction horizon for time series. Note that splits store
+#' and optional prediction horizon/purge/embargo gaps for time series. Note that splits store
 #' explicit indices, which can be memory-intensive for large \code{n} and many
 #' repeats.
 #'
@@ -30,6 +47,11 @@
 #' @param horizon numeric (>=0), minimal time gap for time_series so that the
 #'   training set only contains samples with time < min(test_time) when horizon = 0,
 #'   and time <= min(test_time) - horizon otherwise.
+#' @param purge numeric (>=0), additional gap removed immediately before each
+#'   time-series test block.
+#' @param embargo numeric (>=0), additional exclusion window anchored at the end
+#'   of each time-series test block. Training rows with
+#'   \code{time > max(test_time) - embargo} are removed.
 #' @param progress logical, print progress for large jobs.
 #' @param compact logical; store fold assignments instead of explicit train/test
 #'   indices to reduce memory usage for large datasets. Not supported when
@@ -50,7 +72,8 @@
 #'     \item{\code{info}}{List of metadata including \code{outcome}, \code{v},
 #'       \code{repeats}, \code{seed}, grouping columns (\code{group},
 #'       \code{batch}, \code{study}, \code{time}), \code{stratify},
-#'       \code{nested}, \code{horizon}, \code{summary} (data.frame of fold
+#'       \code{nested}, \code{horizon}, \code{purge}, \code{embargo},
+#'       \code{summary} (data.frame of fold
 #'       sizes), \code{hash} (reproducibility checksum), \code{inner}
 #'       (nested inner splits if \code{nested = TRUE}), and \code{coldata}
 #'       (sample metadata).}
@@ -72,14 +95,22 @@ make_split_plan <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
                         group = NULL, batch = NULL, study = NULL, time = NULL,
                         v = 5, repeats = 1, stratify = FALSE, nested = FALSE,
-                        seed = 1, horizon = 0, progress = TRUE, compact = FALSE,
+                        seed = 1, horizon = 0, purge = 0, embargo = 0,
+                        progress = TRUE, compact = FALSE,
                         strict = TRUE) {
 
   mode <- match.arg(mode)
   stopifnot(is.numeric(v), v >= 2 || mode == "study_loocv")
   stopifnot(is.numeric(repeats), repeats >= 1)
   stopifnot(is.numeric(horizon), horizon >= 0)
+  stopifnot(is.numeric(purge), purge >= 0)
+  stopifnot(is.numeric(embargo), embargo >= 0)
   set.seed(seed)
+
+  if (!identical(mode, "time_series") && (purge > 0 || embargo > 0)) {
+    warning("purge and embargo are only used when mode = 'time_series'; ignoring both.",
+            call. = FALSE)
+  }
 
   if (isTRUE(compact) && isTRUE(nested)) {
     warning("compact=TRUE is not supported with nested=TRUE; using compact=FALSE.", call. = FALSE)
@@ -339,12 +370,14 @@ make_split_plan <- function(x, outcome = NULL,
     for (k in seq_len(v)) {
       test <- blocks[[k]]
       if (!length(test)) next
-      tmin <- min(tt[test])
-      if (horizon == 0) {
-        train <- Xidx[tt[Xidx] < tmin]
-      } else {
-        train <- Xidx[tt[Xidx] <= (tmin - horizon)]
-      }
+      train <- .bio_time_series_train_indices(
+        time_vec = tt,
+        test_idx = test,
+        candidate_idx = Xidx,
+        horizon = horizon,
+        purge = purge,
+        embargo = embargo
+      )
       if (length(train) < 1L) next
       if (length(test) < 3L) next
       if (isTRUE(compact)) {
@@ -375,7 +408,8 @@ make_split_plan <- function(x, outcome = NULL,
         x_inner, outcome = outcome, mode = mode, group = group,
         batch = batch, study = study, time = time, v = v,
         repeats = 1, stratify = stratify, nested = FALSE,
-        seed = seed + 1L, horizon = horizon, progress = FALSE
+        seed = seed + 1L, horizon = horizon, purge = purge, embargo = embargo,
+        progress = FALSE
       )
       inner_indices[[i]] <- inner@indices
     }
@@ -407,7 +441,8 @@ make_split_plan <- function(x, outcome = NULL,
     if (requireNamespace("digest", quietly = TRUE)) {
       digest::digest(list(
         mode = mode, n = n, v = v, repeats = repeats, stratify = stratify,
-        seed = seed, horizon = horizon, group = group, batch = batch,
+        seed = seed, horizon = horizon, purge = purge, embargo = embargo,
+        group = group, batch = batch,
         study = study, time = time, indices_hash = indices_hash
       ))
     } else {
@@ -419,6 +454,7 @@ make_split_plan <- function(x, outcome = NULL,
     outcome = outcome, v = v, repeats = repeats, seed = seed, mode = mode,
     group = group, batch = batch, study = study, time = time,
     stratify = stratify, nested = nested, horizon = horizon,
+    purge = purge, embargo = embargo,
     summary = split_summary, hash = hash_val, inner = inner_indices,
     compact = compact, fold_assignments = fold_assignments,
     coldata = cd

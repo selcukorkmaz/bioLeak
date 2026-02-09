@@ -16,6 +16,7 @@ fit_resample(
   metrics = c("auc", "pr_auc", "accuracy"),
   class_weights = NULL,
   positive_class = NULL,
+  classification_threshold = 0.5,
   parallel = FALSE,
   refit = TRUE,
   seed = 1,
@@ -64,6 +65,10 @@ multiclass outcomes}
 When set, the outcome levels are reordered so that \code{positive_class} is treated
 as the positive class (level 2). If NULL, the second factor level is used.}
 
+\item{classification_threshold}{Numeric threshold in \code{[0, 1]} used to
+convert binomial probabilities into class predictions for
+\code{pred_class} and accuracy metrics. Ignored for non-binomial tasks.}
+
 \item{parallel}{logical, use future.apply for multicore execution}
 
 \item{refit}{logical, if TRUE retrain final model on full data}
@@ -110,6 +115,7 @@ A \code{\linkS4class{LeakFit}} S4 object containing:
       preprocessing.}
     \item{\code{info}}{List of additional metadata including \code{hash},
       \code{metrics_used}, \code{class_weights}, \code{positive_class},
+      \code{classification_threshold},
       \code{sample_ids}, \code{fold_status}, \code{refit}, \code{final_model} (refitted model if
       \code{refit = TRUE}), \code{final_preprocess}, \code{learner_names},
       and \code{perm_refit_spec} (for permutation-based audits).}
@@ -133,7 +139,9 @@ list keyed by learner or a single list applied to all learners. For custom
 learners, \code{learner_args[[name]]} may be a list with \code{fit} and
 \code{predict} sublists to pass distinct arguments to each stage. For binomial
 tasks, predictions and metrics assume the positive class is the second factor
-level; use \code{positive_class} to control this. Parsnip learners must support
+level; use \code{positive_class} to control this. Use
+\code{classification_threshold} to change the probability cutoff used for
+class labels and accuracy. Parsnip learners must support
 probability predictions for binomial metrics (AUC/PR-AUC/accuracy) and
 multiclass log-loss when requested.
 }

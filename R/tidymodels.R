@@ -281,6 +281,8 @@
     stratify = NA,
     nested = FALSE,
     horizon = 0,
+    purge = 0,
+    embargo = 0,
     summary = split_summary,
     hash = .bio_hash_indices(indices),
     inner = NULL,
@@ -325,16 +327,16 @@
       stop("time_series compact splits require time column in data.", call. = FALSE)
     }
     split_horizon <- splits@info$horizon %||% 0
-    if (!length(test)) {
-      train <- integer(0)
-    } else {
-      tmin <- min(time_vec[test])
-      if (split_horizon == 0) {
-        train <- which(time_vec < tmin)
-      } else {
-        train <- which(time_vec <= (tmin - split_horizon))
-      }
-    }
+    split_purge <- splits@info$purge %||% 0
+    split_embargo <- splits@info$embargo %||% 0
+    train <- .bio_time_series_train_indices(
+      time_vec = time_vec,
+      test_idx = test,
+      candidate_idx = seq_len(n),
+      horizon = split_horizon,
+      purge = split_purge,
+      embargo = split_embargo
+    )
   } else {
     train <- setdiff(seq_len(n), test)
   }

@@ -129,6 +129,50 @@ test_that("fit_resample respects positive_class releveling", {
   expect_equal(fit@info$positive_class, "yes")
 })
 
+test_that("fit_resample applies classification_threshold for binomial tasks", {
+  df <- make_class_df(12)
+  df$x1 <- seq(0.05, 0.95, length.out = nrow(df))
+  custom <- list(
+    fixed_prob = list(
+      fit = function(x, y, task, weights, ...) list(),
+      predict = function(object, newdata, task, ...) as.numeric(newdata$x1)
+    )
+  )
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
+                              mode = "subject_grouped", group = "subject",
+                              v = 3, seed = 2)
+
+  fit_low <- fit_resample_quiet(
+    df, outcome = "outcome", splits = splits,
+    learner = "fixed_prob", custom_learners = custom,
+    metrics = "accuracy", classification_threshold = 0.2,
+    refit = FALSE
+  )
+  fit_high <- fit_resample_quiet(
+    df, outcome = "outcome", splits = splits,
+    learner = "fixed_prob", custom_learners = custom,
+    metrics = "accuracy", classification_threshold = 0.8,
+    refit = FALSE
+  )
+
+  pred_low <- do.call(rbind, fit_low@predictions)
+  pred_high <- do.call(rbind, fit_high@predictions)
+  key_low <- order(pred_low$fold, pred_low$id)
+  key_high <- order(pred_high$fold, pred_high$id)
+  expect_false(identical(as.character(pred_low$pred_class[key_low]),
+                         as.character(pred_high$pred_class[key_high])))
+  expect_false(isTRUE(all.equal(fit_low@metrics$accuracy, fit_high@metrics$accuracy)))
+  expect_equal(fit_low@info$classification_threshold, 0.2)
+  expect_equal(fit_high@info$classification_threshold, 0.8)
+
+  expect_error(
+    fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                       learner = "fixed_prob", custom_learners = custom,
+                       classification_threshold = 1.2, refit = FALSE),
+    "classification_threshold must be"
+  )
+})
+
 test_that("fit_resample surfaces custom learner prediction length errors", {
   df <- make_class_df(10)
   splits <- make_split_plan_quiet(df, outcome = "outcome",
@@ -201,6 +245,21 @@ test_that("fit_resample handles compact splits with repeats", {
   fold_counts <- table(pred_df$fold)
   expect_equal(length(fold_counts), length(splits@indices))
   expect_true(all(fold_counts > 0))
+})
+
+test_that("fit_resample resolves compact time_series splits with purge and embargo", {
+  df <- make_class_df(12)
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
+                              mode = "time_series", time = "time",
+                              v = 3, compact = TRUE, seed = 1,
+                              purge = 2, embargo = 5)
+  fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
+                            learner = "glm", custom_learners = make_custom_learners(),
+                            metrics = "accuracy", refit = FALSE, seed = 1)
+
+  expect_equal(fit@audit$n_train, c(3, 7))
+  expect_equal(fit@splits@info$purge, 2)
+  expect_equal(fit@splits@info$embargo, 5)
 })
 
 test_that("fit_resample supports parsnip learners when available", {

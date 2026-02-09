@@ -79,6 +79,31 @@ test_that("make_split_plan time_series includes tail samples when n not divisibl
   expect_true(max(test_idx) == nrow(df))
 })
 
+test_that("make_split_plan time_series applies purge and embargo gaps", {
+  df <- make_class_df(12)
+
+  base <- make_split_plan_quiet(df, outcome = "outcome",
+                           mode = "time_series", time = "time",
+                           v = 3, horizon = 0, seed = 1)
+  with_purge <- make_split_plan_quiet(df, outcome = "outcome",
+                                 mode = "time_series", time = "time",
+                                 v = 3, horizon = 0, purge = 2, seed = 1)
+  with_embargo <- make_split_plan_quiet(df, outcome = "outcome",
+                                   mode = "time_series", time = "time",
+                                   v = 3, horizon = 0, embargo = 5, seed = 1)
+
+  fold2_base <- base@indices[[which(vapply(base@indices, function(z) z$fold == 2L, logical(1)))]]
+  fold2_purge <- with_purge@indices[[which(vapply(with_purge@indices, function(z) z$fold == 2L, logical(1)))]]
+  fold2_embargo <- with_embargo@indices[[which(vapply(with_embargo@indices, function(z) z$fold == 2L, logical(1)))]]
+
+  expect_equal(max(df$time[fold2_base$train]), 4)
+  expect_equal(max(df$time[fold2_purge$train]), 3)
+  expect_equal(max(df$time[fold2_embargo$train]), 3)
+  expect_equal(with_purge@info$purge, 2)
+  expect_equal(with_purge@info$embargo, 0)
+  expect_equal(with_embargo@info$embargo, 5)
+})
+
 test_that("make_split_plan supports matrix and SummarizedExperiment inputs", {
   mat <- matrix(rnorm(20), nrow = 10)
   splits <- make_split_plan(mat, outcome = NULL,

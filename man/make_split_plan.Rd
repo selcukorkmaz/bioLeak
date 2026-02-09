@@ -18,6 +18,8 @@ make_split_plan(
   nested = FALSE,
   seed = 1,
   horizon = 0,
+  purge = 0,
+  embargo = 0,
   progress = TRUE,
   compact = FALSE,
   strict = TRUE
@@ -59,6 +61,13 @@ using the same \code{mode} on the outer training set (with \code{v} folds, 1 rep
 training set only contains samples with time < min(test_time) when horizon = 0,
 and time <= min(test_time) - horizon otherwise.}
 
+\item{purge}{numeric (>=0), additional gap removed immediately before each
+time-series test block.}
+
+\item{embargo}{numeric (>=0), additional exclusion window anchored at the end
+of each time-series test block. Training rows with
+\code{time > max(test_time) - embargo} are removed.}
+
 \item{progress}{logical, print progress for large jobs.}
 
 \item{compact}{logical; store fold assignments instead of explicit train/test
@@ -82,7 +91,8 @@ A \code{\linkS4class{LeakSplits}} S4 object containing:
     \item{\code{info}}{List of metadata including \code{outcome}, \code{v},
       \code{repeats}, \code{seed}, grouping columns (\code{group},
       \code{batch}, \code{study}, \code{time}), \code{stratify},
-      \code{nested}, \code{horizon}, \code{summary} (data.frame of fold
+      \code{nested}, \code{horizon}, \code{purge}, \code{embargo},
+      \code{summary} (data.frame of fold
       sizes), \code{hash} (reproducibility checksum), \code{inner}
       (nested inner splits if \code{nested = TRUE}), and \code{coldata}
       (sample metadata).}
@@ -94,7 +104,7 @@ A \code{\linkS4class{LeakSplits}} S4 object containing:
 Generates leakage-safe cross-validation splits for common biomedical setups:
 subject-grouped, batch-blocked, study leave-one-out, and time-series
 rolling-origin. Supports repeats, optional stratification, nested inner CV,
-and an optional prediction horizon for time series. Note that splits store
+and optional prediction horizon/purge/embargo gaps for time series. Note that splits store
 explicit indices, which can be memory-intensive for large \code{n} and many
 repeats.
 }

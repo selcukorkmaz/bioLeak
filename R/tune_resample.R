@@ -46,6 +46,15 @@
 #' @param inner_seed Optional seed for inner split generation when inner splits
 #'   are not precomputed. Defaults to the outer split seed.
 #' @param control Optional `tune::control_grid()` settings for tuning.
+#' @param tune_threshold Logical; when `TRUE` for binomial tasks, selects a
+#'   probability threshold from inner-fold predictions and applies it only to the
+#'   corresponding outer-fold evaluation.
+#' @param threshold_grid Numeric vector of thresholds in `[0, 1]` considered when
+#'   `tune_threshold = TRUE`.
+#' @param threshold_metric Metric used to pick thresholds when
+#'   `tune_threshold = TRUE`. Supported values are `"accuracy"`,
+#'   `"balanced_accuracy"`, and `"f1"`, or a custom function with signature
+#'   `function(truth, pred_class, prob, threshold)`.
 #' @param parallel Logical; passed to [fit_resample()] when evaluating outer
 #'   folds (single-fold, no refit).
 #' @param refit Logical; if TRUE, refits a final tuned workflow on the full
@@ -59,6 +68,7 @@
 #'   \item{best_params}{Best hyperparameters per outer fold.}
 #'   \item{inner_results}{List of inner tuning results.}
 #'   \item{outer_fits}{List of outer LeakFit objects.}
+#'   \item{thresholds}{Per-fold threshold choices when threshold tuning is enabled.}
 #'   \item{fold_status}{Outer-fold status log with stage, status, reason, and notes.}
 #'   \item{final_model}{Optional final workflow fit when `refit = TRUE`.}
 #'   \item{info}{Metadata about the tuning run.}
@@ -105,11 +115,32 @@ tune_resample <- function(x, outcome, splits,
                           parallel = FALSE,
                           refit = FALSE,
                           seed = 1,
-                          split_cols = "auto") {
+                          split_cols = "auto",
+                          tune_threshold = FALSE,
+                          threshold_grid = seq(0.1, 0.9, by = 0.05),
+                          threshold_metric = "accuracy") {
 
   selection <- match.arg(selection)
   if (!is.logical(refit) || length(refit) != 1L || is.na(refit)) {
     stop("refit must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (!is.logical(tune_threshold) || length(tune_threshold) != 1L || is.na(tune_threshold)) {
+    stop("tune_threshold must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (!is.numeric(threshold_grid) || !length(threshold_grid)) {
+    stop("threshold_grid must be a non-empty numeric vector.", call. = FALSE)
+  }
+  threshold_grid <- sort(unique(as.numeric(threshold_grid)))
+  if (any(!is.finite(threshold_grid)) || any(threshold_grid < 0 | threshold_grid > 1)) {
+    stop("threshold_grid must contain finite values in [0, 1].", call. = FALSE)
+  }
+  threshold_metric_is_fn <- is.function(threshold_metric)
+  if (!threshold_metric_is_fn) {
+    if (!is.character(threshold_metric) || length(threshold_metric) != 1L) {
+      stop("threshold_metric must be one of: accuracy, balanced_accuracy, f1, or a function.",
+           call. = FALSE)
+    }
+    threshold_metric <- match.arg(threshold_metric, c("accuracy", "balanced_accuracy", "f1"))
   }
 
   if (!requireNamespace("tune", quietly = TRUE)) {
@@ -267,7 +298,20 @@ tune_resample <- function(x, outcome, splits,
     if (anyNA(yall)) stop("Gaussian task requires numeric outcome values.", call. = FALSE)
   }
 
+  if (isTRUE(tune_threshold) && !identical(task, "binomial")) {
+    warning("tune_threshold is only supported for binomial tasks; disabling threshold tuning.",
+            call. = FALSE)
+    tune_threshold <- FALSE
+  }
+
   if (is.null(control)) control <- tune::control_grid()
+  if (isTRUE(tune_threshold)) {
+    if (!"save_pred" %in% names(control)) {
+      stop("control must be created by tune::control_grid() when tune_threshold = TRUE.",
+           call. = FALSE)
+    }
+    control$save_pred <- TRUE
+  }
 
   resolve_metrics <- function(metrics, task) {
     macro_f1 <- yardstick::metric_tweak("macro_f1", yardstick::f_meas, estimator = "macro")
@@ -354,6 +398,60 @@ tune_resample <- function(x, outcome, splits,
   has_two_classes <- function(y) {
     y <- y[!is.na(y)]
     length(unique(y)) >= 2L
+  }
+
+  evaluate_threshold_metric <- function(truth, prob, threshold, metric) {
+    pred_class <- factor(
+      ifelse(prob >= threshold, class_levels[2], class_levels[1]),
+      levels = class_levels
+    )
+    if (is.function(metric)) {
+      return(as.numeric(metric(truth, pred_class, prob, threshold)))
+    }
+    if (identical(metric, "accuracy")) {
+      return(mean(pred_class == truth))
+    }
+
+    truth_pos <- truth == class_levels[2]
+    pred_pos <- pred_class == class_levels[2]
+    tp <- sum(truth_pos & pred_pos)
+    tn <- sum(!truth_pos & !pred_pos)
+    fp <- sum(!truth_pos & pred_pos)
+    fn <- sum(truth_pos & !pred_pos)
+
+    if (identical(metric, "balanced_accuracy")) {
+      sens <- if ((tp + fn) > 0) tp / (tp + fn) else NA_real_
+      spec <- if ((tn + fp) > 0) tn / (tn + fp) else NA_real_
+      return(mean(c(sens, spec), na.rm = TRUE))
+    }
+    if (identical(metric, "f1")) {
+      precision <- if ((tp + fp) > 0) tp / (tp + fp) else NA_real_
+      recall <- if ((tp + fn) > 0) tp / (tp + fn) else NA_real_
+      if (!is.finite(precision) || !is.finite(recall) || (precision + recall) == 0) {
+        return(NA_real_)
+      }
+      return(2 * precision * recall / (precision + recall))
+    }
+    NA_real_
+  }
+
+  select_threshold <- function(truth, prob, grid, metric) {
+    scores <- vapply(grid, function(thr) {
+      evaluate_threshold_metric(truth = truth, prob = prob, threshold = thr, metric = metric)
+    }, numeric(1))
+    valid <- is.finite(scores)
+    if (!any(valid)) {
+      return(list(threshold = 0.5, metric_value = NA_real_))
+    }
+    grid_ok <- grid[valid]
+    scores_ok <- scores[valid]
+    best <- which(scores_ok == max(scores_ok))
+    if (length(best) > 1L) {
+      best <- best[order(abs(grid_ok[best] - 0.5), grid_ok[best])[1L]]
+    } else {
+      best <- best[1L]
+    }
+    list(threshold = grid_ok[[best]], metric_value = scores_ok[[best]])
   }
 
   available_metrics <- function(metrics_df) {
@@ -560,6 +658,8 @@ tune_resample <- function(x, outcome, splits,
   best_rows <- list()
   inner_results <- list()
   outer_fits <- list()
+  threshold_rows <- list()
+  threshold_metric_label <- if (is.function(threshold_metric)) "custom" else threshold_metric
   skipped_single_class_outer <- 0L
   skipped_single_class_inner <- 0L
   skipped_no_results <- 0L
@@ -636,6 +736,8 @@ tune_resample <- function(x, outcome, splits,
         nested = FALSE,
         seed = inner_seed + i,
         horizon = splits@info$horizon %||% 0,
+        purge = splits@info$purge %||% 0,
+        embargo = splits@info$embargo %||% 0,
         progress = FALSE
       )
       inner_idx <- inner@indices
@@ -797,6 +899,78 @@ tune_resample <- function(x, outcome, splits,
     best_config <- selected_cfg$config
     best_params <- selected_cfg$params
 
+    fold_threshold <- 0.5
+    fold_threshold_metric <- NA_real_
+    fold_threshold_n <- 0L
+    if (isTRUE(tune_threshold) && identical(task, "binomial")) {
+      inner_preds <- tryCatch(
+        tune::collect_predictions(tune_res),
+        error = function(e) NULL
+      )
+      if (is.null(inner_preds) || !nrow(inner_preds)) {
+        warning(sprintf("Outer fold %d: threshold tuning skipped (no inner predictions).", i),
+                call. = FALSE)
+      } else {
+        pred_cfg <- inner_preds[inner_preds$.config == best_config, , drop = FALSE]
+        if (!nrow(pred_cfg)) {
+          warning(sprintf("Outer fold %d: threshold tuning skipped (selected config has no predictions).", i),
+                  call. = FALSE)
+        } else {
+          pos_col <- paste0(".pred_", make.names(class_levels[2]))
+          prob_cols <- setdiff(grep("^\\.pred_", names(pred_cfg), value = TRUE), ".pred_class")
+          if (!pos_col %in% prob_cols && length(prob_cols) >= 2L) {
+            pos_col <- prob_cols[[2]]
+          }
+          if (!pos_col %in% names(pred_cfg)) {
+            warning(sprintf("Outer fold %d: threshold tuning skipped (positive probability column not found).", i),
+                    call. = FALSE)
+          } else {
+            prob_vals <- as.numeric(pred_cfg[[pos_col]])
+            if (".row" %in% names(pred_cfg)) {
+              row_idx <- as.integer(pred_cfg$.row)
+              valid_rows <- is.finite(row_idx) & row_idx >= 1L & row_idx <= length(y_inner)
+              row_idx <- row_idx[valid_rows]
+              prob_vals <- prob_vals[valid_rows]
+              truth_vals <- factor(y_inner[row_idx], levels = class_levels)
+            } else if (length(outcome) == 1L && outcome %in% names(pred_cfg)) {
+              truth_vals <- factor(pred_cfg[[outcome]], levels = class_levels)
+            } else if ("truth" %in% names(pred_cfg)) {
+              truth_vals <- factor(pred_cfg$truth, levels = class_levels)
+            } else {
+              truth_vals <- factor(character(0), levels = class_levels)
+            }
+            keep <- is.finite(prob_vals) & !is.na(truth_vals)
+            prob_vals <- prob_vals[keep]
+            truth_vals <- truth_vals[keep]
+
+            if (length(prob_vals) && has_two_classes(truth_vals)) {
+              threshold_pick <- select_threshold(
+                truth = truth_vals,
+                prob = prob_vals,
+                grid = threshold_grid,
+                metric = threshold_metric
+              )
+              fold_threshold <- threshold_pick$threshold
+              fold_threshold_metric <- threshold_pick$metric_value
+              fold_threshold_n <- length(prob_vals)
+            } else {
+              warning(sprintf(
+                "Outer fold %d: threshold tuning skipped (insufficient inner predictions with both classes).",
+                i
+              ), call. = FALSE)
+            }
+          }
+        }
+      }
+      threshold_rows[[length(threshold_rows) + 1L]] <- data.frame(
+        fold = i,
+        threshold = fold_threshold,
+        metric_value = fold_threshold_metric,
+        n_inner = fold_threshold_n,
+        stringsAsFactors = FALSE
+      )
+    }
+
     final_workflow <- tune::finalize_workflow(base_workflow, best_params)
     outer_splits <- make_outer_splits(tr, te)
 
@@ -804,18 +978,22 @@ tune_resample <- function(x, outcome, splits,
     learner_for_fit <- list()
     learner_for_fit[[learner_label]] <- final_workflow
 
-    outer_fit <- fit_resample(
-      x,
+    outer_fit_args <- list(
+      x = x,
       outcome = outcome,
       splits = outer_splits,
       preprocess = list(),
-      learner = learner_for_fit, # Passed as named list
+      learner = learner_for_fit,
       metrics = tune_metrics_fold,
       positive_class = if (task == "binomial") class_levels[2] else NULL,
       parallel = parallel,
       refit = FALSE,
       seed = seed + i
     )
+    if (identical(task, "binomial")) {
+      outer_fit_args$classification_threshold <- fold_threshold
+    }
+    outer_fit <- do.call(fit_resample, outer_fit_args)
 
     outer_fits[[i]] <- outer_fit
     fold_metrics <- outer_fit@metrics
@@ -871,6 +1049,22 @@ tune_resample <- function(x, outcome, splits,
   } else {
     data.frame(fold = integer(0), stage = character(0), status = character(0),
                reason = character(0), notes = character(0), stringsAsFactors = FALSE)
+  }
+  thresholds_df <- if (length(threshold_rows)) {
+    do.call(rbind, threshold_rows)
+  } else {
+    data.frame(fold = integer(0), threshold = numeric(0),
+               metric_value = numeric(0), n_inner = integer(0), stringsAsFactors = FALSE)
+  }
+  threshold_stability <- if (nrow(thresholds_df)) {
+    list(
+      mean = mean(thresholds_df$threshold, na.rm = TRUE),
+      sd = stats::sd(thresholds_df$threshold, na.rm = TRUE),
+      min = min(thresholds_df$threshold, na.rm = TRUE),
+      max = max(thresholds_df$threshold, na.rm = TRUE)
+    )
+  } else {
+    list(mean = NA_real_, sd = NA_real_, min = NA_real_, max = NA_real_)
   }
 
   metric_cols <- setdiff(names(metrics_df), "fold")
@@ -938,6 +1132,7 @@ tune_resample <- function(x, outcome, splits,
       best_params = best_params_df,
       inner_results = inner_results,
       outer_fits = outer_fits,
+      thresholds = thresholds_df,
       fold_status = fold_status_df,
       final_model = final_model,
       final_workflow = final_workflow,
@@ -950,6 +1145,11 @@ tune_resample <- function(x, outcome, splits,
         selection = selection,
         selection_metric = selection_metric_used,
         selection_metric_requested = selection_metric_requested,
+        threshold_tuned = isTRUE(tune_threshold) && identical(task, "binomial"),
+        threshold_metric = threshold_metric_label,
+        threshold_grid = threshold_grid,
+        thresholds = thresholds_df,
+        threshold_stability = threshold_stability,
         refit = isTRUE(refit),
         refit_metric = refit_metric,
         refit_fold = refit_fold,

@@ -187,3 +187,91 @@ test_that("LeakTune summary and audit handle skipped outer folds", {
   ))
   expect_s4_class(audit, "LeakAudit")
 })
+
+test_that("tune_resample tunes binomial thresholds from inner predictions", {
+  skip_if_tune_deps()
+
+  df <- make_class_df(24)
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
+                                  mode = "subject_grouped", group = "subject",
+                                  v = 2, nested = TRUE, stratify = FALSE, seed = 21)
+
+  spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+    parsnip::set_engine("glmnet")
+  rec <- recipes::recipe(outcome ~ x1 + x2, data = df)
+
+  seen_save_pred <- logical()
+  seen_thresholds <- numeric()
+
+  local_mocked_bindings(
+    tune_grid = function(..., control) {
+      seen_save_pred <<- c(seen_save_pred, isTRUE(control$save_pred))
+      structure(list(), class = "mock_tune_results")
+    },
+    collect_metrics = function(...) {
+      data.frame(
+        .metric = rep("accuracy", 4),
+        .estimator = rep("binary", 4),
+        .estimate = c(0.8, 0.8, 0.7, 0.7),
+        .config = c("cfg_a", "cfg_a", "cfg_b", "cfg_b"),
+        penalty = c(0.01, 0.01, 1.0, 1.0),
+        stringsAsFactors = FALSE
+      )
+    },
+    collect_predictions = function(...) {
+      data.frame(
+        .config = rep("cfg_a", 4),
+        outcome = factor(c(0, 1, 0, 1), levels = c(0, 1)),
+        .pred_0 = c(0.9, 0.6, 0.55, 0.4),
+        .pred_1 = c(0.1, 0.4, 0.45, 0.6),
+        stringsAsFactors = FALSE
+      )
+    },
+    finalize_workflow = function(x, parameters, ...) x,
+    .package = "tune"
+  )
+  local_mocked_bindings(
+    fit_resample = function(x, outcome, splits, classification_threshold = 0.5, ...) {
+      seen_thresholds <<- c(seen_thresholds, classification_threshold)
+      truth <- factor(rep(c(0, 1), length.out = 4), levels = c(0, 1))
+      methods::new(
+        "LeakFit",
+        splits = splits,
+        metrics = data.frame(fold = 1, learner = "mock", accuracy = 0.75),
+        metric_summary = data.frame(learner = "mock", accuracy_mean = 0.75, accuracy_sd = 0),
+        audit = data.frame(),
+        predictions = list(data.frame(
+          id = as.character(seq_len(4)),
+          truth = truth,
+          pred = c(0.1, 0.4, 0.45, 0.6),
+          fold = 1,
+          learner = "mock",
+          stringsAsFactors = FALSE
+        )),
+        preprocess = list(),
+        learners = list(),
+        outcome = outcome,
+        task = "binomial",
+        feature_names = c("x1", "x2"),
+        info = list(sample_ids = as.character(seq_len(nrow(x))))
+      )
+    },
+    .package = "bioLeak"
+  )
+
+  tuned <- suppressWarnings(
+    tune_resample(df, outcome = "outcome", splits = splits,
+                  learner = spec, preprocess = rec, grid = 2,
+                  metrics = "accuracy", selection = "best", seed = 21,
+                  tune_threshold = TRUE, threshold_grid = c(0.2, 0.8))
+  )
+
+  expect_true(all(seen_save_pred))
+  expect_equal(length(seen_thresholds), length(splits@indices))
+  expect_true(all(abs(seen_thresholds - 0.2) < 1e-12))
+  expect_true(is.data.frame(tuned$thresholds))
+  expect_equal(nrow(tuned$thresholds), length(splits@indices))
+  expect_true(all(abs(tuned$thresholds$threshold - 0.2) < 1e-12))
+  expect_true(isTRUE(tuned$info$threshold_tuned))
+  expect_equal(tuned$info$threshold_metric, "accuracy")
+})

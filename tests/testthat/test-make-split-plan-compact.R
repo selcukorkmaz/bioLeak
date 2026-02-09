@@ -48,3 +48,24 @@ test_that("compact splits are resolved during fitting", {
   pred_ids <- unique(do.call(rbind, fit@predictions)$id)
   expect_true(all(pred_ids %in% rownames(df)))
 })
+
+test_that("compact time_series splits keep purge/embargo behavior in as_rsample", {
+  skip_if_not_installed("rsample")
+  df <- make_class_df(12)
+  splits <- make_split_plan_quiet(
+    df,
+    outcome = "outcome",
+    mode = "time_series",
+    time = "time",
+    v = 3,
+    compact = TRUE,
+    purge = 2,
+    embargo = 5,
+    seed = 1
+  )
+  rs <- as_rsample(splits, data = df)
+
+  expect_equal(nrow(rs), 2)
+  expect_equal(max(rsample::analysis(rs$splits[[1]])$time), 3)
+  expect_equal(max(rsample::analysis(rs$splits[[2]])$time), 7)
+})
