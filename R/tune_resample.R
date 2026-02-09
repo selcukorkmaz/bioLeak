@@ -1115,7 +1115,7 @@ tune_resample <- function(x, outcome, splits,
           refit_fold <- as.integer(best_params_df$fold[[1]])
         }
         final_workflow <- tune::finalize_workflow(base_workflow, final_params)
-        final_model <- workflows::fit(final_workflow, data = df_all)
+        final_model <- generics::fit(final_workflow, data = df_all)
       } else {
         warning("Refit requested but skipped: no finite outer-fold metrics available.", call. = FALSE)
       }

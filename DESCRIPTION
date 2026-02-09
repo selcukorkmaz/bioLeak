@@ -19,6 +19,7 @@ LazyData: true
 Depends: R (>= 4.3)
 Imports:
     digest,
+    generics,
     methods,
     stats,
     utils,

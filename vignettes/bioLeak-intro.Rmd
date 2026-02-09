@@ -25,7 +25,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-## Why bioLeak
+# Why bioLeak
 
 bioLeak is a leakage-aware modeling toolkit for biomedical and machine-learning
 analyses. Its purpose is to prevent and diagnose information leakage across
@@ -52,12 +52,12 @@ bioLeak addresses these issues with leakage-aware splitting, guarded
 preprocessing that is fit only on training data, and audit diagnostics that
 surface overlaps, confounding, and duplicates.
 
-## Guided workflow
+# Guided workflow
 
 The sections below walk through a leakage-aware workflow from data setup to
 audits. Each step includes a leaky failure mode and a corrected alternative.
 
-### Example data
+## Example data
 
 ```{r example-data}
 library(bioLeak)
@@ -111,7 +111,7 @@ The table preview displays the metadata columns (`subject`, `batch`, `study`, `t
 The class count table shows the baseline prevalence. Stratified splits try to preserve these proportions (for grouped modes, stratification is applied at the group level).
 
 
-### Create leakage-aware splits with `make_split_plan()`
+## Create leakage-aware splits with `make_split_plan()`
 
 `make_split_plan()` is the foundation. It returns a `LeakSplits` object with
 explicit train/test indices (or compact fold assignments) and metadata. For
@@ -249,7 +249,7 @@ inner folds (one repeat). For large datasets, `progress = TRUE` reports
 progress; storing explicit indices can be memory intensive.
 
 
-### Scalability
+## Scalability
 
 **Handling Large Datasets (Compact Mode)**
 
@@ -281,7 +281,7 @@ The summary is identical to a regular split, but the underlying storage is a
 compact fold-assignment vector. Use the `compact` flag to confirm the memory-
 saving mode is active.
 
-### Guarded preprocessing and imputation
+## Guarded preprocessing and imputation
 
 `bioLeak` uses guarded preprocessing to prevent leakage from global imputation,
 scaling, and feature selection. The low-level API is:
@@ -446,7 +446,7 @@ The `LeakImpute` object also contains missingness diagnostics in
 `.guard_fit()` (categorical variables are one-hot encoded). Use `vars` to
 impute only a subset of columns when needed.
 
-### Fit and resample with `fit_resample()`
+## Fit and resample with `fit_resample()`
 
 `fit_resample()` combines leakage-aware splits with guarded preprocessing and
 model fitting. It supports:
@@ -750,7 +750,7 @@ Note that `features_final` here reflects only the assay predictors (`x1`, `x2`,
 `x3`), because the assay was constructed without metadata columns.
 
 
-### Tidymodels interoperability
+## Tidymodels interoperability
 
 `bioLeak` integrates with `rsample`, `recipes`, `workflows`, and `yardstick`:
 
@@ -845,7 +845,7 @@ When auditing rsample-based fits, pass `perm_mode = "subject_grouped"` (or set
 respect the intended split design.
 
 
-### Nested tuning with `tune_resample()`
+## Nested tuning with `tune_resample()`
 
 `tune_resample()` runs leakage-aware nested tuning with tidymodels. It accepts a
 parsnip model specification or workflow, and supports two inner-CV modes:
@@ -943,7 +943,7 @@ How to interpret this tuning output:
 - `tuned$fold_status` should be reviewed before reporting results. A large number of skipped/failed folds indicates unstable tuning and should trigger split/parameter redesign.
 
 
-### Advanced: Using Gradient Boosting with Parsnip
+## Advanced: Using Gradient Boosting with Parsnip
 
 `bioLeak` natively supports `tidymodels` specifications. You can pass a `parsnip`
 model specification directly to `fit_resample()`. This allows you to use
@@ -996,7 +996,7 @@ confirm that any gains do not coincide with leakage signals in the audit
 diagnostics.
 
 
-### Advanced: Custom learners
+## Advanced: Custom learners
 
 Custom learners are used when a model is not available as a *parsnip* specification or when a lightweight wrapper around base R is needed.
 
@@ -1035,7 +1035,7 @@ fit_resample(
 )
 ```
 
-### Visual diagnostics
+## Visual diagnostics
 
 **bioLeak** includes plotting helpers for quick diagnostic checks:
 
@@ -1133,7 +1133,7 @@ The red line shows high overlap counts, accompanied by the explicit *“WARNING:
 The overlap line remains flat at zero across all folds. This confirms that `subject_grouped` splitting successfully keeps subjects isolated, ensuring that no subject appears in both sets simultaneously.
 
 
-### Audit leakage with `audit_leakage()`
+## Audit leakage with `audit_leakage()`
 
 `audit_leakage()` combines four diagnostics in one object:
 
@@ -1319,7 +1319,7 @@ if (requireNamespace("rmarkdown", quietly = TRUE) && rmarkdown::pandoc_available
 
 The report path points to a standalone HTML file containing the same audit tables and plots, suitable for sharing with collaborators or archiving as a quality control record.
 
-### Time-series leakage checks
+## Time-series leakage checks
 
 Time-series data require special handling. Random splits can leak information
 from the future into the past. Use `mode = "time_series"` with a prediction
@@ -1407,7 +1407,7 @@ dashed red lines represent the 95% confidence interval for white noise; large
 bars outside the bands indicate residual temporal dependence. `plot_time_acf()`
 requires numeric predictions and time metadata aligned to the fit.
 
-## Parallel Processing
+# Parallel Processing
 
 `bioLeak` uses the `future` framework for parallelism (Windows, macOS, Linux).
 `fit_resample()`, `audit_leakage()`, `audit_leakage_by_learner()`, and
@@ -1435,7 +1435,7 @@ plan(sequential)
 This chunk only configures the parallel plan, so it does not produce a result
 object. Use it as a template before running compute-heavy functions.
 
-### Simulation suite
+## Simulation suite
 
 `simulate_leakage_suite()` runs Monte Carlo simulations that inject specific
 leakage mechanisms and then evaluates detection with the audit pipeline. It is
@@ -1477,7 +1477,7 @@ Each row corresponds to one simulation seed.
 Use `metric_obs` to gauge the magnitude of the leakage effect, and `gap` to assess detection sensitivity.
 
 
-### Objects and summaries
+## Objects and summaries
 
 bioLeak uses S4 classes and list-like results to capture provenance and diagnostics:
 

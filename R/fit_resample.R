@@ -910,7 +910,7 @@ fit_resample <- function(x, outcome, splits,
     if (!requireNamespace("workflows", quietly = TRUE)) {
       stop("Package 'workflows' is required when learner is a workflow.")
     }
-    fit <- try(workflows::fit(learner_obj, data = dftr), silent = TRUE)
+    fit <- try(generics::fit(learner_obj, data = dftr), silent = TRUE)
     if (inherits(fit, "try-error")) {
       err_msg <- attr(fit, "condition")$message
       stop(sprintf("Workflow learner '%s' failed to fit: %s", learner_label, err_msg))
@@ -1386,7 +1386,7 @@ fit_resample <- function(x, outcome, splits,
       final_guard <- list(type = "recipe", recipe = recipe_prep)
     } else {
       df_full <- make_fold_df(Xall, yall)
-      final_model <- workflows::fit(learner_obj, data = df_full)
+      final_model <- generics::fit(learner_obj, data = df_full)
       final_guard <- list(type = "workflow")
     }
   }
