@@ -76,18 +76,6 @@ are not precomputed. Defaults to the outer split seed.}
 
 \item{control}{Optional `tune::control_grid()` settings for tuning.}
 
-\item{tune_threshold}{Logical; when `TRUE` for binomial tasks, selects a
-probability threshold from inner-fold predictions and applies it only to the
-corresponding outer-fold evaluation.}
-
-\item{threshold_grid}{Numeric vector of thresholds in `[0, 1]` considered when
-`tune_threshold = TRUE`.}
-
-\item{threshold_metric}{Metric used to pick thresholds when
-`tune_threshold = TRUE`. Supported values are `"accuracy"`,
-`"balanced_accuracy"`, and `"f1"`, or a custom function with signature
-`function(truth, pred_class, prob, threshold)`.}
-
 \item{parallel}{Logical; passed to [fit_resample()] when evaluating outer
 folds (single-fold, no refit).}
 
@@ -101,6 +89,18 @@ overriding group/batch/study/time column names when `splits` is an rsample
 object and its attributes are missing. `"auto"` falls back to common
 metadata column names (e.g., `group`, `subject`, `batch`, `study`, `time`).
 Supported names are `group`, `batch`, `study`, and `time`.}
+
+\item{tune_threshold}{Logical; when `TRUE` for binomial tasks, selects a
+probability threshold from inner-fold predictions and applies it only to the
+corresponding outer-fold evaluation.}
+
+\item{threshold_grid}{Numeric vector of thresholds in `[0, 1]` considered when
+`tune_threshold = TRUE`.}
+
+\item{threshold_metric}{Metric used to pick thresholds when
+`tune_threshold = TRUE`. Supported values are `"accuracy"`,
+`"balanced_accuracy"`, and `"f1"`, or a custom function with signature
+`function(truth, pred_class, prob, threshold)`.}
 }
 \value{
 A list of class `"LeakTune"` with components:

@@ -204,7 +204,7 @@ Common misinterpretations:
 - "No flagged features means no leakage": false; audits are limited to available metadata and `X_ref`.
 
 ## Project status and intended audience
-Status: experimental (version 0.1.0). APIs and defaults may change.
+Status: experimental (version 0.2.0). APIs and defaults may change.
 Intended audience: biomedical ML researchers, biostatisticians, and methodologists reviewing cross-validation and leakage risk.
 
 ## Citation and reproducibility
