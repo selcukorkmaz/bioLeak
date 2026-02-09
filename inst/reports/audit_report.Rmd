@@ -1,0 +1,99 @@
+---
+title: "bioLeak Audit Report"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+params:
+  audit: !r NULL
+---
+
+```{r setup, include=FALSE}
+if (is.null(params$audit) || !inherits(params$audit, "LeakAudit")) {
+  stop("Parameter 'audit' must be a LeakAudit object.", call. = FALSE)
+}
+
+audit <- params$audit
+
+empty_df <- function(msg) data.frame(note = msg, stringsAsFactors = FALSE)
+safe_df <- function(x, msg = "No results available.") {
+  if (is.null(x) || !is.data.frame(x) || !nrow(x)) return(empty_df(msg))
+  x
+}
+
+task <- tryCatch(audit@fit@task, error = function(e) NA_character_)
+outcome <- tryCatch(audit@fit@outcome, error = function(e) NA_character_)
+metric_summary <- tryCatch(audit@fit@metric_summary, error = function(e) NULL)
+perm_gap <- tryCatch(audit@permutation_gap, error = function(e) NULL)
+batch_assoc <- tryCatch(audit@batch_assoc, error = function(e) NULL)
+target_assoc <- tryCatch(audit@target_assoc, error = function(e) NULL)
+duplicates <- tryCatch(audit@duplicates, error = function(e) NULL)
+perm_values <- tryCatch(audit@perm_values, error = function(e) numeric(0))
+```
+
+# Overview
+
+- Generated: `r format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")`
+- Task: `r ifelse(is.na(task), "unknown", task)`
+- Outcome: `r ifelse(is.na(outcome), "unknown", outcome)`
+
+## Cross-validated Metrics
+
+```{r}
+print(safe_df(metric_summary, "Metric summary is unavailable."))
+```
+
+## Permutation Gap
+
+```{r}
+print(safe_df(perm_gap, "Permutation results are unavailable."))
+```
+
+```{r fig.height=4, fig.width=7}
+if (length(perm_values) > 0L) {
+  obs <- NA_real_
+  if (is.data.frame(perm_gap) && nrow(perm_gap) > 0L && "metric_obs" %in% names(perm_gap)) {
+    obs <- as.numeric(perm_gap$metric_obs[[1]])
+  }
+  hist(
+    perm_values,
+    breaks = max(10L, min(50L, floor(sqrt(length(perm_values))))),
+    main = "Permutation Metric Distribution",
+    xlab = "Metric",
+    col = "grey85",
+    border = "white"
+  )
+  if (is.finite(obs)) {
+    abline(v = obs, col = "firebrick", lwd = 2)
+  }
+} else {
+  plot.new()
+  text(0.5, 0.5, "No permutation values available.")
+}
+```
+
+## Batch / Study Association
+
+```{r}
+print(safe_df(batch_assoc, "No batch/study association results available."))
+```
+
+## Target Leakage Scan
+
+```{r}
+if (is.data.frame(target_assoc) && nrow(target_assoc) > 0L) {
+  print(utils::head(target_assoc, 20L))
+} else {
+  print(empty_df("No target association results available."))
+}
+```
+
+## Duplicate Detection
+
+```{r}
+if (is.data.frame(duplicates) && nrow(duplicates) > 0L) {
+  print(utils::head(duplicates, 20L))
+} else {
+  print(empty_df("No near-duplicate samples detected."))
+}
+```

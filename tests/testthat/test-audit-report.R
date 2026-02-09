@@ -63,3 +63,9 @@ test_that("audit_report validates inputs and dependencies", {
     expect_error(audit_report(fit), "Install 'rmarkdown'")
   }
 })
+
+test_that("audit_report template exists in source tree", {
+  tpl <- system.file("reports", "audit_report.Rmd", package = "bioLeak")
+  expect_true(nzchar(tpl))
+  expect_true(file.exists(tpl))
+})
