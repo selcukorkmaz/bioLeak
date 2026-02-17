@@ -15,7 +15,7 @@ Out of scope:
 - Proving the absence of leakage or guaranteeing unbiased performance.
 - Production deployment tooling.
 - Unsupervised learning (not currently supported).
-- Calibration assessment and general data-quality diagnostics.
+- Broad, non-leakage-oriented data-quality diagnostics.
 
 ## Why bioLeak is needed
 Standard cross-validation assumes independent samples and exchangeable labels. Biomedical datasets often violate these assumptions due to repeated measures, site effects, batch structure, and temporal dependence. These violations can inflate performance metrics even when a model does not generalize. `bioLeak` enforces leakage-aware resampling and provides post-hoc diagnostics that estimate how much apparent performance could be driven by leakage or confounding.
