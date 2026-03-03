@@ -24,7 +24,8 @@
       "Bash(then echo \"May need requireNamespace: $f\")",
       "Bash(echo:*)",
       "Bash(R -q -e:*)",
-      "Bash(R CMD build:*)"
+      "Bash(R CMD build:*)",
+      "Bash(ls:*)"
     ]
   }
 }
