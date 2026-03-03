@@ -11,3 +11,13 @@
 .DS_Store
 /doc/
 /Meta/
+
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.github$
+^\.DS_Store$
+^\.Rhistory$
+^example\.R$
+^doc$
+^Meta$
+^\.claude$
