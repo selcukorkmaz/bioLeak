@@ -119,7 +119,7 @@ simulate_leakage_suite <- function(
     leakage = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),
     preprocess = NULL,
     rho = 0, K = 5, repeats = 1, horizon = 0,
-    B = 1000, seeds = 1:10, parallel = FALSE, signal_strength = 1,
+    B = 200, seeds = 1:10, parallel = FALSE, signal_strength = 1,
     verbose = FALSE
 ) {
   mode <- match.arg(mode)
@@ -169,7 +169,7 @@ simulate_leakage_suite <- function(
       metric = metrics,
       B = B,
       perm_refit = "auto",
-      perm_refit_auto_max = B,
+      perm_refit_auto_max = min(B, 200),
       seed = s
     )
 

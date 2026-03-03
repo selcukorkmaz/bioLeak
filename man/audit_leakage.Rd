@@ -30,6 +30,8 @@ audit_leakage(
   target_scan_multivariate_components = 10,
   target_scan_multivariate_interactions = TRUE,
   target_threshold = 0.9,
+  target_p_adjust = c("none", "BH", "BY", "holm", "bonferroni"),
+  target_alpha = 0.05,
   feature_space = c("raw", "rank"),
   sim_method = c("cosine", "pearson"),
   sim_threshold = 0.995,
@@ -54,11 +56,11 @@ statistic, the permutation null, and the sign of the reported gap.}
 distribution (default 200). Larger values reduce Monte Carlo error but
 increase runtime.}
 
-\item{perm_stratify}{Logical scalar or `"auto"`. If TRUE (default), permutations
+\item{perm_stratify}{Logical scalar or `"auto"`. If TRUE, permutations
 are stratified within each fold (factor levels; numeric outcomes are binned
 into quantiles when enough non-missing values are available). If FALSE, no
-stratification is used. Stratification only applies when `coldata` supplies
-the outcome; otherwise labels are shuffled within each fold.}
+stratification is used. Defaults to FALSE. Stratification only applies when
+`coldata` supplies the outcome; otherwise labels are shuffled within each fold.}
 
 \item{perm_refit}{Logical scalar or `"auto"`. If FALSE, permutations keep
 predictions fixed and shuffle labels (association test). If TRUE, each
@@ -154,6 +156,14 @@ adds pairwise interactions among the top components in the multivariate scan.}
 \item{target_threshold}{Numeric scalar in (0,1). Threshold applied to the
 association score used to flag proxy features. Higher values are stricter.
 Default is 0.9.}
+
+\item{target_p_adjust}{Character scalar. Multiple-testing correction method
+applied to finite `target_assoc$p_value` values. One of `"none"` (default),
+`"BH"`, `"BY"`, `"holm"`, or `"bonferroni"`. Adds columns
+`p_value_adj` and `flag_fdr` to `target_assoc`.}
+
+\item{target_alpha}{Numeric scalar in (0,1). Significance level used for
+`flag_fdr` when `target_p_adjust != "none"`. Default is 0.05.}
 
 \item{feature_space}{Character scalar, `"raw"` or `"rank"`. If `"rank"`,
 each row of `X_ref` is rank-transformed before similarity calculations.
@@ -257,8 +267,10 @@ reports feature-wise outcome associations on `X_ref`; numeric features use
 AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
 categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
 one-way ANOVA (gaussian). The
-`score` column is the scaled effect size used for flagging
+`score` column is the scaled effect size used for heuristic flagging
 (`flag = score >= target_threshold`).
+When `target_p_adjust != "none"`, finite `p_value` entries also receive
+multiplicity-adjusted `p_value_adj` and `flag_fdr = (p_value_adj <= target_alpha)`.
 The univariate target leakage scan can miss multivariate proxies, interaction
 leakage, or features not included in `X_ref`. The multivariate scan (enabled
 by default for supported tasks) adds a model-based proxy check but still only

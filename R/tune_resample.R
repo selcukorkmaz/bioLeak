@@ -24,6 +24,8 @@
 #'   `preprocess` or a formula.
 #' @param preprocess Optional `recipes::recipe`. Required when you need
 #'   preprocessing for tuning. Ignored when `learner` is already a workflow.
+#'   Recipe/workflow leakage guardrails run before tuning; configure policy via
+#'   \code{options(bioLeak.validation_mode = "warn" | "error" | "off")}.
 #' @param grid Tuning grid passed to `tune::tune_grid()`. Can be a data.frame or
 #'   an integer size.
 #' @param metrics Character vector of metric names (`auc`, `pr_auc`, `accuracy`,
@@ -58,7 +60,9 @@
 #' @param parallel Logical; passed to [fit_resample()] when evaluating outer
 #'   folds (single-fold, no refit).
 #' @param refit Logical; if TRUE, refits a final tuned workflow on the full
-#'   dataset using hyperparameters selected from the best-performing outer fold.
+#'   dataset using aggregated hyperparameters across all outer folds (median
+#'   for numeric parameters, majority vote for categorical). This avoids
+#'   nested-CV leakage that would occur from selecting a single fold's params.
 #' @param seed Integer seed for reproducibility.
 #' @return A list of class `"LeakTune"` with components:
 #'   \item{metrics}{Outer-fold metrics.}
@@ -175,6 +179,21 @@ tune_resample <- function(x, outcome, splits,
   if (!is_workflow(learner) && inherits(preprocess, "recipe") &&
       !requireNamespace("recipes", quietly = TRUE)) {
     stop("Package 'recipes' is required when preprocess is a recipe.", call. = FALSE)
+  }
+  validation_mode <- .bio_validation_mode()
+  if (inherits(preprocess, "recipe") && !is_workflow(learner)) {
+    .bio_validate_recipe_graph(
+      preprocess,
+      context = "tune_resample",
+      mode = validation_mode
+    )
+  }
+  if (is_workflow(learner)) {
+    .bio_validate_workflow_graph(
+      learner,
+      context = "tune_resample",
+      mode = validation_mode
+    )
   }
 
   # --- Learner Name Extraction ---
@@ -1028,6 +1047,12 @@ tune_resample <- function(x, outcome, splits,
     stop(msg, call. = FALSE)
   }
 
+  # Unify metric row schemas before binding (folds may differ in computed metrics)
+  all_cols <- unique(unlist(lapply(metrics_rows, names)))
+  metrics_rows <- lapply(metrics_rows, function(row) {
+    for (col in setdiff(all_cols, names(row))) row[[col]] <- NA_real_
+    row[, all_cols, drop = FALSE]
+  })
   metrics_df <- do.call(rbind, metrics_rows)
   best_params_df <- if (length(best_rows)) do.call(rbind, best_rows) else data.frame()
   fold_status_df <- if (length(fold_status_rows)) {
@@ -1085,42 +1110,60 @@ tune_resample <- function(x, outcome, splits,
     }
   }
 
+  # confidence intervals -------------------------------------------------------
+  tryCatch({
+    ci_df <- cv_ci(metrics_df, method = "nadeau_bengio")
+    ci_cols <- grep("_ci_lo$|_ci_hi$", names(ci_df), value = TRUE)
+    if (length(ci_cols) && nrow(ci_df) == nrow(metric_summary)) {
+      for (cc in ci_cols) {
+        metric_summary[[cc]] <- ci_df[[cc]]
+      }
+    }
+  }, error = function(e) NULL)
+
   final_model <- NULL
   final_workflow <- NULL
   final_params <- data.frame()
   refit_fold <- NA_integer_
   refit_metric <- NA_character_
   if (isTRUE(refit) && nrow(best_params_df) > 0) {
-    metric_cols <- setdiff(names(metrics_df), c("fold", "learner"))
     refit_metric <- selection_metric_used
-    if (!refit_metric %in% metric_cols && length(metric_cols)) {
-      refit_metric <- metric_cols[[1]]
-    }
 
-    if (!is.null(refit_metric) && nzchar(refit_metric) && refit_metric %in% names(metrics_df)) {
-      metric_vals <- metrics_df[[refit_metric]]
-      valid_idx <- which(is.finite(metric_vals))
-      if (length(valid_idx)) {
-        minimize_refit <- refit_metric %in% c("rmse", "mae", "log_loss", "mn_log_loss")
-        pick_local <- if (minimize_refit) {
-          valid_idx[which.min(metric_vals[valid_idx])]
+    # Aggregate hyperparameters across all outer folds to avoid nested-CV
+    # leakage. The old approach selected the fold with the best outer-fold
+    # test metric and used that fold's inner-CV params — a violation because
+    # final params become informed by outer test performance.
+    #
+    # This coordinate-wise aggregation (median for numeric, majority vote
+    # for categorical) is leakage-safe but may produce parameter combinations
+    # never jointly evaluated in any single inner CV. This is an accepted
+    # tradeoff: the aggregated values lack direct validation grounding but
+    # preserve the independence of the outer evaluation loop.
+    param_cols <- setdiff(names(best_params_df), "fold")
+    if (length(param_cols)) {
+      agg_list <- lapply(param_cols, function(col) {
+        vals <- best_params_df[[col]]
+        if (is.numeric(vals)) {
+          stats::median(vals, na.rm = TRUE)
         } else {
-          valid_idx[which.max(metric_vals[valid_idx])]
+          # majority vote
+          tbl <- table(vals)
+          names(tbl)[which.max(tbl)]
         }
-        refit_fold <- as.integer(metrics_df$fold[pick_local])
-        final_params <- best_params_df[best_params_df$fold == refit_fold, setdiff(names(best_params_df), "fold"),
-                                       drop = FALSE]
-        if (!nrow(final_params)) {
-          final_params <- best_params_df[1, setdiff(names(best_params_df), "fold"), drop = FALSE]
-          refit_fold <- as.integer(best_params_df$fold[[1]])
+      })
+      names(agg_list) <- param_cols
+      final_params <- as.data.frame(agg_list, stringsAsFactors = FALSE)
+      # Restore numeric types where needed
+      for (col in param_cols) {
+        if (is.numeric(best_params_df[[col]])) {
+          final_params[[col]] <- as.numeric(final_params[[col]])
         }
-        final_workflow <- tune::finalize_workflow(base_workflow, final_params)
-        final_model <- generics::fit(final_workflow, data = df_all)
-      } else {
-        warning("Refit requested but skipped: no finite outer-fold metrics available.", call. = FALSE)
       }
+      refit_fold <- NA_integer_
+      final_workflow <- tune::finalize_workflow(base_workflow, final_params)
+      final_model <- generics::fit(final_workflow, data = df_all)
     } else {
-      warning("Refit requested but skipped: no metric available to choose final hyperparameters.", call. = FALSE)
+      warning("Refit requested but skipped: no hyperparameter columns found.", call. = FALSE)
     }
   }
 
@@ -1151,11 +1194,13 @@ tune_resample <- function(x, outcome, splits,
         thresholds = thresholds_df,
         threshold_stability = threshold_stability,
         refit = isTRUE(refit),
+        refit_method = if (isTRUE(refit)) "aggregate" else NA_character_,
         refit_metric = refit_metric,
         refit_fold = refit_fold,
         fold_status = fold_status_df,
         grid = grid,
-        seed = seed
+        seed = seed,
+        provenance = .bio_capture_provenance()
       )
     ),
     class = "LeakTune"

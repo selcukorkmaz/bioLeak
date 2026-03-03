@@ -15,6 +15,88 @@
   train
 }
 
+# Internal helper for combined (dual-axis) splits.
+.bio_make_combined_splits <- function(cd, n, primary_axis, secondary_axis,
+                                      v, repeats, stratify, outcome, seed,
+                                      compact) {
+  p_col <- primary_axis$col
+  s_col <- secondary_axis$col
+  p_groups <- as.factor(cd[[p_col]])
+  p_levels <- levels(p_groups)
+  s_groups <- cd[[s_col]]
+
+  indices <- list()
+  summary_rows <- list()
+  fold_assignments <- if (isTRUE(compact)) vector("list", repeats) else NULL
+
+  .majority_class <- function(y) {
+    ux <- unique(y)
+    if (length(ux) == 0) return(NA)
+    ux[which.max(tabulate(match(y, ux)))]
+  }
+
+  # Optional stratification at primary group level
+  g_lab <- NULL
+  if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
+    y <- cd[[outcome]]
+    g_lab <- tapply(seq_len(n), p_groups, function(ix) .majority_class(y[ix]))
+    g_lab <- factor(g_lab)
+    if (length(unique(g_lab)) < 2) g_lab <- NULL
+  }
+
+  for (r in seq_len(repeats)) {
+    set.seed(seed + 1000 * r)
+    if (isTRUE(compact)) fold_assign <- rep(NA_integer_, n)
+
+    # Step 1: assign primary groups to folds
+    if (!is.null(g_lab)) {
+      gfold <- integer(length(p_levels)); names(gfold) <- p_levels
+      for (cl in levels(g_lab)) {
+        g_in <- names(g_lab)[g_lab == cl]
+        gfold[g_in] <- sample(rep(seq_len(v), length.out = length(g_in)))
+      }
+    } else {
+      gfold <- sample(rep(seq_len(v), length.out = length(p_levels)))
+      names(gfold) <- p_levels
+    }
+
+    for (k in seq_len(v)) {
+      # Test = all samples belonging to primary groups assigned to fold k
+      test_p <- p_levels[gfold == k]
+      test <- which(p_groups %in% test_p)
+      if (length(test) == 0L) next
+
+      # Step 2: identify secondary-axis levels present in test
+      test_secondary_levels <- unique(s_groups[test])
+
+      # Step 3: remove from training any samples whose secondary level appears
+      # in test — this ensures both constraints hold simultaneously
+      remaining <- setdiff(seq_len(n), test)
+      train <- remaining[!s_groups[remaining] %in% test_secondary_levels]
+
+      if (length(train) == 0L) next
+
+      if (isTRUE(compact)) {
+        fold_assign[test] <- k
+        indices[[length(indices) + 1L]] <- list(fold = k, repeat_id = r)
+      } else {
+        indices[[length(indices) + 1L]] <- list(
+          train = train, test = test, fold = k, repeat_id = r
+        )
+      }
+      summary_rows[[length(summary_rows) + 1L]] <- data.frame(
+        fold = k, repeat_id = r,
+        train_n = length(train), test_n = length(test),
+        stringsAsFactors = FALSE
+      )
+    }
+    if (isTRUE(compact)) fold_assignments[[r]] <- fold_assign
+  }
+
+  list(indices = indices, summary_rows = summary_rows,
+       fold_assignments = fold_assignments)
+}
+
 #' Create leakage-resistant splits
 #'
 #' @description
@@ -29,13 +111,20 @@
 #'   If SummarizedExperiment, metadata are taken from colData(x). If data.frame,
 #'   metadata are taken from x (columns referenced by \code{group}, \code{batch}, \code{study}, \code{time}, \code{outcome}).
 #' @param outcome character, outcome column name (used for stratification).
-#' @param mode one of "subject_grouped","batch_blocked","study_loocv","time_series".
+#' @param mode one of "subject_grouped","batch_blocked","study_loocv","time_series","combined".
 #' @param group subject/group id column (for subject_grouped). Required when
 #'   mode is `subject_grouped`; use `group = "row_id"` to explicitly request
 #'   sample-wise CV.
 #' @param batch batch/plate/center column (for batch_blocked).
 #' @param study study id column (for study_loocv).
 #' @param time time column (numeric or POSIXct) for time_series.
+#' @param primary_axis List with elements \code{type} (one of \code{"subject"},
+#'   \code{"batch"}, \code{"study"}) and \code{col} (column name). Used only
+#'   when \code{mode = "combined"} to define the primary grouping axis.
+#' @param secondary_axis List with elements \code{type} and \code{col}. Used
+#'   only when \code{mode = "combined"} to define the secondary constraint axis.
+#'   Training sets exclude samples whose secondary-axis levels appear in the
+#'   test set.
 #' @param v integer, number of folds (k) or rolling partitions.
 #' @param repeats integer, number of repeats (>=1) for non-LOOCV modes.
 #' @param stratify logical, keep outcome proportions similar across folds.
@@ -92,8 +181,9 @@
 #'                       mode = "subject_grouped", group = "subject", v = 5)
 #' @export
 make_split_plan <- function(x, outcome = NULL,
-                        mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
+                        mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series", "combined"),
                         group = NULL, batch = NULL, study = NULL, time = NULL,
+                        primary_axis = NULL, secondary_axis = NULL,
                         v = 5, repeats = 1, stratify = FALSE, nested = FALSE,
                         seed = 1, horizon = 0, purge = 0, embargo = 0,
                         progress = TRUE, compact = FALSE,
@@ -108,12 +198,13 @@ make_split_plan <- function(x, outcome = NULL,
   set.seed(seed)
 
   if (!identical(mode, "time_series") && (purge > 0 || embargo > 0)) {
-    warning("purge and embargo are only used when mode = 'time_series'; ignoring both.",
-            call. = FALSE)
+    .bio_warn("purge and embargo are only used when mode = 'time_series'; ignoring both.",
+              "bioLeak_fold_warning")
   }
 
   if (isTRUE(compact) && isTRUE(nested)) {
-    warning("compact=TRUE is not supported with nested=TRUE; using compact=FALSE.", call. = FALSE)
+    .bio_warn("compact=TRUE is not supported with nested=TRUE; using compact=FALSE.",
+              "bioLeak_fold_warning")
     compact <- FALSE
   }
 
@@ -128,7 +219,8 @@ make_split_plan <- function(x, outcome = NULL,
   } else if (is.matrix(x)) {
     cd <- data.frame(row_id = seq_len(n))
   } else {
-    stop("x must be SummarizedExperiment, data.frame, or matrix.")
+    .bio_stop("x must be SummarizedExperiment, data.frame, or matrix.",
+              "bioLeak_input_error")
   }
 
   # Ensure unique row_id always exists
@@ -136,31 +228,55 @@ make_split_plan <- function(x, outcome = NULL,
 
   # Helper to ensure column existence
   .need_col <- function(col, label) {
-    if (is.null(col)) stop(sprintf("Provide '%s' column name.", label))
-    if (!col %in% names(cd)) stop(sprintf("Column '%s' not found in metadata.", col))
-    if (anyNA(cd[[col]])) stop(sprintf("Missing values found in column '%s'.", col))
+    if (is.null(col)) .bio_stop(sprintf("Provide '%s' column name.", label),
+                                "bioLeak_column_error")
+    if (!col %in% names(cd)) .bio_stop(sprintf("Column '%s' not found in metadata.", col),
+                                       "bioLeak_column_error")
+    if (anyNA(cd[[col]])) .bio_stop(sprintf("Missing values found in column '%s'.", col),
+                                    "bioLeak_column_error")
   }
 
   # Column checks
   if (mode == "subject_grouped") {
     if (is.null(group)) {
-      stop("subject_grouped mode requires a non-NULL 'group' column.", call. = FALSE)
+      .bio_stop("subject_grouped mode requires a non-NULL 'group' column.",
+                "bioLeak_input_error")
     }
     .need_col(group, "group")
   }
   if (mode == "batch_blocked")   .need_col(batch, "batch")
   if (mode == "study_loocv")     .need_col(study, "study")
   if (mode == "time_series")     .need_col(time, "time")
+  if (mode == "combined") {
+    valid_axis_types <- c("subject", "batch", "study")
+    .validate_axis <- function(ax, label) {
+      if (is.null(ax) || !is.list(ax))
+        .bio_stop(sprintf("'%s' must be a list with 'type' and 'col' elements.", label),
+                  "bioLeak_input_error")
+      if (!all(c("type", "col") %in% names(ax)))
+        .bio_stop(sprintf("'%s' must have 'type' and 'col' elements.", label),
+                  "bioLeak_input_error")
+      if (!ax$type %in% valid_axis_types)
+        .bio_stop(sprintf("'%s$type' must be one of: %s.", label, paste(valid_axis_types, collapse = ", ")),
+                  "bioLeak_input_error")
+      .need_col(ax$col, paste0(label, "$col"))
+    }
+    .validate_axis(primary_axis, "primary_axis")
+    .validate_axis(secondary_axis, "secondary_axis")
+  }
 
   if (isTRUE(stratify) && (is.null(outcome) || !outcome %in% names(cd)))
-    warning("Stratification requested but 'outcome' not found; proceeding unstratified.")
+    .bio_warn("Stratification requested but 'outcome' not found; proceeding unstratified.",
+              "bioLeak_fold_warning")
   if (isTRUE(stratify) && !is.null(outcome) && length(outcome) == 2L) {
-    warning("Stratification ignored for time/event outcomes; proceeding unstratified.")
+    .bio_warn("Stratification ignored for time/event outcomes; proceeding unstratified.",
+              "bioLeak_fold_warning")
     stratify <- FALSE
   }
   if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
     if (inherits(cd[[outcome]], "Surv")) {
-      warning("Stratification ignored for survival outcomes; proceeding unstratified.")
+      .bio_warn("Stratification ignored for survival outcomes; proceeding unstratified.",
+                "bioLeak_fold_warning")
       stratify <- FALSE
     }
   }
@@ -358,7 +474,8 @@ make_split_plan <- function(x, outcome = NULL,
   if (mode == "time_series") {
     tt <- cd[[time]]
     if (!is.numeric(tt) && !inherits(tt, c("POSIXct", "Date")))
-      stop("'time' column must be numeric, Date, or POSIXct.")
+      .bio_stop("'time' column must be numeric, Date, or POSIXct.",
+                "bioLeak_input_error")
     ord <- order(tt)
     Xidx <- seq_len(n)[ord]
 
@@ -397,6 +514,19 @@ make_split_plan <- function(x, outcome = NULL,
     if (isTRUE(compact)) fold_assignments[[1]] <- fold_assign
   }
 
+  # ---- Combined ----
+  if (mode == "combined") {
+    combined <- .bio_make_combined_splits(
+      cd = cd, n = n,
+      primary_axis = primary_axis, secondary_axis = secondary_axis,
+      v = v, repeats = repeats, stratify = stratify, outcome = outcome,
+      seed = seed, compact = compact
+    )
+    indices <- combined$indices
+    summary_rows <- combined$summary_rows
+    fold_assignments <- combined$fold_assignments
+  }
+
   # ---- Nested ----
   if (isTRUE(nested) && length(indices) > 0) {
     inner_indices <- vector("list", length(indices))
@@ -417,7 +547,8 @@ make_split_plan <- function(x, outcome = NULL,
 
   # ---- Summary ----
   if (length(indices) == 0L)
-    stop("No valid folds generated. Check inputs (group/batch/study/time, v, repeats, horizon).")
+    .bio_stop("No valid folds generated. Check inputs (group/batch/study/time, v, repeats, horizon).",
+              "bioLeak_split_error")
 
   fold_repeat_keys <- vapply(indices, function(z) paste(z$fold, z$repeat_id), character(1))
   if (anyDuplicated(fold_repeat_keys)) {
@@ -451,8 +582,9 @@ make_split_plan <- function(x, outcome = NULL,
   }, error = function(e) NA_character_)
 
   info <- list(
-    outcome = outcome, v = v, repeats = repeats, seed = seed, mode = mode,
+    outcome = outcome, v = v, repeats = repeats_eff, seed = seed, mode = mode,
     group = group, batch = batch, study = study, time = time,
+    primary_axis = primary_axis, secondary_axis = secondary_axis,
     stratify = stratify, nested = nested, horizon = horizon,
     purge = purge, embargo = embargo,
     summary = split_summary, hash = hash_val, inner = inner_indices,
@@ -494,3 +626,109 @@ setMethod("show", "LeakSplits", function(object) {
   cat(sprintf("Total folds: %d | Hash: %s\n",
               nrow(object@info$summary), object@info$hash))
 })
+
+
+#' Check split overlap invariants
+#'
+#' Verifies that a \code{\linkS4class{LeakSplits}} object satisfies the
+#' expected no-overlap constraints for one or more grouping columns. For each
+#' fold, the function checks that no group-level value appearing in the test
+#' set is also present in the training set.
+#'
+#' @param splits A \code{LeakSplits} object from \code{\link{make_split_plan}}.
+#' @param coldata A data.frame of sample metadata. When \code{NULL} (default),
+#'   the function uses \code{splits@@info$coldata} if available.
+#' @param cols Character vector of column names to check for overlap. When
+#'   \code{NULL} (default), the function infers columns from the split mode
+#'   (e.g., \code{group} for \code{subject_grouped}, \code{batch} for
+#'   \code{batch_blocked}, both axes for \code{combined}).
+#' @return A data.frame with one row per (fold × column) combination and
+#'   columns \code{fold}, \code{repeat_id}, \code{col}, \code{n_overlap}
+#'   (number of overlapping group values), and \code{pass} (logical).
+#'   Invisible. Raises an error if any fold fails and \code{stop_on_fail = TRUE}.
+#' @param stop_on_fail Logical; if \code{TRUE} (default), raises an error when
+#'   any overlap is detected.
+#' @export
+check_split_overlap <- function(splits, coldata = NULL, cols = NULL,
+                                stop_on_fail = TRUE) {
+  stopifnot(inherits(splits, "LeakSplits"))
+
+  cd <- coldata %||% splits@info$coldata
+  if (is.null(cd) || !is.data.frame(cd)) {
+    .bio_stop("coldata must be provided or present in splits@info$coldata.",
+              "bioLeak_input_error")
+  }
+
+  # Infer columns to check from split mode when not supplied
+  if (is.null(cols)) {
+    mode <- splits@mode
+    cols <- character(0)
+    if (mode == "subject_grouped" && !is.null(splits@info$group))
+      cols <- c(cols, splits@info$group)
+    if (mode == "batch_blocked" && !is.null(splits@info$batch))
+      cols <- c(cols, splits@info$batch)
+    if (mode == "study_loocv" && !is.null(splits@info$study))
+      cols <- c(cols, splits@info$study)
+    if (mode == "combined") {
+      if (!is.null(splits@info$primary_axis$col))
+        cols <- c(cols, splits@info$primary_axis$col)
+      if (!is.null(splits@info$secondary_axis$col))
+        cols <- c(cols, splits@info$secondary_axis$col)
+    }
+    if (!length(cols)) {
+      message("No grouping columns detected; nothing to check.")
+      return(invisible(data.frame()))
+    }
+  }
+
+  missing_cols <- setdiff(cols, names(cd))
+  if (length(missing_cols)) {
+    .bio_stop(sprintf("Column(s) not found in coldata: %s",
+                      paste(missing_cols, collapse = ", ")),
+              "bioLeak_column_error")
+  }
+
+  # Resolve explicit indices only (compact mode not supported)
+  folds <- splits@indices
+  has_explicit <- all(vapply(folds, function(f) !is.null(f$train), logical(1)))
+  if (!has_explicit) {
+    message("compact splits (no explicit train/test indices) cannot be checked; skipping.")
+    return(invisible(data.frame()))
+  }
+
+  result_rows <- list()
+  for (fi in seq_along(folds)) {
+    f <- folds[[fi]]
+    tr <- f$train
+    te <- f$test
+    for (col in cols) {
+      train_vals <- unique(cd[[col]][tr])
+      test_vals  <- unique(cd[[col]][te])
+      overlap    <- intersect(train_vals, test_vals)
+      result_rows[[length(result_rows) + 1L]] <- data.frame(
+        fold       = f$fold %||% fi,
+        repeat_id  = f$repeat_id %||% 1L,
+        col        = col,
+        n_overlap  = length(overlap),
+        pass       = length(overlap) == 0L,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+
+  result <- do.call(rbind, result_rows)
+  failures <- result[!result$pass, , drop = FALSE]
+
+  if (nrow(failures) > 0L && isTRUE(stop_on_fail)) {
+    .bio_stop(sprintf(
+      "Overlap detected in %d fold(s). First failure: fold=%s, col=%s, n_overlap=%d.",
+      nrow(failures),
+      failures$fold[[1]], failures$col[[1]], failures$n_overlap[[1]]
+    ), "bioLeak_overlap_error")
+  } else if (nrow(failures) > 0L) {
+    .bio_warn(sprintf("Overlap detected in %d fold(s).", nrow(failures)),
+              "bioLeak_overlap_error")
+  }
+
+  invisible(result)
+}

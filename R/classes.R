@@ -3,7 +3,8 @@
 #' These classes capture splits, model fits, and audit diagnostics produced by
 #' \code{make_split_plan()}, \code{fit_resample()}, and \code{audit_leakage()}.
 #'
-#' @slot mode Splitting mode (e.g., "grouped_cv", "batch_blocked")
+#' @slot mode Splitting mode. One of "subject_grouped", "batch_blocked",
+#'   "study_loocv", "time_series", or "combined".
 #' @slot indices List of resampling descriptors (train/test indices when available)
 #' @slot info Metadata associated with split or fit
 #' @return An S4 object of the respective class.

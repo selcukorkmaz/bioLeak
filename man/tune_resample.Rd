@@ -43,7 +43,9 @@ workflow. When a model_spec is provided, a workflow is built using
 `preprocess` or a formula.}
 
 \item{preprocess}{Optional `recipes::recipe`. Required when you need
-preprocessing for tuning. Ignored when `learner` is already a workflow.}
+preprocessing for tuning. Ignored when `learner` is already a workflow.
+Recipe/workflow leakage guardrails run before tuning; configure policy via
+\code{options(bioLeak.validation_mode = "warn" | "error" | "off")}.}
 
 \item{grid}{Tuning grid passed to `tune::tune_grid()`. Can be a data.frame or
 an integer size.}
@@ -80,7 +82,9 @@ are not precomputed. Defaults to the outer split seed.}
 folds (single-fold, no refit).}
 
 \item{refit}{Logical; if TRUE, refits a final tuned workflow on the full
-dataset using hyperparameters selected from the best-performing outer fold.}
+dataset using aggregated hyperparameters across all outer folds (median
+for numeric parameters, majority vote for categorical). This avoids
+nested-CV leakage that would occur from selecting a single fold's params.}
 
 \item{seed}{Integer seed for reproducibility.}
 

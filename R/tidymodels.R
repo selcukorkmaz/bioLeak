@@ -7,6 +7,128 @@
 .bio_is_workflow <- function(x) inherits(x, "workflow")
 .bio_is_yardstick_metric <- function(x) inherits(x, "metric") || inherits(x, "metric_function")
 
+.bio_validation_mode <- function(mode = NULL) {
+  mode <- mode %||% getOption("bioLeak.validation_mode", "warn")
+  if (is.null(mode) || length(mode) != 1L || !is.character(mode)) {
+    mode <- "warn"
+  }
+  mode <- tolower(mode)
+  if (!mode %in% c("warn", "error", "off")) {
+    warning("Unknown bioLeak validation mode; using 'warn'.", call. = FALSE)
+    mode <- "warn"
+  }
+  mode
+}
+
+.bio_signal_policy <- function(message, mode = "warn") {
+  mode <- .bio_validation_mode(mode)
+  if (identical(mode, "off")) return(invisible(FALSE))
+  if (identical(mode, "error")) {
+    stop(message, call. = FALSE)
+  }
+  warning(message, call. = FALSE)
+  invisible(TRUE)
+}
+
+.bio_recipe_step_label <- function(step) {
+  cls <- class(step)
+  cls <- cls[!cls %in% c("step", "list")]
+  if (!length(cls)) return("step")
+  cls[[1]]
+}
+
+.bio_recipe_is_trained <- function(recipe_obj) {
+  if (!.bio_is_recipe(recipe_obj)) return(FALSE)
+  has_tr_info <- !is.null(recipe_obj$tr_info)
+  has_orig_levels <- !is.null(recipe_obj$orig_lvls)
+  has_fit_times <- !is.null(recipe_obj$fit_times)
+  isTRUE(has_tr_info || has_orig_levels || has_fit_times)
+}
+
+.bio_validate_recipe_graph <- function(recipe_obj, context = "fit_resample", mode = NULL) {
+  if (!.bio_is_recipe(recipe_obj)) return(invisible(TRUE))
+  mode <- .bio_validation_mode(mode)
+  if (identical(mode, "off")) return(invisible(TRUE))
+
+  if (.bio_recipe_is_trained(recipe_obj)) {
+    .bio_signal_policy(
+      sprintf(
+        "%s: received a trained recipe. Pass an untrained recipe to avoid fold-global leakage.",
+        context
+      ),
+      mode
+    )
+  }
+
+  steps <- recipe_obj$steps %||% list()
+  if (length(steps)) {
+    for (i in seq_along(steps)) {
+      st <- steps[[i]]
+      if (inherits(st, "step_lag")) {
+        lag_vals <- suppressWarnings(as.numeric(st$lag %||% numeric(0)))
+        if (length(lag_vals) && any(is.finite(lag_vals) & lag_vals < 0)) {
+          .bio_signal_policy(
+            sprintf(
+              "%s: recipe step %d (%s) uses negative lag values; this can introduce lookahead leakage.",
+              context, i, .bio_recipe_step_label(st)
+            ),
+            mode
+          )
+        }
+      }
+    }
+  }
+
+  invisible(TRUE)
+}
+
+.bio_workflow_is_trained <- function(workflow_obj) {
+  if (!.bio_is_workflow(workflow_obj) || !requireNamespace("workflows", quietly = TRUE)) {
+    return(FALSE)
+  }
+
+  is_trained_fn <- get0("is_trained_workflow", envir = asNamespace("workflows"), inherits = FALSE)
+  if (is.function(is_trained_fn)) {
+    out <- tryCatch(is_trained_fn(workflow_obj), error = function(e) FALSE)
+    return(isTRUE(out))
+  }
+
+  has_fit <- tryCatch({
+    workflows::extract_fit_parsnip(workflow_obj)
+    TRUE
+  }, error = function(e) FALSE)
+  isTRUE(has_fit)
+}
+
+.bio_validate_workflow_graph <- function(workflow_obj, context = "fit_resample", mode = NULL) {
+  if (!.bio_is_workflow(workflow_obj)) return(invisible(TRUE))
+  mode <- .bio_validation_mode(mode)
+  if (identical(mode, "off")) return(invisible(TRUE))
+
+  if (.bio_workflow_is_trained(workflow_obj)) {
+    .bio_signal_policy(
+      sprintf(
+        "%s: received a trained workflow. Pass an unfitted workflow to avoid fold-global leakage.",
+        context
+      ),
+      mode
+    )
+  }
+
+  if (requireNamespace("workflows", quietly = TRUE)) {
+    pre <- tryCatch(workflows::extract_preprocessor(workflow_obj), error = function(e) NULL)
+    if (.bio_is_recipe(pre)) {
+      .bio_validate_recipe_graph(
+        pre,
+        context = paste0(context, " (workflow preprocessor)"),
+        mode = mode
+      )
+    }
+  }
+
+  invisible(TRUE)
+}
+
 .bio_perm_mode <- function(splits) {
   if (!inherits(splits, "LeakSplits")) return(NA_character_)
   mode <- splits@mode %||% NA_character_

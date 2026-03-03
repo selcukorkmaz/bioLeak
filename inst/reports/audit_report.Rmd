@@ -29,13 +29,19 @@ batch_assoc <- tryCatch(audit@batch_assoc, error = function(e) NULL)
 target_assoc <- tryCatch(audit@target_assoc, error = function(e) NULL)
 duplicates <- tryCatch(audit@duplicates, error = function(e) NULL)
 perm_values <- tryCatch(audit@perm_values, error = function(e) numeric(0))
+fold_status <- tryCatch(audit@fit@info$fold_status, error = function(e) NULL)
+provenance <- tryCatch(audit@fit@info$provenance, error = function(e) NULL)
+bio_version <- tryCatch(as.character(utils::packageVersion("bioLeak")),
+                        error = function(e) "unknown")
+has_ggplot2 <- requireNamespace("ggplot2", quietly = TRUE)
 ```
 
 # Overview
 
-- Generated: `r format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")`
-- Task: `r ifelse(is.na(task), "unknown", task)`
-- Outcome: `r ifelse(is.na(outcome), "unknown", outcome)`
+- **bioLeak version**: `r bio_version`
+- **Generated**: `r format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")`
+- **Task**: `r ifelse(is.na(task), "unknown", task)`
+- **Outcome**: `r ifelse(is.na(outcome), "unknown", outcome)`
 
 ## Cross-validated Metrics
 
@@ -43,7 +49,11 @@ perm_values <- tryCatch(audit@perm_values, error = function(e) numeric(0))
 print(safe_df(metric_summary, "Metric summary is unavailable."))
 ```
 
-## Permutation Gap
+## Permutation-Gap Test
+
+The permutation-gap test compares the observed cross-validated metric against a
+null distribution constructed by permuting labels. A large gap with a small
+p-value indicates the model has learned signal beyond random label assignment.
 
 ```{r}
 print(safe_df(perm_gap, "Permutation results are unavailable."))
@@ -78,6 +88,58 @@ if (length(perm_values) > 0L) {
 print(safe_df(batch_assoc, "No batch/study association results available."))
 ```
 
+## Confounder Sensitivity
+
+```{r}
+tryCatch({
+  cs <- confounder_sensitivity(audit@fit)
+  if (is.data.frame(cs) && nrow(cs) > 0L) {
+    print(cs)
+  } else {
+    print(empty_df("Confounder sensitivity analysis returned no results."))
+  }
+}, error = function(e) {
+  print(empty_df(paste("Confounder sensitivity unavailable:", e$message)))
+})
+```
+
+## Calibration
+
+```{r}
+tryCatch({
+  if (identical(task, "binomial")) {
+    cal <- calibration_summary(audit@fit)
+    if (is.data.frame(cal) && nrow(cal) > 0L) {
+      print(cal)
+    } else {
+      print(empty_df("Calibration summary returned no results."))
+    }
+  } else {
+    print(empty_df("Calibration analysis is only available for binomial tasks."))
+  }
+}, error = function(e) {
+  print(empty_df(paste("Calibration unavailable:", e$message)))
+})
+```
+
+```{r fig.height=4, fig.width=5}
+tryCatch({
+  if (identical(task, "binomial") && has_ggplot2) {
+    cal <- calibration_summary(audit@fit)
+    if (is.data.frame(cal) && nrow(cal) > 0L &&
+        all(c("bin_midpoint", "observed_rate") %in% names(cal))) {
+      p <- ggplot2::ggplot(cal, ggplot2::aes(x = bin_midpoint, y = observed_rate)) +
+        ggplot2::geom_point() +
+        ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+        ggplot2::labs(x = "Predicted probability", y = "Observed rate",
+                      title = "Calibration Curve") +
+        ggplot2::theme_minimal()
+      print(p)
+    }
+  }
+}, error = function(e) NULL)
+```
+
 ## Target Leakage Scan
 
 ```{r}
@@ -96,4 +158,76 @@ if (is.data.frame(duplicates) && nrow(duplicates) > 0L) {
 } else {
   print(empty_df("No near-duplicate samples detected."))
 }
+```
+
+## Fold Balance
+
+```{r fig.height=4, fig.width=6}
+tryCatch({
+  if (!is.null(fold_status) && is.data.frame(fold_status) && nrow(fold_status) > 0L) {
+    status_tbl <- table(fold_status$status)
+    barplot(status_tbl, col = c(success = "steelblue", skipped = "orange",
+                                 failed = "firebrick")[names(status_tbl)],
+            main = "Fold Status Distribution",
+            ylab = "Count", las = 1)
+  } else {
+    plot.new()
+    text(0.5, 0.5, "No fold status information available.")
+  }
+}, error = function(e) {
+  plot.new()
+  text(0.5, 0.5, "Fold balance plot unavailable.")
+})
+```
+
+## Methods and Interpretation
+
+This report summarizes a post-hoc leakage audit performed by bioLeak. Each
+section targets a different aspect of data leakage and confounding:
+
+- **Cross-validated Metrics**: Performance estimates from the resampling scheme.
+  Confidence intervals (when present) use the Nadeau-Bengio (2003) corrected
+  variance to account for training-set overlap.
+- **Permutation-Gap Test**: Compares observed performance to a null built by
+  shuffling labels. A significant gap indicates the model captures genuine
+  signal; a non-significant gap warns of potential overfitting or leakage.
+- **Batch / Study Association**: Chi-squared tests for confounding between fold
+  assignment and batch or study labels. Significant associations suggest the
+  experimental design may inflate performance.
+- **Confounder Sensitivity**: Quantifies how much each confounder contributes to
+  apparent model performance.
+- **Calibration**: (Binomial tasks only.) Compares predicted probabilities to
+  observed event rates. Good calibration means predicted probabilities are
+  trustworthy.
+- **Target Leakage Scan**: Flags features with unusually strong univariate
+  associations with the outcome, which may indicate information leaking from the
+  target into the feature set.
+- **Duplicate Detection**: Identifies near-duplicate samples that could inflate
+  performance when they span train and test sets.
+- **Fold Balance**: Summarizes the success, skip, and failure rate across
+  cross-validation folds.
+
+## Session Information
+
+```{r}
+tryCatch({
+  if (!is.null(provenance) && is.list(provenance)) {
+    cat("R version:", provenance$r_version, "\n")
+    cat("Platform:", provenance$platform, "\n")
+    cat("Timestamp:", format(provenance$timestamp), "\n")
+    if (!is.na(provenance$git_sha)) {
+      cat("Git SHA:", provenance$git_sha, "\n")
+    }
+    if (!is.null(provenance$hardware)) {
+      cat("System:", provenance$hardware$sysname, "/",
+          provenance$hardware$machine, "\n")
+    }
+    cat("\nKey packages:\n")
+    print(utils::head(provenance$packages, 20))
+  } else {
+    print(utils::sessionInfo())
+  }
+}, error = function(e) {
+  print(utils::sessionInfo())
+})
 ```

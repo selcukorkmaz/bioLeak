@@ -109,6 +109,96 @@ test_that("tune_resample supports final refit and stores fold status", {
   expect_true(all(tuned$fold_status$status %in% c("success", "skipped", "failed")))
 })
 
+test_that("final refit uses aggregated params, not single best outer fold", {
+  skip_if_tune_deps()
+
+  df <- make_class_df(40)
+  splits <- make_split_plan_quiet(df, outcome = "outcome",
+                                  mode = "subject_grouped", group = "subject",
+                                  v = 2, nested = TRUE, stratify = FALSE, seed = 2)
+
+  spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+    parsnip::set_engine("glmnet")
+  rec <- recipes::recipe(outcome ~ x1 + x2, data = df)
+
+  tuned <- suppressWarnings(
+    tune_resample(df, outcome = "outcome", splits = splits,
+                  learner = spec, preprocess = rec, grid = 3,
+                  metrics = "accuracy", selection = "best",
+                  refit = TRUE, seed = 2)
+  )
+
+  # refit_method must be "aggregate", not a single-fold selection
+  expect_identical(tuned$info$refit_method, "aggregate")
+
+  # refit_fold must be NA — no single fold was selected based on outer metrics
+  expect_true(is.na(tuned$info$refit_fold))
+
+  # final_params must have exactly the hyperparameter columns, no fold column
+  expect_false("fold" %in% names(tuned$final_params))
+
+  # --- Behavioral proof that outer test metrics are not consulted ---
+  # final_params must exactly equal the coordinate-wise aggregate of ALL folds'
+  # best_params. This is the core independence guarantee: the old (leaky) code
+  # did which.max(metrics_df[[metric]]) to pick a single fold, so final_params
+  # would equal that fold's row. The new code aggregates all folds equally.
+  bp <- tuned$best_params
+  param_cols <- setdiff(names(bp), "fold")
+  expect_true(nrow(bp) >= 2,
+              info = "Need at least 2 outer folds to test aggregation")
+  expect_true(length(param_cols) >= 1,
+              info = "Need at least 1 hyperparameter column")
+
+  for (col in param_cols) {
+    if (is.numeric(bp[[col]])) {
+      expected <- stats::median(bp[[col]], na.rm = TRUE)
+      expect_equal(tuned$final_params[[col]], expected,
+                   info = paste("Param", col,
+                                "must equal median across ALL folds, not a single fold's value"))
+    } else {
+      tbl <- table(bp[[col]])
+      expected <- names(tbl)[which.max(tbl)]
+      expect_equal(as.character(tuned$final_params[[col]]), expected,
+                   info = paste("Param", col,
+                                "must equal majority vote across ALL folds"))
+    }
+  }
+
+  # Verify final_params is not simply copied from the best-metric fold.
+  # Identify the fold that had the best outer metric — if it differs from the
+  # aggregate, the old (leaky) logic would have returned that fold's params.
+  metric_col <- tuned$info$selection_metric
+  if (!is.null(metric_col) && metric_col %in% names(tuned$metrics)) {
+    metric_vals <- tuned$metrics[[metric_col]]
+    minimize <- metric_col %in% c("rmse", "mae", "log_loss", "mn_log_loss")
+    best_idx <- if (minimize) which.min(metric_vals) else which.max(metric_vals)
+    best_fold <- tuned$metrics$fold[best_idx]
+    best_fold_params <- bp[bp$fold == best_fold, param_cols, drop = FALSE]
+
+    # Check if folds actually disagree on params
+    folds_disagree <- FALSE
+    for (col in param_cols) {
+      if (length(unique(bp[[col]])) > 1L) {
+        folds_disagree <- TRUE
+        break
+      }
+    }
+
+    if (folds_disagree && nrow(best_fold_params) == 1L) {
+      # When folds disagree, the aggregate should NOT equal the best-metric
+      # fold's params. This is the direct proof: the old code would have
+      # returned best_fold_params, the new code returns the aggregate.
+      params_match_best <- all(vapply(param_cols, function(col) {
+        identical(tuned$final_params[[col]], best_fold_params[[col]])
+      }, logical(1)))
+      expect_false(params_match_best,
+                   info = paste("final_params must not equal fold", best_fold,
+                                "params (the best-metric fold) — that would be",
+                                "nested-CV leakage"))
+    }
+  }
+})
+
 test_that("LeakTune summary and audit handle skipped outer folds", {
   skip_if_tune_deps()
 
