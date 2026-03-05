@@ -199,13 +199,14 @@ argument is ignored with a warning. Default is NULL.}
 A \code{\linkS4class{LeakAudit}} S4 object containing:
   \describe{
     \item{\code{fit}}{The \code{LeakFit} object that was audited.}
-    \item{\code{permutation_gap}}{One-row data.frame with columns:
-      \code{metric_obs} (observed cross-validated metric), \code{perm_mean}
-      (mean of permuted metrics), \code{perm_sd} (standard deviation),
-      \code{gap} (observed minus permuted mean, or vice versa for loss metrics),
-      \code{z} (standardized gap), \code{p_value} (permutation p-value), and
-      \code{n_perm} (number of permutations). A large positive gap and small
-      p-value suggest the model captures signal beyond random label assignment.}
+    \item{\code{permutation_gap}}{One-row data.frame from the permutation-gap
+      test with columns: \code{metric_obs} (observed cross-validated metric),
+      \code{perm_mean} (mean of permuted metrics), \code{perm_sd} (standard
+      deviation), \code{gap} (observed minus permuted mean, or vice versa for
+      loss metrics), \code{z} (standardized gap), \code{p_value}
+      (permutation p-value), and \code{n_perm} (number of permutations). A
+      large positive gap and small p-value suggest the model captures signal
+      beyond random label assignment.}
     \item{\code{perm_values}}{Numeric vector of length \code{B} containing
       the metric value from each permutation. Useful for plotting the null
       distribution. Empty if \code{return_perm = FALSE}.}
@@ -236,10 +237,11 @@ A \code{\linkS4class{LeakAudit}} S4 object containing:
 }
 \description{
 Computes a post-hoc leakage audit for a resampled model fit. The audit
-(1) compares observed cross-validated performance to a label-permutation
-null (by default refitting when data are available; otherwise using fixed
-predictions), (2) tests whether fold assignments
-are associated with batch or study metadata (confounding by design),
+(1) runs a permutation-gap test comparing observed cross-validated
+performance to a label-permutation null (by default refitting when data
+are available; otherwise using fixed predictions),
+(2) tests whether fold assignments are associated with batch or study
+metadata (confounding by design),
 (3) scans features for unusually strong outcome proxies, and (4) flags
 duplicate or near-duplicate samples in a reference feature matrix.
 

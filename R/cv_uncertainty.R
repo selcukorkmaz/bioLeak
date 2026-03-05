@@ -56,7 +56,8 @@ cv_ci <- function(metrics_df, level = 0.95,
 
   metric_cols <- setdiff(names(metrics_df), c("fold", "learner"))
   if (!length(metric_cols)) {
-    stop("No numeric metric columns found in metrics_df.")
+    .bio_stop("No numeric metric columns found in metrics_df.",
+              "bioLeak_input_error")
   }
 
   learners <- unique(metrics_df$learner)

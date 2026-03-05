@@ -125,60 +125,63 @@ tune_resample <- function(x, outcome, splits,
                           threshold_metric = "accuracy") {
 
   selection <- match.arg(selection)
+  .bio_strict_checks(context = "tune_resample", seed = seed)
   if (!is.logical(refit) || length(refit) != 1L || is.na(refit)) {
-    stop("refit must be TRUE or FALSE.", call. = FALSE)
+    .bio_stop("refit must be TRUE or FALSE.", "bioLeak_input_error")
   }
   if (!is.logical(tune_threshold) || length(tune_threshold) != 1L || is.na(tune_threshold)) {
-    stop("tune_threshold must be TRUE or FALSE.", call. = FALSE)
+    .bio_stop("tune_threshold must be TRUE or FALSE.", "bioLeak_input_error")
   }
   if (!is.numeric(threshold_grid) || !length(threshold_grid)) {
-    stop("threshold_grid must be a non-empty numeric vector.", call. = FALSE)
+    .bio_stop("threshold_grid must be a non-empty numeric vector.", "bioLeak_input_error")
   }
   threshold_grid <- sort(unique(as.numeric(threshold_grid)))
   if (any(!is.finite(threshold_grid)) || any(threshold_grid < 0 | threshold_grid > 1)) {
-    stop("threshold_grid must contain finite values in [0, 1].", call. = FALSE)
+    .bio_stop("threshold_grid must contain finite values in [0, 1].", "bioLeak_input_error")
   }
   threshold_metric_is_fn <- is.function(threshold_metric)
   if (!threshold_metric_is_fn) {
     if (!is.character(threshold_metric) || length(threshold_metric) != 1L) {
-      stop("threshold_metric must be one of: accuracy, balanced_accuracy, f1, or a function.",
-           call. = FALSE)
+      .bio_stop("threshold_metric must be one of: accuracy, balanced_accuracy, f1, or a function.",
+                "bioLeak_input_error")
     }
     threshold_metric <- match.arg(threshold_metric, c("accuracy", "balanced_accuracy", "f1"))
   }
 
   if (!requireNamespace("tune", quietly = TRUE)) {
-    stop("Package 'tune' is required for tune_resample().", call. = FALSE)
+    .bio_stop("Package 'tune' is required for tune_resample().", "bioLeak_dependency_error")
   }
   if (!requireNamespace("dials", quietly = TRUE)) {
-    stop("Package 'dials' is required for tune_resample().", call. = FALSE)
+    .bio_stop("Package 'dials' is required for tune_resample().", "bioLeak_dependency_error")
   }
   if (!requireNamespace("yardstick", quietly = TRUE)) {
-    stop("Package 'yardstick' is required for tune_resample().", call. = FALSE)
+    .bio_stop("Package 'yardstick' is required for tune_resample().", "bioLeak_dependency_error")
   }
   if (!requireNamespace("rsample", quietly = TRUE)) {
-    stop("Package 'rsample' is required for tune_resample().", call. = FALSE)
+    .bio_stop("Package 'rsample' is required for tune_resample().", "bioLeak_dependency_error")
   }
   if (!requireNamespace("workflows", quietly = TRUE)) {
-    stop("Package 'workflows' is required for tune_resample().", call. = FALSE)
+    .bio_stop("Package 'workflows' is required for tune_resample().", "bioLeak_dependency_error")
   }
 
   is_parsnip_spec <- function(obj) inherits(obj, "model_spec")
   is_workflow <- function(obj) inherits(obj, "workflow")
 
   if (!is_workflow(learner) && !is_parsnip_spec(learner)) {
-    stop("learner must be a parsnip model_spec or a workflows::workflow.", call. = FALSE)
+    .bio_stop("learner must be a parsnip model_spec or a workflows::workflow.", "bioLeak_input_error")
   }
 
   if (is_workflow(learner) && !is.null(preprocess)) {
     warning("preprocess ignored when learner is a workflow.")
   }
   if (!is.null(preprocess) && !inherits(preprocess, "recipe") && !is_workflow(learner)) {
-    stop("tune_resample requires a recipe (or a workflow) for preprocessing.", call. = FALSE)
+    .bio_stop("tune_resample requires a recipe (or a workflow) for preprocessing.",
+              "bioLeak_input_error")
   }
   if (!is_workflow(learner) && inherits(preprocess, "recipe") &&
       !requireNamespace("recipes", quietly = TRUE)) {
-    stop("Package 'recipes' is required when preprocess is a recipe.", call. = FALSE)
+    .bio_stop("Package 'recipes' is required when preprocess is a recipe.",
+              "bioLeak_dependency_error")
   }
   validation_mode <- .bio_validation_mode()
   if (inherits(preprocess, "recipe") && !is_workflow(learner)) {
@@ -234,11 +237,11 @@ tune_resample <- function(x, outcome, splits,
       splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(.bio_get_x(x)), coldata = coldata,
                                                 split_cols = split_cols)
     } else {
-      stop("splits must be a LeakSplits or rsample rset/rsplit.", call. = FALSE)
+      .bio_stop("splits must be a LeakSplits or rsample rset/rsplit.", "bioLeak_input_error")
     }
   }
   if (identical(splits@mode, "rsample") && is.null(splits@info$inner)) {
-    stop("rsample splits require precomputed inner folds for tune_resample().", call. = FALSE)
+    .bio_stop("rsample splits require precomputed inner folds for tune_resample().", "bioLeak_input_error")
   }
 
   Xall <- .bio_get_x(x)
@@ -247,7 +250,7 @@ tune_resample <- function(x, outcome, splits,
   y_data <- y_orig
 
   if (.bio_is_survival(yall)) {
-    stop("tune_resample does not yet support survival tasks.", call. = FALSE)
+    .bio_stop("tune_resample does not yet support survival tasks.", "bioLeak_input_error")
   }
 
   drop_cols <- outcome
@@ -267,7 +270,7 @@ tune_resample <- function(x, outcome, splits,
   else if (.bio_is_regression(yall)) "gaussian"
   else if (is.factor(yall) && nlevels(yall) == 2) "binomial"
   else if (is.factor(yall) && nlevels(yall) > 2) "multiclass"
-  else stop("Unsupported outcome type for tuning.", call. = FALSE)
+  else .bio_stop("Unsupported outcome type for tuning.", "bioLeak_input_error")
 
   class_levels <- NULL
   if (task == "binomial") {
@@ -277,17 +280,18 @@ tune_resample <- function(x, outcome, splits,
     }
     yall <- droplevels(yall)
     if (nlevels(yall) != 2) {
-      stop("Binomial task requires exactly two outcome levels.", call. = FALSE)
+      .bio_stop("Binomial task requires exactly two outcome levels.", "bioLeak_input_error")
     }
     if (!is.null(positive_class)) {
       pos_chr <- as.character(positive_class)
       if (length(pos_chr) != 1L) {
-        stop("positive_class must be a single value.", call. = FALSE)
+        .bio_stop("positive_class must be a single value.", "bioLeak_input_error")
       }
       levels_y <- levels(yall)
       if (!pos_chr %in% levels_y) {
-        stop(sprintf("positive_class '%s' not found in outcome levels: %s",
-                     pos_chr, paste(levels_y, collapse = ", ")), call. = FALSE)
+        .bio_stop(sprintf("positive_class '%s' not found in outcome levels: %s",
+                          pos_chr, paste(levels_y, collapse = ", ")),
+                  "bioLeak_input_error")
       }
       if (!identical(pos_chr, levels_y[2])) {
         levels_y <- c(setdiff(levels_y, pos_chr), pos_chr)
@@ -305,7 +309,7 @@ tune_resample <- function(x, outcome, splits,
     }
     yall <- droplevels(yall)
     if (nlevels(yall) < 3) {
-      stop("Multiclass task requires 3 or more outcome levels.", call. = FALSE)
+      .bio_stop("Multiclass task requires 3 or more outcome levels.", "bioLeak_input_error")
     }
     if (!is.null(positive_class)) {
       warning("positive_class is ignored for multiclass tasks.")

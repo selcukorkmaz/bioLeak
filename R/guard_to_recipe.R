@@ -27,8 +27,8 @@
 #' @export
 guard_to_recipe <- function(steps, formula, training_data) {
   if (!requireNamespace("recipes", quietly = TRUE)) {
-    stop("The 'recipes' package is required for guard_to_recipe(). ",
-         "Install it with install.packages('recipes').", call. = FALSE)
+    .bio_stop("The 'recipes' package is required for guard_to_recipe(). Install it with install.packages('recipes').",
+              "bioLeak_dependency_error")
   }
 
   stopifnot(is.list(steps))
@@ -46,8 +46,9 @@ guard_to_recipe <- function(steps, formula, training_data) {
       k <- imp$k %||% imp$neighbors %||% 5L
       rec <- recipes::step_impute_knn(rec, recipes::all_predictors(), neighbors = k)
     } else if (imp$method %in% c("missForest", "mice")) {
-      warning(sprintf("Imputation method '%s' has no direct recipe equivalent; falling back to step_impute_median().",
-                      imp$method), call. = FALSE)
+      .bio_warn(sprintf("Imputation method '%s' has no direct recipe equivalent; falling back to step_impute_median().",
+                       imp$method),
+                "bioLeak_fallback_warning")
       rec <- recipes::step_impute_median(rec, recipes::all_numeric_predictors())
     }
   }
@@ -58,12 +59,13 @@ guard_to_recipe <- function(steps, formula, training_data) {
     if (identical(norm$method, "zscore")) {
       rec <- recipes::step_normalize(rec, recipes::all_numeric_predictors())
     } else if (identical(norm$method, "robust")) {
-      warning("Normalization method 'robust' has no direct recipe equivalent; falling back to step_normalize().",
-              call. = FALSE)
+      .bio_warn("Normalization method 'robust' has no direct recipe equivalent; falling back to step_normalize().",
+                "bioLeak_fallback_warning")
       rec <- recipes::step_normalize(rec, recipes::all_numeric_predictors())
     } else if (!identical(norm$method, "none")) {
       # Unknown normalization method — skip with a note
-      warning(sprintf("Normalization method '%s' not recognized; skipping.", norm$method), call. = FALSE)
+      .bio_warn(sprintf("Normalization method '%s' not recognized; skipping.", norm$method),
+                "bioLeak_fallback_warning")
     }
   }
 
@@ -83,8 +85,9 @@ guard_to_recipe <- function(steps, formula, training_data) {
       ncomp <- fs$ncomp %||% fs$num_comp %||% 5L
       rec <- recipes::step_pca(rec, recipes::all_numeric_predictors(), num_comp = ncomp)
     } else if (fs$method %in% c("ttest", "lasso")) {
-      warning(sprintf("Feature selection method '%s' has no direct recipe equivalent; skipping.",
-                      fs$method), call. = FALSE)
+      .bio_warn(sprintf("Feature selection method '%s' has no direct recipe equivalent; skipping.",
+                       fs$method),
+                "bioLeak_fallback_warning")
     }
   }
 

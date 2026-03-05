@@ -15,15 +15,16 @@
   train
 }
 
-# Internal helper for combined (dual-axis) splits.
-.bio_make_combined_splits <- function(cd, n, primary_axis, secondary_axis,
+# Internal helper for combined (N-axis) splits.
+.bio_make_combined_splits <- function(cd, n, constraints,
                                       v, repeats, stratify, outcome, seed,
                                       compact) {
-  p_col <- primary_axis$col
-  s_col <- secondary_axis$col
+  p_col <- constraints[[1]]$col
   p_groups <- as.factor(cd[[p_col]])
   p_levels <- levels(p_groups)
-  s_groups <- cd[[s_col]]
+
+  # Precompute constraint axis vectors (all axes beyond the primary)
+  constraint_axes <- lapply(constraints[-1], function(ax) cd[[ax$col]])
 
   indices <- list()
   summary_rows <- list()
@@ -66,13 +67,14 @@
       test <- which(p_groups %in% test_p)
       if (length(test) == 0L) next
 
-      # Step 2: identify secondary-axis levels present in test
-      test_secondary_levels <- unique(s_groups[test])
-
-      # Step 3: remove from training any samples whose secondary level appears
-      # in test — this ensures both constraints hold simultaneously
+      # Step 2-3: for each constraint axis, remove from remaining any samples
+      # whose constraint-axis level appears in test
       remaining <- setdiff(seq_len(n), test)
-      train <- remaining[!s_groups[remaining] %in% test_secondary_levels]
+      for (ax_vec in constraint_axes) {
+        test_levels <- unique(ax_vec[test])
+        remaining <- remaining[!ax_vec[remaining] %in% test_levels]
+      }
+      train <- remaining
 
       if (length(train) == 0L) next
 
@@ -121,10 +123,20 @@
 #' @param primary_axis List with elements \code{type} (one of \code{"subject"},
 #'   \code{"batch"}, \code{"study"}) and \code{col} (column name). Used only
 #'   when \code{mode = "combined"} to define the primary grouping axis.
+#'   Deprecated in favor of \code{constraints}; still supported for backward
+#'   compatibility.
 #' @param secondary_axis List with elements \code{type} and \code{col}. Used
 #'   only when \code{mode = "combined"} to define the secondary constraint axis.
 #'   Training sets exclude samples whose secondary-axis levels appear in the
-#'   test set.
+#'   test set. Deprecated in favor of \code{constraints}; still supported for
+#'   backward compatibility.
+#' @param constraints A list of constraint specifications for \code{mode = "combined"}.
+#'   Each element is a list with \code{type} (one of \code{"subject"}, \code{"batch"},
+#'   \code{"study"}) and \code{col} (column name). The first element defines the
+#'   primary grouping axis (fold driver); subsequent elements define exclusion
+#'   constraints (training samples sharing constraint-axis levels with the test
+#'   set are removed). Requires at least 2 elements. Cannot be used together with
+#'   \code{primary_axis}/\code{secondary_axis}.
 #' @param v integer, number of folds (k) or rolling partitions.
 #' @param repeats integer, number of repeats (>=1) for non-LOOCV modes.
 #' @param stratify logical, keep outcome proportions similar across folds.
@@ -184,18 +196,27 @@ make_split_plan <- function(x, outcome = NULL,
                         mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series", "combined"),
                         group = NULL, batch = NULL, study = NULL, time = NULL,
                         primary_axis = NULL, secondary_axis = NULL,
+                        constraints = NULL,
                         v = 5, repeats = 1, stratify = FALSE, nested = FALSE,
                         seed = 1, horizon = 0, purge = 0, embargo = 0,
                         progress = TRUE, compact = FALSE,
                         strict = TRUE) {
 
   mode <- match.arg(mode)
+  .bio_strict_checks(context = "make_split_plan", seed = seed,
+                     nested = nested, mode = mode)
   stopifnot(is.numeric(v), v >= 2 || mode == "study_loocv")
   stopifnot(is.numeric(repeats), repeats >= 1)
   stopifnot(is.numeric(horizon), horizon >= 0)
   stopifnot(is.numeric(purge), purge >= 0)
   stopifnot(is.numeric(embargo), embargo >= 0)
   set.seed(seed)
+  # Seed lineage:
+  #   make_split_plan:  set.seed(seed), repeats: seed+1000*r, nested: seed+1
+  #   fit_resample:     set.seed(seed), per-fold: seed+fold_id
+  #   audit_leakage:    set.seed(seed), per-perm: seed+b
+  # These are NOT isolated streams. For practical v/repeats/B values,
+  # collisions do not occur.
 
   if (!identical(mode, "time_series") && (purge > 0 || embargo > 0)) {
     .bio_warn("purge and embargo are only used when mode = 'time_series'; ignoring both.",
@@ -261,8 +282,33 @@ make_split_plan <- function(x, outcome = NULL,
                   "bioLeak_input_error")
       .need_col(ax$col, paste0(label, "$col"))
     }
-    .validate_axis(primary_axis, "primary_axis")
-    .validate_axis(secondary_axis, "secondary_axis")
+
+    # Resolve constraints vs primary_axis/secondary_axis
+    has_legacy <- !is.null(primary_axis) || !is.null(secondary_axis)
+    has_constraints <- !is.null(constraints)
+
+    if (has_constraints && has_legacy) {
+      .bio_stop("Cannot specify both 'constraints' and 'primary_axis'/'secondary_axis'. Use one or the other.",
+                "bioLeak_input_error")
+    }
+
+    if (has_constraints) {
+      # Validate constraints list
+      if (!is.list(constraints) || length(constraints) < 2L)
+        .bio_stop("'constraints' must be a list with at least 2 elements (primary + constraint).",
+                  "bioLeak_input_error")
+      for (i in seq_along(constraints)) {
+        .validate_axis(constraints[[i]], sprintf("constraints[[%d]]", i))
+      }
+      # Derive primary_axis/secondary_axis for backward compat in info slot
+      primary_axis <- constraints[[1]]
+      secondary_axis <- constraints[[2]]
+    } else {
+      # Legacy path: validate and convert to constraints
+      .validate_axis(primary_axis, "primary_axis")
+      .validate_axis(secondary_axis, "secondary_axis")
+      constraints <- list(primary_axis, secondary_axis)
+    }
   }
 
   if (isTRUE(stratify) && (is.null(outcome) || !outcome %in% names(cd)))
@@ -518,7 +564,7 @@ make_split_plan <- function(x, outcome = NULL,
   if (mode == "combined") {
     combined <- .bio_make_combined_splits(
       cd = cd, n = n,
-      primary_axis = primary_axis, secondary_axis = secondary_axis,
+      constraints = constraints,
       v = v, repeats = repeats, stratify = stratify, outcome = outcome,
       seed = seed, compact = compact
     )
@@ -585,6 +631,7 @@ make_split_plan <- function(x, outcome = NULL,
     outcome = outcome, v = v, repeats = repeats_eff, seed = seed, mode = mode,
     group = group, batch = batch, study = study, time = time,
     primary_axis = primary_axis, secondary_axis = secondary_axis,
+    constraints = constraints,
     stratify = stratify, nested = nested, horizon = horizon,
     purge = purge, embargo = embargo,
     summary = split_summary, hash = hash_val, inner = inner_indices,
@@ -592,7 +639,13 @@ make_split_plan <- function(x, outcome = NULL,
     coldata = cd
   )
 
-  new("LeakSplits", mode = mode, indices = indices, info = info)
+  result <- new("LeakSplits", mode = mode, indices = indices, info = info)
+
+  if (.bio_is_strict() && !isTRUE(compact)) {
+    check_split_overlap(result)
+  }
+
+  result
 }
 
 
@@ -670,10 +723,16 @@ check_split_overlap <- function(splits, coldata = NULL, cols = NULL,
     if (mode == "study_loocv" && !is.null(splits@info$study))
       cols <- c(cols, splits@info$study)
     if (mode == "combined") {
-      if (!is.null(splits@info$primary_axis$col))
-        cols <- c(cols, splits@info$primary_axis$col)
-      if (!is.null(splits@info$secondary_axis$col))
-        cols <- c(cols, splits@info$secondary_axis$col)
+      if (!is.null(splits@info$constraints)) {
+        for (ax in splits@info$constraints) {
+          if (!is.null(ax$col)) cols <- c(cols, ax$col)
+        }
+      } else {
+        if (!is.null(splits@info$primary_axis$col))
+          cols <- c(cols, splits@info$primary_axis$col)
+        if (!is.null(splits@info$secondary_axis$col))
+          cols <- c(cols, splits@info$secondary_axis$col)
+      }
     }
     if (!length(cols)) {
       message("No grouping columns detected; nothing to check.")

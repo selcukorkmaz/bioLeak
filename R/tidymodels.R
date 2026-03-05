@@ -8,6 +8,7 @@
 .bio_is_yardstick_metric <- function(x) inherits(x, "metric") || inherits(x, "metric_function")
 
 .bio_validation_mode <- function(mode = NULL) {
+  if (.bio_is_strict()) return("error")
   mode <- mode %||% getOption("bioLeak.validation_mode", "warn")
   if (is.null(mode) || length(mode) != 1L || !is.character(mode)) {
     mode <- "warn"

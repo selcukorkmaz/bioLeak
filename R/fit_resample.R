@@ -156,6 +156,7 @@ fit_resample <- function(x, outcome, splits,
                          store_refit_data = TRUE) {
 
   set.seed(seed)
+  .bio_strict_checks(context = "fit_resample", seed = seed)
   classification_threshold_supplied <- !missing(classification_threshold)
   learner_input <- learner
   if (!is.numeric(classification_threshold) || length(classification_threshold) != 1L ||

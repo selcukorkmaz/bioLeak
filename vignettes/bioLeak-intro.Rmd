@@ -228,25 +228,113 @@ cat("Nested CV splits summary:\n")
 nested_splits
 ```
 
+**RNG seed lineage**
+
+bioLeak uses offset-based seeding so that every sub-operation gets a
+deterministic, distinct seed without requiring isolated RNG streams:
+
+| Function | Base seed | Per-unit offset |
+|---|---|---|
+| `make_split_plan()` | `set.seed(seed)` | repeats: `seed + 1000 * r`; nested: `seed + 1` |
+| `fit_resample()` | `set.seed(seed)` | per-fold: `seed + fold_id` |
+| `audit_leakage()` | `set.seed(seed)` | per-permutation: `seed + b` |
+
+These are **not** isolated RNG streams but simple offsets. Collisions do not
+occur for practical parameter values (e.g., `repeats < 1000`, `v < 1000`).
+Always set an explicit `seed` argument for reproducibility; strict mode warns
+when `seed` is `NULL` or `NA`.
+
 Each summary reports the number of folds and the fold sizes for the corresponding split strategy.
 
 - **Batch & Study:** The test set sizes vary because batches/studies are not evenly sized. `study_loocv` uses one study per fold, so `v` and `repeats` are ignored.
 
 - **Time series:** The training set size increases across folds while the test set size follows the block size. Early blocks with no prior training data (or too-small test windows) are skipped, so you may see fewer than `v` folds.
 
+**Combined (N-axis) mode**
+
+When leakage can occur along multiple axes simultaneously (for example, both
+subject and batch), `mode = "combined"` handles multi-axis constraint splitting.
+The first element in `constraints` is the **primary fold driver** (determines
+which groups go to test); subsequent elements are **exclusion constraints**
+(training samples sharing constraint-axis levels with the test set are removed).
+
+```{r combined-splits}
+# For combined mode, constraint-axis levels should not span all folds.
+# Here each subject belongs to exactly one site, so site exclusion only
+# removes training samples from the same site as the test subjects.
+df_comb <- df
+df_comb$site <- paste0("site", rep(1:8, each = 5)[df_comb$subject])
+
+combined_splits <- make_split_plan(
+  df_comb,
+  outcome = "outcome",
+  mode = "combined",
+  constraints = list(
+    list(type = "subject", col = "subject"),
+    list(type = "batch",   col = "site")
+  ),
+  v = 4,
+  stratify = TRUE,
+  seed = 42
+)
+
+cat("Combined (N-axis) splits summary:\n")
+combined_splits
+```
+
+The fold sizes may be smaller than single-axis modes because training samples
+are excluded whenever their site (or any constraint-axis level) also appears in
+the test set. You can add more than two axes by appending additional elements to
+`constraints`.
+
+The legacy `primary_axis`/`secondary_axis` parameters are still accepted for
+backward compatibility but `constraints` supersedes them and supports arbitrary
+numbers of axes.
+
+```{r combined-overlap-check}
+# Verify zero overlap on all constraint axes
+overlap_result <- check_split_overlap(combined_splits)
+overlap_result
+```
+
 **Assumptions and intent by mode**
 
-- `subject_grouped`: keeps all samples from a subject together  
+- `subject_grouped`: keeps all samples from a subject together
 - `batch_blocked`: keeps batches/centers together (leave-one-group-out when `v`
-  is at least the number of batches; otherwise multiple batches per fold)  
-- `study_loocv`: holds out each study in turn for external validation  
+  is at least the number of batches; otherwise multiple batches per fold)
+- `study_loocv`: holds out each study in turn for external validation
 - `time_series`: rolling-origin splits with an optional horizon to prevent lookahead
+- `combined`: primary axis drives fold assignment; all additional constraint axes
+  are enforced as exclusion constraints on the training set
 
 Use `repeats` for repeated CV in grouped/batch modes (it is ignored for
 `study_loocv` and `time_series`), `stratify = TRUE` to balance outcome
 proportions at the group level when applicable, and `nested = TRUE` to attach
 inner folds (one repeat). For large datasets, `progress = TRUE` reports
 progress; storing explicit indices can be memory intensive.
+
+
+## Validating splits with `check_split_overlap()`
+
+`check_split_overlap()` verifies that no grouping-column levels appear in both
+the training and test sets of any fold. It returns a data.frame with one row per
+fold-column combination showing the overlap count and a pass/fail flag.
+
+```{r check-split-overlap}
+# Run on the subject-grouped splits from earlier
+overlap_safe <- check_split_overlap(safe_splits)
+overlap_safe
+```
+
+When `cols` is not supplied, the function auto-infers the relevant columns from
+the split mode (e.g., `subject` for `subject_grouped`, all constraint axes for
+`combined`). By default `stop_on_fail = TRUE`, so the function raises a
+`bioLeak_overlap_error` when any overlap is detected. Set `stop_on_fail = FALSE`
+to return the results without stopping.
+
+When strict mode is active (`options(bioLeak.strict = TRUE)`),
+`make_split_plan()` automatically runs `check_split_overlap()` after building
+non-compact splits, so you do not need to call it manually.
 
 
 ## Scalability
@@ -280,6 +368,71 @@ cat(sprintf("Compact storage enabled: %s\n", big_splits@info$compact))
 The summary is identical to a regular split, but the underlying storage is a
 compact fold-assignment vector. Use the `compact` flag to confirm the memory-
 saving mode is active.
+
+## Strict leakage mode
+
+Setting `options(bioLeak.strict = TRUE)` activates a global safety switch that
+tightens validation across the entire workflow. In strict mode:
+
+1. **Trained recipe/workflow detection escalates to an error.** Normally,
+   passing a pre-trained recipe or workflow to `fit_resample()` or
+   `tune_resample()` produces a warning. In strict mode, it raises an error so
+   fold-global leakage cannot proceed silently.
+
+2. **Seed warnings.** When `seed` is `NULL` or `NA` in `make_split_plan()`,
+   `fit_resample()`, or `tune_resample()`, strict mode emits a
+   `bioLeak_validation_warning` reminding you to set an explicit seed for
+   reproducibility.
+
+3. **Combined + nested warning.** Using `nested = TRUE` with
+   `mode = "combined"` may produce empty inner folds; strict mode warns about
+   this before proceeding.
+
+4. **Automatic overlap check.** After building non-compact splits,
+   `make_split_plan()` auto-runs `check_split_overlap()` to verify that no
+   grouping-column levels cross fold boundaries.
+
+```{r strict-mode-demo, error=TRUE}
+# Enable strict mode temporarily
+withr::with_options(list(bioLeak.strict = TRUE), {
+  strict_splits <- make_split_plan(
+    df,
+    outcome = "outcome",
+    mode = "subject_grouped",
+    group = "subject",
+    v = 5,
+    stratify = TRUE,
+    seed = 42
+  )
+  cat("Strict mode splits completed without error.\n")
+})
+```
+
+```{r strict-mode-trained-recipe, error=TRUE}
+# Strict mode catches a pre-trained recipe
+if (requireNamespace("recipes", quietly = TRUE)) {
+  rec <- recipes::recipe(outcome ~ ., data = df[, c("outcome", predictors)]) |>
+    recipes::step_normalize(recipes::all_numeric_predictors()) |>
+    recipes::prep(training = df[, c("outcome", predictors)])
+
+  withr::with_options(list(bioLeak.strict = TRUE), {
+    tryCatch(
+      fit_resample(
+        df, outcome = "outcome",
+        splits = safe_splits,
+        learner = "glmnet",
+        preprocess = rec
+      ),
+      error = function(e) cat("Strict mode error:", conditionMessage(e), "\n")
+    )
+  })
+}
+```
+
+Strict mode is off by default. Use `withr::with_options()` for temporary
+activation or set `options(bioLeak.strict = TRUE)` in your `.Rprofile` for
+project-wide enforcement.
+
 
 ## Guarded preprocessing and imputation
 
@@ -445,6 +598,47 @@ The `LeakImpute` object also contains missingness diagnostics in
 `imp$summary$diagnostics`, and guarded outputs use the same encoding as
 `.guard_fit()` (categorical variables are one-hot encoded). Use `vars` to
 impute only a subset of columns when needed.
+
+**Bridging guard steps to recipes: `guard_to_recipe()`**
+
+`guard_to_recipe()` converts a guard preprocessing specification into a
+`recipes::recipe`, enabling a smooth transition from guard-based to
+tidymodels-based workflows. It maps supported guard steps to their closest
+recipe equivalents:
+
+| Guard step | Recipe equivalent |
+|---|---|
+| `impute$method = "median"` | `step_impute_median()` |
+| `impute$method = "knn"` | `step_impute_knn()` |
+| `normalize$method = "zscore"` | `step_normalize()` |
+| `filter$var_thresh > 0` | `step_nzv()` |
+| `fs$method = "pca"` | `step_pca()` |
+
+Steps with no direct recipe equivalent (`missForest`, `mice`, `robust`
+normalization, `ttest`, `lasso` feature selection) produce a
+`bioLeak_fallback_warning` and either fall back to the closest available step or
+are skipped.
+
+```{r guard-to-recipe}
+if (requireNamespace("recipes", quietly = TRUE)) {
+  guard_steps <- list(
+    impute    = list(method = "median"),
+    normalize = list(method = "zscore")
+  )
+
+  rec <- guard_to_recipe(
+    steps = guard_steps,
+    formula = outcome ~ .,
+    training_data = df[, c("outcome", predictors)]
+  )
+
+  cat("Converted recipe:\n")
+  rec
+}
+```
+
+The returned recipe is untrained and can be passed directly to `fit_resample()`
+or `tune_resample()` as the `preprocess` argument.
 
 ## Fit and resample with `fit_resample()`
 
@@ -1237,6 +1431,34 @@ cross train/test folds (by default). In this setup, the artificially duplicated
 pair (`X_ref[c(1, 5), ] <- X_ref[1, ]`) should appear near the top of the list.
 Use `duplicate_scope = "all"` to include within-fold duplicates.
 
+**Mechanism risk assessment**
+
+`summary(audit)` now includes a **Mechanism Risk Assessment** section that
+classifies leakage evidence into four mechanism classes:
+
+| Mechanism class | Evidence slot | Flagging rule |
+|---|---|---|
+| `non_random_signal` | permutation gap | p ≤ 0.05 and gap > 0 |
+| `confounding_alignment` | batch association | p ≤ 0.05 and Cramér's V ≥ 0.1 |
+| `proxy_target_leakage` | target scan | any feature flagged (FDR or raw) |
+| `duplicate_overlap` | duplicates | any cross-fold duplicates present |
+
+The summary is stored in `audit@info$mechanism_summary` and can be accessed
+directly for programmatic triage:
+
+```{r mechanism-summary}
+mech <- audit@info$mechanism_summary
+if (is.data.frame(mech) && nrow(mech) > 0) {
+  mech
+} else {
+  cat("No mechanism summary available.\n")
+}
+```
+
+Each row reports whether the mechanism was flagged, the evidence type, and the
+associated test statistic and p-value. This provides a quick triage overview
+before drilling into individual audit slots.
+
 ```{r plot-perm}
 if (requireNamespace("ggplot2", quietly = TRUE)) {
   plot_perm_distribution(audit)
@@ -1251,6 +1473,10 @@ The blue dashed line represents the average performance of a random model (the p
 
 A genuine signal is indicated when the red line lies well to the right of the
 gray distribution; overlap suggests weak or unstable signal.
+
+Use the mechanism risk assessment (`audit@info$mechanism_summary`) as a quick
+triage tool: flagged mechanisms point you to the specific audit slots that
+warrant deeper investigation.
 
 
 **Audit per learner**
@@ -1481,17 +1707,28 @@ Use `metric_obs` to gauge the magnitude of the leakage effect, and `gap` to asse
 
 bioLeak uses S4 classes and list-like results to capture provenance and diagnostics:
 
-- `LeakSplits`: returned by `make_split_plan()`, printed with `show()`
+- `LeakSplits`: returned by `make_split_plan()`, printed with `show()`.
+  Use `check_split_overlap()` to verify no-overlap invariants on grouping
+  columns.
 - `LeakFit`: returned by `fit_resample()`, summarized with `summary()`
   includes fold diagnostics in `fit@info$fold_status`
-- `LeakAudit`: returned by `audit_leakage()`, summarized with `summary()`
+- `LeakAudit`: returned by `audit_leakage()`, summarized with `summary()`.
+  Now includes `audit@info$mechanism_summary` — a data.frame classifying
+  leakage evidence into mechanism classes (`non_random_signal`,
+  `confounding_alignment`, `proxy_target_leakage`, `duplicate_overlap`).
 - `LeakAuditList`: returned by `audit_leakage_by_learner()`, printed directly
-- `GuardFit`: returned by `.guard_fit()`, printed and summarized
+- `GuardFit`: returned by `.guard_fit()`, printed and summarized.
+  Use `guard_to_recipe()` to convert guard preprocessing specs to a
+  `recipes::recipe` for tidymodels workflows.
 - `LeakImpute`: returned by `impute_guarded()` (guarded data + diagnostics)
 - `LeakTune`: returned by `tune_resample()` (nested tuning summaries)
   includes `fold_status`, selected parameters, and optional `final_model` /
   `final_workflow` when `refit = TRUE`
 - `LeakSimResults`: returned by `simulate_leakage_suite()` (per-seed results)
+
+Set `options(bioLeak.strict = TRUE)` to activate strict leakage mode, which
+escalates trained-recipe/workflow warnings to errors, warns on missing seeds,
+and auto-runs overlap checks after splitting.
 
 These objects store hashes and metadata that help reproduce and audit the
 workflow. Inspect their slots (`@metrics`, `@predictions`, `@permutation_gap`,

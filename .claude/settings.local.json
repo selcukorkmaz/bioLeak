@@ -31,7 +31,8 @@
       "Bash(\"/c/Program Files/R/R-4.4.2/bin/Rscript.exe\":*)",
       "Bash(python3:*)",
       "Bash(node:*)",
-      "Bash(NOT_CRAN=true \"/c/Program Files/R/R-4.5.1/bin/Rscript.exe\":*)"
+      "Bash(NOT_CRAN=true \"/c/Program Files/R/R-4.5.1/bin/Rscript.exe\":*)",
+      "Bash(where R:*)"
     ]
   }
 }
