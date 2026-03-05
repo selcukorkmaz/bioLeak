@@ -1,0 +1,254 @@
+Hmm ... looks like a package
+Converting parsed Rd's to LaTeX ...
+Creating pdf output from LaTeX ...
+Error in texi2dvi(file = file, pdf = TRUE, clean = clean, quiet = quiet,  : 
+  Running 'texi2dvi' on 'Rd2.tex' failed.
+Messages:
+/opt/R/arm64/bin/texi2dvi: makeindex failed
+Output:
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2025-11-01>
+L3 programming layer <2025-12-29>
+(./Rd2.tex
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2025/01/22 v1.4n Standard LaTeX document class
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/bk10.clo)) (/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/ifthen.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/iftex/iftex.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/tools/longtable.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/tools/bm.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/alltt.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/tools/verbatim.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/url/url.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/textcomp.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amstext.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsgen.sty)) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsbsy.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsopn.sty)) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/amsfonts.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/amssymb.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/eucal.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/fontenc.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/psnfss/times.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/inconsolata/zi4.sty `inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/xkeyval/xkeyval.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/xkeyval.tex (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/xkvutils.tex (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/keyval.tex))))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics/color.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics-cfg/color.cfg) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics-def/pdftex.def) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics/mathcolor.ltx)) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/hyperref.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/pdfescape/pdfescape.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/infwarerr/infwarerr.sty))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hycolor/hycolor.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/nameref.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/refcount/refcount.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/gettitlestring/gettitlestring.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/kvoptions/kvoptions.sty))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/etoolbox/etoolbox.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/stringenc/stringenc.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/pd1enc.def) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/intcalc/intcalc.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/puenc.def) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/bitset/bitset.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/hpdftex.def (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty)))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/makeidx.sty)
+Writing index file Rd2.idx
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/psnfss/t1ptm.fd) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.aux) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.out) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.out) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/inconsolata/t1zi4.fd) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.toc [1{/Users/selcuk/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}])
+Overfull \hbox (17.11757pt too wide) in paragraph at lines 65--67
+[]\T1/ptm/m/n/10 Logical; if TRUE, at-tempts to cap-ture the cur-rent git short SHA via []\T1/zi4/m/n/10 system2("git",
+[2]
+Overfull \hbox (9.97678pt too wide) in paragraph at lines 107--110
+[]\T1/ptm/m/n/10 Converts char-ac-ter/logical columns to fac-tors and aligns fac-tor lev-els with a training-time []\T1/zi4/m/n/10 levels_map[]\T1/ptm/m/n/10 .
+[3] (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ts1ptm.fd) [4]
+Overfull \hbox (38.47618pt too wide) in paragraph at lines 227--231
+[]\T1/ptm/m/n/10 Builds a clo-sure that gen-er-ates per-muted out-come vec-tors per fold while re-spect-ing group-ing/batch/study/time
+[5] [6] [7]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 419--419
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),[] 
+[8]
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 463--467
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, `"macro_f1"`, `"log_loss"`,
+[9]
+Overfull \hbox (28.38696pt too wide) in paragraph at lines 490--496
+\T1/ptm/m/n/10 Op-tional el-e-ments: `out-come` (de-faults to `fit@outcome`), `pre-pro-cess`, `learner_args`,
+
+Overfull \hbox (3.5367pt too wide) in paragraph at lines 497--501
+\T1/ptm/m/n/10 `"time_series"`. De-faults to the split meta-data when avail-able (in-clud-ing rsample-
+[10]
+Overfull \hbox (47.47655pt too wide) in paragraph at lines 573--577
+[]\T1/ptm/m/n/10 Character scalar. Multiple-testing cor-rec-tion method ap-plied to fi-nite `tar-get_assoc$p_value`
+
+Overfull \hbox (13.05786pt too wide) in paragraph at lines 578--580
+[]\T1/ptm/m/n/10 Numeric scalar in (0,1). Sig-nif-i-cance level used for `flag_fdr` when `tar-get_p_adjust
+[11]
+Overfull \hbox (4.01634pt too wide) in paragraph at lines 624--638
+\T1/ptm/m/n/10 (`stat`, `df`, `pval`, `cramer_v`). `tar-get_assoc` re-ports feature-wise out-come as-so-ci-a-tions on `X_ref`;
+
+Overfull \hbox (15.01695pt too wide) in paragraph at lines 639--647
+[]\T1/ptm/m/n/10 Duplicate de-tec-tion com-pares rows of `X_ref` us-ing the cho-sen `sim_method` (co-sine on L2-normalized
+
+Overfull \hbox (27.63805pt too wide) in paragraph at lines 670--677
+[]\T1/ptm/m/n/10 Data.frame of per-feature out-come as-so-ci-a-tions with columns: []\T1/zi4/m/n/10 feature[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 type []\T1/ptm/m/n/10 ([]\T1/zi4/m/n/10 "numeric"
+
+Overfull \hbox (13.289pt too wide) in paragraph at lines 670--677
+[]\T1/zi4/m/n/10 value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 score []\T1/ptm/m/n/10 (scaled ef-fect size), []\T1/zi4/m/n/10 p_value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 n[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 flag []\T1/ptm/m
+
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2025-11-01>
+L3 programming layer <2025-12-29>
+(./Rd2.tex
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2025/01/22 v1.4n Standard LaTeX document class
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/bk10.clo)) (/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/ifthen.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/iftex/iftex.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/tools/longtable.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/tools/bm.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/alltt.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/tools/verbatim.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/url/url.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/textcomp.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amstext.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsgen.sty)) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsbsy.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsmath/amsopn.sty)) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/amsfonts.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/amssymb.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/eucal.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/fontenc.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/psnfss/times.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/inconsolata/zi4.sty `inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/xkeyval/xkeyval.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/xkeyval.tex (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/xkvutils.tex (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/xkeyval/keyval.tex))))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics/color.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics-cfg/color.cfg) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics-def/pdftex.def) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/graphics/mathcolor.ltx)) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/hyperref.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/pdfescape/pdfescape.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/infwarerr/infwarerr.sty))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hycolor/hycolor.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/nameref.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/refcount/refcount.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/gettitlestring/gettitlestring.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/kvoptions/kvoptions.sty))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/etoolbox/etoolbox.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/stringenc/stringenc.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/pd1enc.def) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/intcalc/intcalc.sty) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/puenc.def) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/bitset/bitset.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/hyperref/hpdftex.def (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty)))) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/base/makeidx.sty)
+Writing index file Rd2.idx
+(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/psnfss/t1ptm.fd) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.aux) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.out) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.out) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/inconsolata/t1zi4.fd) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd) (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.toc [1{/Users/selcuk/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/base/8r.enc}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}])
+Overfull \hbox (17.11757pt too wide) in paragraph at lines 65--67
+[]\T1/ptm/m/n/10 Logical; if TRUE, at-tempts to cap-ture the cur-rent git short SHA via []\T1/zi4/m/n/10 system2("git",
+[2]
+Overfull \hbox (9.97678pt too wide) in paragraph at lines 107--110
+[]\T1/ptm/m/n/10 Converts char-ac-ter/logical columns to fac-tors and aligns fac-tor lev-els with a training-time []\T1/zi4/m/n/10 levels_map[]\T1/ptm/m/n/10 .
+[3] (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ts1ptm.fd) [4]
+Overfull \hbox (38.47618pt too wide) in paragraph at lines 227--231
+[]\T1/ptm/m/n/10 Builds a clo-sure that gen-er-ates per-muted out-come vec-tors per fold while re-spect-ing group-ing/batch/study/time
+[5] [6] [7]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 419--419
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),[] 
+[8]
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 463--467
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, `"macro_f1"`, `"log_loss"`,
+[9]
+Overfull \hbox (28.38696pt too wide) in paragraph at lines 490--496
+\T1/ptm/m/n/10 Op-tional el-e-ments: `out-come` (de-faults to `fit@outcome`), `pre-pro-cess`, `learner_args`,
+
+Overfull \hbox (3.5367pt too wide) in paragraph at lines 497--501
+\T1/ptm/m/n/10 `"time_series"`. De-faults to the split meta-data when avail-able (in-clud-ing rsample-
+[10]
+Overfull \hbox (47.47655pt too wide) in paragraph at lines 573--577
+[]\T1/ptm/m/n/10 Character scalar. Multiple-testing cor-rec-tion method ap-plied to fi-nite `tar-get_assoc$p_value`
+
+Overfull \hbox (13.05786pt too wide) in paragraph at lines 578--580
+[]\T1/ptm/m/n/10 Numeric scalar in (0,1). Sig-nif-i-cance level used for `flag_fdr` when `tar-get_p_adjust
+[11]
+Overfull \hbox (4.01634pt too wide) in paragraph at lines 624--638
+\T1/ptm/m/n/10 (`stat`, `df`, `pval`, `cramer_v`). `tar-get_assoc` re-ports feature-wise out-come as-so-ci-a-tions on `X_ref`;
+
+Overfull \hbox (15.01695pt too wide) in paragraph at lines 639--647
+[]\T1/ptm/m/n/10 Duplicate de-tec-tion com-pares rows of `X_ref` us-ing the cho-sen `sim_method` (co-sine on L2-normalized
+
+Overfull \hbox (27.63805pt too wide) in paragraph at lines 670--677
+[]\T1/ptm/m/n/10 Data.frame of per-feature out-come as-so-ci-a-tions with columns: []\T1/zi4/m/n/10 feature[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 type []\T1/ptm/m/n/10 ([]\T1/zi4/m/n/10 "numeric"
+
+Overfull \hbox (13.289pt too wide) in paragraph at lines 670--677
+[]\T1/zi4/m/n/10 value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 score []\T1/ptm/m/n/10 (scaled ef-fect size), []\T1/zi4/m/n/10 p_value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 n[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 flag []\T1/ptm/m/n/10 (TRUE if []\T1/zi4/m/n/10 score >= target_threshold[]\T1/ptm/m/n/10 ).
+
+Overfull \hbox (4.86696pt too wide) in paragraph at lines 681--684
+[]\T1/ptm/m/n/10 List cap-tur-ing au-dit pa-ram-e-ters and in-ter-me-di-ate re-sults for re-pro-ducibil-ity, in-clud-ing []\T1/zi4/m/n/10 metric[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (27.46732pt too wide) in paragraph at lines 684--686
+[]\T1/ptm/m/n/10 List with ad-di-tional meta-data in-clud-ing mul-ti-vari-ate scan re-sults when []\T1/zi4/m/n/10 target_scan_multivariate
+[12]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 744--744
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_loss", "rmse", "cindex"),[] 
+[13]
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 759--762
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, `"macro_f1"`, `"log_loss"`,
+
+Overfull \hbox (14.06697pt too wide) in paragraph at lines 775--789
+\T1/ptm/m/n/10 tions), `perm_stratify` (log-i-cal or `"auto"`), `perm_refit` (log-i-cal), `perm_refit_spec`
+
+Overfull \hbox (21.09729pt too wide) in paragraph at lines 775--789
+\T1/ptm/m/n/10 te-ger), `re-turn_perm` (log-i-cal), `batch_cols` (char-ac-ter vec-tor), `col-data` (data.frame),
+
+Overfull \hbox (4.09712pt too wide) in paragraph at lines 775--789
+\T1/ptm/m/n/10 `X_ref` (ma-trix/data.frame), `tar-get_scan` (log-i-cal), `tar-get_threshold` (nu-meric),
+
+Overfull \hbox (20.55829pt too wide) in paragraph at lines 793--802
+\T1/ptm/m/n/10 Use []\T1/zi4/m/n/10 names() []\T1/ptm/m/n/10 to re-trieve learner IDs, and ac-cess in-di-vid-ual au-dits with []\T1/zi4/m/n/10 [[learner_id]] []\T1/ptm/m/n/10 or []\T1/zi4/m/n/10 $learner_id[]\T1/ptm/m/n/10 .
+[14]
+Overfull \hbox (30.11668pt too wide) in paragraph at lines 871--877
+[]\T1/ptm/m/n/10 A [LeakAu-dit] ob-ject from [au-dit_leakage()] or a [Leak-Fit] ob-ject from [fit_resample()].
+[15]
+Overfull \hbox (49.36647pt too wide) in paragraph at lines 878--882
+[]\T1/ptm/m/n/10 Character scalar. File name for the HTML re-port. De-faults to `"bi-oLeak_audit_report.html"`.
+
+Overfull \hbox (21.18684pt too wide) in paragraph at lines 896--903
+\T1/ptm/m/n/10 `perm_stratify` (log-i-cal), `batch_cols` (char-ac-ter vec-tor), `X_ref` (ma-trix/data.frame),
+[16]
+Overfull \hbox (31.42029pt too wide) in paragraph at lines 987--987
+ []  \T1/zi4/m/n/10 leakages = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),[] 
+[17]
+Overfull \hbox (19.07729pt too wide) in paragraph at lines 1000--1002
+[]\T1/ptm/m/n/10 Character vec-tor se-lect-ing pre-de-fined modal-ity pro-files. Sup-ported val-ues: `"omics"`,
+
+Overfull \hbox (1.7162pt too wide) in paragraph at lines 1023--1027
+[]\T1/ptm/m/n/10 A data.frame with one row per sim-u-la-tion seed/scenario and columns: `modal-ity`, `leak-age`, `mode`,
+[18]
+Overfull \hbox (67.50697pt too wide) in paragraph at lines 1111--1113
+[]\T1/ptm/m/n/10 A data.frame of sam-ple meta-data. When []\T1/zi4/m/n/10 NULL []\T1/ptm/m/n/10 (de-fault), the func-tion uses []\T1/zi4/m/n/10 splits@info$coldata
+
+Overfull \hbox (10.81876pt too wide) in paragraph at lines 1114--1118
+\T1/ptm/m/n/10 the func-tion in-fers columns from the split mode (e.g., []\T1/zi4/m/n/10 group []\T1/ptm/m/n/10 for []\T1/zi4/m/n/10 subject_grouped[]\T1/ptm/m/n/10 ,
+[19]
+Overfull \hbox (18.96742pt too wide) in paragraph at lines 1155--1157
+[]\T1/ptm/m/n/10 Character vec-tor of columns in `col-data` to eval-u-ate. De-faults to com-mon batch/study
+[20]
+Overfull \hbox (12.02832pt too wide) in paragraph at lines 1232--1234
+[]\T1/ptm/m/n/10 Data.frame with columns []\T1/zi4/m/n/10 fold[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 learner[]\T1/ptm/m/n/10 , and one or more nu-meric met-ric columns. 
+
+Overfull \hbox (46.10905pt too wide) in paragraph at lines 1239--1241
+[]\T1/ptm/m/n/10 Average num-ber of train-ing sam-ples per fold. Used only when []\T1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+[21]
+Overfull \hbox (28.8891pt too wide) in paragraph at lines 1242--1244
+[]\T1/ptm/m/n/10 Average num-ber of test sam-ples per fold. Used only when []\T1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (34.99854pt too wide) in paragraph at lines 1248--1251
+[]\T1/ptm/m/n/10 A data.frame with []\T1/zi4/m/n/10 learner []\T1/ptm/m/n/10 and, for each met-ric, columns []\T1/zi4/m/n/10 <metric>_mean[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 <metric>_sd[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 <metric>_ci_lo[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (24.09653pt too wide) in paragraph at lines 1255--1257
+[]\T1/ptm/m/n/10 Performs cross-validated model train-ing and eval-u-a-tion us-ing leakage-protected pre-pro-cess-ing (.guard_fit)
+
+Overfull \hbox (26.38962pt too wide) in paragraph at lines 1266--1266
+ []    \T1/zi4/m/n/10 "zscore"), filter = list(var_thresh = 0, iqr_thresh = 0), fs = list(method = "none")),[] 
+[22]
+Overfull \hbox (0.72862pt too wide) in paragraph at lines 1306--1314
+\T1/ptm/m/n/10 tion should ac-cept []\T1/zi4/m/n/10 object[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 newdata[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 task[]\T1/ptm/m/n/10 . For bi-no-mial/regression/survival
+
+Overfull \hbox (8.25684pt too wide) in paragraph at lines 1315--1319
+[]\T1/ptm/m/n/10 named list of met-ric func-tions, vec-tor of met-ric names, or a `yard-stick::metric_set`.
+
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 1337--1342
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) over-rid-ing group/batch/study/time
+
+Overfull \hbox (18.7869pt too wide) in paragraph at lines 1343--1346
+\T1/ptm/m/n/10 in-side the fit to en-able refit-based per-mu-ta-tion tests with-out man-ual `perm_refit_spec`
+[23]
+Overfull \hbox (31.32895pt too wide) in paragraph at lines 1392--1395
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the task type ([]\T1/zi4/m/n/10 "binomial"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "multiclass"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "gaussian"[]\T1/ptm/m/n/10 , or []\T1/zi4/m/n/10 "survival"[]\T1/ptm/m/n/10 ). 
+
+Overfull \hbox (8.10919pt too wide) in paragraph at lines 1397--1402
+[]\T1/ptm/m/n/10 List of ad-di-tional meta-data in-clud-ing []\T1/zi4/m/n/10 hash[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 metrics_used[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 class_weights[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 positive_class[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (40.94011pt too wide) in paragraph at lines 1397--1402
+[]\T1/zi4/m/n/10 sample_ids[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 fold_status[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 refit[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 final_model []\T1/ptm/m/n/10 (re-fit-ted model if []\T1/zi4/m/n/10 refit = TRUE[]\T1/ptm/m/n/10 ), []\T1/zi4/m/n/10 final_preprocess[]\T1/ptm/m/n/10 ,
+[24]
+Overfull \hbox (5.24408pt too wide) in paragraph at lines 1434--1434
+ []      \T1/zi4/m/n/9 as.numeric(stats::predict(object, newdata = as.data.frame(newdata), type = "response"))[] 
+[25] [26] [27]
+Overfull \hbox (36.42029pt too wide) in paragraph at lines 1649--1649
+ []  \T1/zi4/m/n/10 mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series", "combined"),[] 
+
+Overfull \hbox (20.11781pt too wide) in paragraph at lines 1680--1681
+[]\T1/ptm/m/n/10 one of "sub-ject_grouped","batch_blocked","study_loocv","time_series","combined". 
+[28]
+Overfull \hbox (1.86774pt too wide) in paragraph at lines 1716--1719
+\T1/ptm/m/n/10 strat-i-fi-ca-tion is ap-plied at the group level (by ma-jor-ity class per group) if []\T1/zi4/m/n/10 outcome
+
+Overfull \hbox (1.21819pt too wide) in paragraph at lines 1742--1744
+[]\T1/ptm/m/n/10 logical; dep-re-cated and ig-nored. `sub-ject_grouped` al-ways re-quires a non-NULL
+
+Overfull \hbox (49.92862pt too wide) in paragraph at lines 1751--1754
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the split-ting mode ([]\T1/zi4/m/n/10 "subject_grouped"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "batch_blocked"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "study_loocv"[]\T1/ptm/m/n/10 ,
+[29] [30] [31] [32] [33] [34] [35] [36] [37] (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/inconsolata/ts1zi4.fd) [38{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/inconsolata/i4-ts1.enc}]
+Overfull \hbox (26.42029pt too wide) in paragraph at lines 2318--2318
+ []  \T1/zi4/m/n/10 leakage = c("none", "subject_overlap", "batch_confounded", "peek_norm", "lookahead"),[] 
+[39]
+Overfull \hbox (19.57857pt too wide) in paragraph at lines 2357--2364
+[]\T1/ptm/m/n/10 Character scalar. Leak-age mech-a-nism to in-ject; one of []\T1/zi4/m/n/10 "none"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "subject_overlap"[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (51.24904pt too wide) in paragraph at lines 2357--2364
+\T1/ptm/m/n/10 ex-tra pre-dic-tor: []\T1/zi4/m/n/10 "subject_overlap" []\T1/ptm/m/n/10 adds per-subject mean out-come, []\T1/zi4/m/n/10 "batch_confounded"
+[40] [41] [42]
+Overfull \hbox (14.8067pt too wide) in paragraph at lines 2569--2572
+[]\T1/ptm/m/n/10 A [Leak-Fit] ob-ject re-turned by [fit_resample()]. It should con-tain `met-ric_summary`
+[43] [44] [45]
+Overfull \hbox (6.75821pt too wide) in paragraph at lines 2718--2722
+\T1/ptm/m/n/10 Ig-nored when `learner` is al-ready a work-flow. Recipe/workflow leak-age guardrails
+
+Overfull \hbox (20.02779pt too wide) in paragraph at lines 2726--2732
+[]\T1/ptm/m/n/10 Character vec-tor of met-ric names (`auc`, `pr_auc`, `ac-cu-racy`, `macro_f1`, `log_loss`,
+
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 2764--2769
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) over-rid-ing group/batch/study/time
+[46]
+Overfull \hbox (1.18794pt too wide) in paragraph at lines 2788--2791
+[]\T1/ptm/m/n/10 Mean/SD met-rics across outer folds with columns []\T1/zi4/m/n/10 learner[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 <metric>_mean
+No file Rd2.ind.
+[47] (/private/var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T/RtmpydCKyd/Rd2pdfd2a455cf970f/Rd2.aux) )
+(see the transcript file for additional information)
+pdfTeX warning (dest): name{Rfn.browseURL} has been referenced but does not exist, replaced by a fixed one
+
+ </Users/selcuk/Library/TinyTeX/texmf-var/fonts/pk/ljfour/jknappen/ec/tctt0900.600pk></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on Rd2.pdf (47 pages, 184381 bytes).
+Transcript written on Rd2.log.
+Saving output to ‘bioLeak-manual.pdf’ ...
+Done
+You may want to clean up by 'rm -Rf /var/folders/dj/y28dp44x303ggfg6rg8n2v0h0000gn/T//RtmpydCKyd/Rd2pdfd2a455cf970f'

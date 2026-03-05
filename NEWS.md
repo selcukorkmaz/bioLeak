@@ -1,3 +1,55 @@
+# bioLeak 0.3.0
+
+## New features
+
+* Added **N-axis combined splitting** via `constraints` in `make_split_plan()`,
+  generalizing beyond two-axis combined CV while preserving train/test exclusion
+  across all declared axes.
+* Added `compact = TRUE` split storage (fold assignments) for large datasets to
+  reduce split object memory footprint.
+* Added `check_split_overlap()` for explicit overlap-invariant validation across
+  fold/group axes.
+* Added `cv_ci()` (with Nadeau-Bengio correction) and integrated CI columns into
+  `fit_resample()` and `tune_resample()` metric summaries (`*_ci_lo`, `*_ci_hi`).
+* Added `guard_to_recipe()` to map guarded preprocessing configurations to
+  `recipes` pipelines with explicit fallback/warning behavior.
+* Added `benchmark_leakage_suite()` for reproducible modality-by-mechanism
+  benchmark grids and detection-rate summaries.
+* Expanded `audit_leakage()` diagnostics with mechanism taxonomy fields
+  (`mechanism_class`, `taxonomy`, `mechanism_summary`) and richer risk
+  attribution outputs.
+* Added FDR-aware target scan outputs (`p_value_adj`, `flag_fdr`) with selectable
+  multiple-testing correction (`target_p_adjust`, `target_alpha`).
+* Added `feature_space` (`raw`/`rank`) and `duplicate_scope`
+  (`train_test`/`all`) controls for duplicate diagnostics.
+* Strengthened permutation auditing with explicit `perm_mode` handling for
+  rsample-derived splits and safer `perm_refit = "auto"` behavior.
+* Extended tidymodels interoperability: rsample conversion and metadata inference
+  are more robust (`split_cols = "auto"`, mode/perm-mode propagation, stricter
+  compatibility checks).
+* Improved nested tuning safety in `tune_resample()`: final refit now aggregates
+  hyperparameters across outer folds (median/majority) instead of selecting a
+  single best outer fold.
+* Added binomial threshold tuning support in `tune_resample()` using inner-fold
+  predictions (`tune_threshold`, `threshold_grid`, `threshold_metric`).
+* Added structured fold-status tracking (`fold_status`) and elapsed timing in
+  both fitting and tuning paths for better failure-mode observability.
+* Added strict-mode and validation-policy infrastructure (`bioLeak.strict`,
+  `bioLeak.validation_mode`) with structured condition classes for safer recipe
+  and workflow guardrails.
+* Added provenance capture (`.bio_capture_provenance`) and attached provenance
+  metadata to `LeakFit`, `LeakAudit`, and `LeakTune`.
+* Improved `summary.LeakAudit()` output with explicit Mechanism Risk Assessment
+  reporting.
+* Hardened recipe preprocessing in `fit_resample()` to avoid fold-time failures
+  when recipes reference split metadata columns (for example `subject`).
+* Updated simulation defaults and audit settings for more practical runtime
+  (`simulate_leakage_suite()` default `B`, auto refit cap handling).
+* Updated manuscript/simulation assets under `paper/` with refreshed large-scale
+  simulation outputs and case-study artifacts.
+
+---
+
 # bioLeak 0.2.0
 
 ## New features
