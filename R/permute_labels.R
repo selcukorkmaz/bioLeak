@@ -62,24 +62,35 @@
   out
 }
 
-.permute_within_group <- function(y, group) {
+.permute_within_group <- function(y, group, strata = NULL) {
   group <- factor(group)
   out <- y
-  for (lvl in levels(group)) {
-    ix <- which(group == lvl)
-    if (length(ix) > 1L) {
-      out[ix] <- sample(out[ix])
+  if (!is.null(strata)) {
+    # Permute within group x strata cells
+    cells <- interaction(group, strata, drop = TRUE)
+    for (cell in levels(cells)) {
+      ix <- which(cells == cell)
+      if (length(ix) > 1L) {
+        out[ix] <- sample(out[ix])
+      }
+    }
+  } else {
+    for (lvl in levels(group)) {
+      ix <- which(group == lvl)
+      if (length(ix) > 1L) {
+        out[ix] <- sample(out[ix])
+      }
     }
   }
   out
 }
 
 .permute_within_batch <- function(y, batch, strata = NULL) {
-  .permute_within_group(y, batch)
+  .permute_within_group(y, batch, strata = strata)
 }
 
 .permute_within_study <- function(y, study, strata = NULL) {
-  .permute_within_group(y, study)
+  .permute_within_group(y, study, strata = strata)
 }
 
 #' Restricted permutation label factory
@@ -230,7 +241,8 @@
                       " batch level(s) in this fold have only one sample; permutation within those is identity.")
             }
           }
-          .permute_within_batch(y_all[te_idx], batch_vals[te_idx])
+          .permute_within_batch(y_all[te_idx], batch_vals[te_idx],
+                                strata = if (!is.null(strata_vec)) strata_vec[te_idx] else NULL)
         },
         study_loocv = {
           study_vals <- NULL
@@ -244,7 +256,8 @@
                       " study level(s) in this fold have only one sample; permutation within those is identity.")
             }
           }
-          .permute_within_study(y_all[te_idx], study_vals[te_idx])
+          .permute_within_study(y_all[te_idx], study_vals[te_idx],
+                                strata = if (!is.null(strata_vec)) strata_vec[te_idx] else NULL)
         },
         time_series = {
           time_vals <- time_vec[te_idx]

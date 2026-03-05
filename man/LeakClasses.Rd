@@ -16,7 +16,8 @@ These classes capture splits, model fits, and audit diagnostics produced by
 \section{Slots}{
 
 \describe{
-\item{\code{mode}}{Splitting mode (e.g., "grouped_cv", "batch_blocked")}
+\item{\code{mode}}{Splitting mode. One of "subject_grouped", "batch_blocked",
+"study_loocv", "time_series", or "combined".}
 
 \item{\code{indices}}{List of resampling descriptors (train/test indices when available)}
 

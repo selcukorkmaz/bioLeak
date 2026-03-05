@@ -34,7 +34,9 @@ character vector of time/event column names for survival outcomes.}
 
 \item{preprocess}{list(impute, normalize, filter=list(...), fs) or a
 `recipes::recipe` object. When a recipe is supplied, the guarded preprocessing
-pipeline is bypassed and the recipe is prepped on training data only.}
+pipeline is bypassed and the recipe is prepped on training data only.
+Recipe/workflow leakage guardrails run before fitting; configure policy via
+\code{options(bioLeak.validation_mode = "warn" | "error" | "off")}.}
 
 \item{learner}{parsnip model_spec (or list of model_spec objects) describing
 the model(s) to fit, or a `workflows::workflow`. For legacy use, a character

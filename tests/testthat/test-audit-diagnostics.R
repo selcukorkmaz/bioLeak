@@ -201,3 +201,55 @@ test_that("audit_leakage multivariate target scan runs", {
   expect_true(nrow(mv) > 0)
   expect_true(all(c("metric", "score", "p_value") %in% names(mv)))
 })
+
+test_that("audit_leakage adds mechanism taxonomy and FDR-adjusted target flags", {
+  df <- make_class_df(24)
+  splits <- make_split_plan_quiet(
+    df,
+    outcome = "outcome",
+    mode = "subject_grouped",
+    group = "subject",
+    v = 3,
+    seed = 7
+  )
+  custom <- make_custom_learners()
+  fit <- fit_resample_quiet(
+    df,
+    outcome = "outcome",
+    splits = splits,
+    learner = "glm",
+    custom_learners = custom,
+    metrics = "auc",
+    refit = FALSE,
+    seed = 7
+  )
+
+  aud <- audit_leakage(
+    fit,
+    metric = "auc",
+    B = 3,
+    perm_stratify = FALSE,
+    X_ref = df[, c("x1", "x2")],
+    target_scan_multivariate = FALSE,
+    target_p_adjust = "BH",
+    target_alpha = 0.2
+  )
+
+  expect_true("mechanism_class" %in% names(aud@permutation_gap))
+  if (nrow(aud@batch_assoc)) {
+    expect_true("mechanism_class" %in% names(aud@batch_assoc))
+  }
+  if (nrow(aud@target_assoc)) {
+    expect_true("mechanism_class" %in% names(aud@target_assoc))
+    expect_true("p_value_adj" %in% names(aud@target_assoc))
+    expect_true("flag_fdr" %in% names(aud@target_assoc))
+  }
+  if (nrow(aud@duplicates)) {
+    expect_true("mechanism_class" %in% names(aud@duplicates))
+  }
+
+  expect_true(is.data.frame(aud@info$taxonomy))
+  expect_true(all(c("mechanism_class", "evidence_slot") %in% names(aud@info$taxonomy)))
+  expect_true(is.data.frame(aud@info$mechanism_summary))
+  expect_true(all(c("mechanism_class", "flagged", "evidence") %in% names(aud@info$mechanism_summary)))
+})

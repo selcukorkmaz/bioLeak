@@ -18,6 +18,8 @@
 #' @param preprocess list(impute, normalize, filter=list(...), fs) or a
 #'   `recipes::recipe` object. When a recipe is supplied, the guarded preprocessing
 #'   pipeline is bypassed and the recipe is prepped on training data only.
+#'   Recipe/workflow leakage guardrails run before fitting; configure policy via
+#'   \code{options(bioLeak.validation_mode = "warn" | "error" | "off")}.
 #' @param learner parsnip model_spec (or list of model_spec objects) describing
 #'   the model(s) to fit, or a `workflows::workflow`. For legacy use, a character
 #'   vector of learner names (e.g., "glmnet", "ranger") or custom learner IDs is
@@ -154,31 +156,37 @@ fit_resample <- function(x, outcome, splits,
                          store_refit_data = TRUE) {
 
   set.seed(seed)
+  .bio_strict_checks(context = "fit_resample", seed = seed)
   classification_threshold_supplied <- !missing(classification_threshold)
   learner_input <- learner
   if (!is.numeric(classification_threshold) || length(classification_threshold) != 1L ||
       !is.finite(classification_threshold) || classification_threshold < 0 ||
       classification_threshold > 1) {
-    stop("classification_threshold must be a single numeric value in [0, 1].")
+    .bio_stop("classification_threshold must be a single numeric value in [0, 1].",
+              "bioLeak_input_error")
   }
   if (is.null(custom_learners)) custom_learners <- list()
   if (!is.list(custom_learners)) {
-    stop("custom_learners must be a named list of learner definitions.")
+    .bio_stop("custom_learners must be a named list of learner definitions.",
+              "bioLeak_input_error")
   }
   if (length(custom_learners) && is.null(names(custom_learners))) {
-    stop("custom_learners must be a named list.")
+    .bio_stop("custom_learners must be a named list.",
+              "bioLeak_input_error")
   }
   if (length(custom_learners)) {
     dup_names <- intersect(names(custom_learners), c("glmnet", "ranger"))
     if (length(dup_names)) {
-      stop(sprintf("custom_learners cannot override built-in learners: %s",
-                   paste(dup_names, collapse = ", ")))
+      .bio_stop(sprintf("custom_learners cannot override built-in learners: %s",
+                       paste(dup_names, collapse = ", ")),
+                "bioLeak_input_error")
     }
     bad <- vapply(custom_learners, function(def) {
       !is.list(def) || !is.function(def$fit) || !is.function(def$predict)
     }, logical(1))
     if (any(bad)) {
-      stop("Each custom learner must be a list with `fit` and `predict` functions.")
+      .bio_stop("Each custom learner must be a list with `fit` and `predict` functions.",
+                "bioLeak_input_error")
     }
   }
 
@@ -207,7 +215,8 @@ fit_resample <- function(x, outcome, splits,
 
   if (use_workflow) {
     if (!requireNamespace("workflows", quietly = TRUE)) {
-      stop("Package 'workflows' is required when passing a workflow to learner.")
+      .bio_stop("Package 'workflows' is required when passing a workflow to learner.",
+                "bioLeak_dependency_error")
     }
     if (length(custom_learners)) {
       warning("custom_learners ignored when learner is a workflow.")
@@ -224,7 +233,8 @@ fit_resample <- function(x, outcome, splits,
     }
   } else if (use_parsnip) {
     if (!requireNamespace("parsnip", quietly = TRUE)) {
-      stop("Package 'parsnip' is required when passing a model_spec to learner.")
+      .bio_stop("Package 'parsnip' is required when passing a model_spec to learner.",
+                "bioLeak_dependency_error")
     }
     if (length(custom_learners)) {
       warning("custom_learners ignored when learner is a parsnip model_spec.")
@@ -261,20 +271,39 @@ fit_resample <- function(x, outcome, splits,
     builtin_learners <- c("glmnet", "ranger")
     all_learners <- c(builtin_learners, names(custom_learners))
     if (!is.character(learner)) {
-      stop("learner must be a character vector of legacy learners, a parsnip model_spec, or a workflow.")
+      .bio_stop("learner must be a character vector of legacy learners, a parsnip model_spec, or a workflow.",
+                "bioLeak_input_error")
     }
     learner <- match.arg(learner, choices = all_learners, several.ok = TRUE)
     learner_names <- learner
   }
   use_recipe <- .bio_is_recipe(preprocess)
   if (use_recipe && !requireNamespace("recipes", quietly = TRUE)) {
-    stop("Package 'recipes' is required when preprocess is a recipe.")
+    .bio_stop("Package 'recipes' is required when preprocess is a recipe.",
+              "bioLeak_dependency_error")
   }
   if (use_workflow && isTRUE(use_recipe)) {
     warning("Recipe preprocess ignored when learner is a workflow.")
     use_recipe <- FALSE
   }
   preprocess_mode <- if (use_workflow) "workflow" else if (use_recipe) "recipe" else "guard"
+  validation_mode <- .bio_validation_mode()
+  if (use_recipe) {
+    .bio_validate_recipe_graph(
+      preprocess,
+      context = "fit_resample",
+      mode = validation_mode
+    )
+  }
+  if (use_workflow && length(learner_specs)) {
+    for (wf in learner_specs) {
+      .bio_validate_workflow_graph(
+        wf,
+        context = "fit_resample",
+        mode = validation_mode
+      )
+    }
+  }
 
   Xall <- .bio_get_x(x)
   yall <- .bio_get_y(x, outcome)
@@ -293,7 +322,8 @@ fit_resample <- function(x, outcome, splits,
       splits <- .bio_as_leaksplits_from_rsample(splits, n = nrow(Xall), coldata = coldata,
                                                 split_cols = split_cols)
     } else {
-      stop("splits must be a LeakSplits or rsample rset/rsplit.")
+      .bio_stop("splits must be a LeakSplits or rsample rset/rsplit.",
+                "bioLeak_input_error")
     }
   }
   drop_cols <- outcome
@@ -356,23 +386,31 @@ fit_resample <- function(x, outcome, splits,
   else if (.bio_is_regression(yall)) "gaussian"
   else if (is.factor(yall) && nlevels(yall) == 2) "binomial"
   else if (is.factor(yall) && nlevels(yall) > 2) "multiclass"
-  else stop("Unsupported outcome type: require binomial/multiclass factor, numeric regression, or survival outcome.")
+  else .bio_stop("Unsupported outcome type: require binomial/multiclass factor, numeric regression, or survival outcome.",
+                 "bioLeak_input_error")
 
   if (task == "binomial") {
     if (!is.factor(yall)) yall <- factor(yall)
     yall <- droplevels(yall)
+    if (anyNA(yall)) {
+      .bio_stop("Binomial outcome contains NA values. Remove or impute missing outcomes before fitting.",
+                "bioLeak_input_error")
+    }
     if (nlevels(yall) != 2) {
-      stop("Binomial task requires exactly two outcome levels after preprocessing.")
+      .bio_stop("Binomial task requires exactly two outcome levels after preprocessing.",
+                "bioLeak_input_error")
     }
     if (!is.null(positive_class)) {
       pos_chr <- as.character(positive_class)
       if (length(pos_chr) != 1L) {
-        stop("positive_class must be a single value.")
+        .bio_stop("positive_class must be a single value.",
+                  "bioLeak_input_error")
       }
       levels_y <- levels(yall)
       if (!pos_chr %in% levels_y) {
-        stop(sprintf("positive_class '%s' not found in outcome levels: %s",
-                     pos_chr, paste(levels_y, collapse = ", ")))
+        .bio_stop(sprintf("positive_class '%s' not found in outcome levels: %s",
+                          pos_chr, paste(levels_y, collapse = ", ")),
+                  "bioLeak_input_error")
       }
       if (!identical(pos_chr, levels_y[2])) {
         levels_y <- c(setdiff(levels_y, pos_chr), pos_chr)
@@ -397,6 +435,9 @@ fit_resample <- function(x, outcome, splits,
   } else if (task == "multiclass") {
     if (!is.factor(yall)) yall <- factor(yall)
     yall <- droplevels(yall)
+    if (anyNA(yall)) {
+      stop("Multiclass outcome contains NA values. Remove or impute missing outcomes before fitting.", call. = FALSE)
+    }
     if (nlevels(yall) < 3) {
       stop("Multiclass task requires 3 or more outcome levels after preprocessing.")
     }
@@ -440,6 +481,9 @@ fit_resample <- function(x, outcome, splits,
     class_levels <- NULL
     if (!inherits(yall, "Surv")) {
       stop("Survival task requires a Surv outcome.")
+    }
+    if (anyNA(yall)) {
+      stop("Survival outcome contains NA values. Remove or impute missing outcomes before fitting.", call. = FALSE)
     }
     if (!is.null(class_weights)) {
       warning("class_weights is ignored for survival tasks.")
@@ -1222,11 +1266,18 @@ fit_resample <- function(x, outcome, splits,
   pb <- utils::txtProgressBar(min = 0, max = nfold, style = 3)
   pb_counter <- 0
   progress_wrap <- function(f) {
-    fold_id <- f$fold_seq %||% f$fold
+    local_fold_id <- f$fold_seq %||% f$fold
+    start_time <- proc.time()
     res <- tryCatch(do_fold(f), error = function(e) {
-      fold_errors[[fold_id]] <<- conditionMessage(e)
-      warning(sprintf("Fold %s failed: %s", fold_id, e$message)); NULL
+      fold_errors[[local_fold_id]] <<- conditionMessage(e)
+      warning(sprintf("Fold %s failed: %s", local_fold_id, e$message)); NULL
     })
+    elapsed <- (proc.time() - start_time)[["elapsed"]]
+    if (is.null(res)) {
+      res <- structure(list(), elapsed_sec = elapsed)
+    } else {
+      attr(res, "elapsed_sec") <- elapsed
+    }
     pb_counter <<- pb_counter + 1
     utils::setTxtProgressBar(pb, pb_counter)
     res
@@ -1262,7 +1313,8 @@ fit_resample <- function(x, outcome, splits,
     fold_res <- out[[fold_idx]]
     learner_total <- length(learner_names)
     learner_success <- 0L
-    if (is.null(fold_res)) next
+    fold_elapsed <- attr(fold_res, "elapsed_sec") %||% NA_real_
+    if (is.null(fold_res) || !length(names(fold_res))) next
     fold_info <- resolve_fold_indices(folds[[fold_idx]])
     fold_id <- fold_idx
     for (ln in names(fold_res)) {
@@ -1316,6 +1368,7 @@ fit_resample <- function(x, outcome, splits,
         "no_valid_metrics"
       },
       notes = sprintf("Successful learners: %d/%d", learner_success, learner_total),
+      elapsed_sec = fold_elapsed,
       stringsAsFactors = FALSE
     )
   }
@@ -1324,19 +1377,22 @@ fit_resample <- function(x, outcome, splits,
     if (!is.null(fold_status_rows[[fold_idx]])) next
     err_note <- fold_errors[[fold_idx]]
     if (is.na(err_note)) err_note <- "Fold failed before producing any learner results."
+    fold_elapsed <- attr(out[[fold_idx]], "elapsed_sec") %||% NA_real_
     fold_status_rows[[fold_idx]] <- data.frame(
       fold = fold_idx,
       stage = "fold_run",
       status = "failed",
       reason = "fold_error",
       notes = err_note,
+      elapsed_sec = fold_elapsed,
       stringsAsFactors = FALSE
     )
   }
   fold_status_df <- do.call(rbind, fold_status_rows)
 
   if (!length(met_rows)) {
-    stop("No successful folds were completed. Check learner and preprocessing settings.")
+    .bio_stop("No successful folds were completed. Check learner and preprocessing settings.",
+              "bioLeak_fit_error")
   }
 
   met_df <- do.call(rbind, met_rows)
@@ -1360,6 +1416,21 @@ fit_resample <- function(x, outcome, splits,
       metric_summary[[col]] <- mat
     }
   }
+
+  # confidence intervals -------------------------------------------------------
+  tryCatch({
+    avg_n_train <- mean(audit_df$n_train, na.rm = TRUE)
+    avg_n_test <- mean(audit_df$n_test, na.rm = TRUE)
+    ci_df <- cv_ci(met_df, method = "nadeau_bengio",
+                   n_train = avg_n_train, n_test = avg_n_test)
+    # merge CI columns into metric_summary
+    ci_cols <- grep("_ci_lo$|_ci_hi$", names(ci_df), value = TRUE)
+    if (length(ci_cols) && nrow(ci_df) == nrow(metric_summary)) {
+      for (cc in ci_cols) {
+        metric_summary[[cc]] <- ci_df[[cc]]
+      }
+    }
+  }, error = function(e) NULL)
 
   # optional refit ------------------------------------------------------------
   final_model <- NULL
@@ -1433,5 +1504,6 @@ fit_resample <- function(x, outcome, splits,
                   final_model = final_model,
                   final_preprocess = final_guard,
                   learner_names = learner_names,
-                  perm_refit_spec = perm_refit_spec))
+                  perm_refit_spec = perm_refit_spec,
+                  provenance = .bio_capture_provenance()))
 }

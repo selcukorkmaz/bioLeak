@@ -348,7 +348,14 @@ confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
       value <- NA_real_
       if (n_sub >= min_n) {
         truth_val <- if ("truth" %in% names(sub)) sub$truth else sub$pred
-        value <- .metric_value(metric_internal, fit@task, truth_val, sub$pred, pred_df = sub)
+        if (identical(fit@task, "binomial") && metric_internal %in% c("auc", "pr_auc") &&
+            length(unique(truth_val)) < 2L) {
+          value <- NA_real_
+          warning(sprintf("Confounder '%s' level '%s': only one class present; %s is undefined.",
+                          conf, lvl, metric_internal), call. = FALSE)
+        } else {
+          value <- .metric_value(metric_internal, fit@task, truth_val, sub$pred, pred_df = sub)
+        }
       }
       pos_rate <- NA_real_
       if (identical(fit@task, "binomial") && n_sub > 0L) {

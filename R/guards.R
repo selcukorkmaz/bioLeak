@@ -208,7 +208,9 @@
   if (requireNamespace("digest", quietly = TRUE)) {
     return(digest::digest(obj))
   }
-  paste0("h", sprintf("%08X", as.integer(stats::runif(1, 0, .Machine$integer.max))))
+  raw <- serialize(obj, connection = NULL)
+  val <- sum(as.numeric(raw) * seq_along(raw)) %% .Machine$integer.max
+  paste0("h", sprintf("%08X", as.integer(val)))
 }
 
 #' Ensure consistent categorical levels for guarded preprocessing
@@ -509,12 +511,16 @@
   }
 
   # Adaptive: ensure at least min_keep variables remain
-  if (!is.null(min_keep) && sum(keep) < min_keep) {
-    # Rank by variance then IQR to recover features until min_keep
-    v <- vapply(X, stats::var, numeric(1))
-    i <- vapply(X, stats::IQR, numeric(1))
-    ord <- order(v + i, decreasing = TRUE)
-    keep[ord[seq_len(min_keep)]] <- TRUE
+  if (!is.null(min_keep)) {
+    stopifnot(is.numeric(min_keep), length(min_keep) == 1L, min_keep >= 1L)
+    min_keep <- min(min_keep, ncol(X))
+    if (sum(keep) < min_keep) {
+      # Rank by variance then IQR to recover features until min_keep
+      v <- vapply(X, stats::var, numeric(1))
+      i <- vapply(X, stats::IQR, numeric(1))
+      ord <- order(v + i, decreasing = TRUE)
+      keep[ord[seq_len(min_keep)]] <- TRUE
+    }
   }
 
   X <- X[, keep, drop = FALSE]

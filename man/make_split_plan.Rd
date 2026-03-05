@@ -7,11 +7,14 @@
 make_split_plan(
   x,
   outcome = NULL,
-  mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series"),
+  mode = c("subject_grouped", "batch_blocked", "study_loocv", "time_series", "combined"),
   group = NULL,
   batch = NULL,
   study = NULL,
   time = NULL,
+  primary_axis = NULL,
+  secondary_axis = NULL,
+  constraints = NULL,
   v = 5,
   repeats = 1,
   stratify = FALSE,
@@ -32,7 +35,7 @@ metadata are taken from x (columns referenced by \code{group}, \code{batch}, \co
 
 \item{outcome}{character, outcome column name (used for stratification).}
 
-\item{mode}{one of "subject_grouped","batch_blocked","study_loocv","time_series".}
+\item{mode}{one of "subject_grouped","batch_blocked","study_loocv","time_series","combined".}
 
 \item{group}{subject/group id column (for subject_grouped). Required when
 mode is `subject_grouped`; use `group = "row_id"` to explicitly request
@@ -43,6 +46,26 @@ sample-wise CV.}
 \item{study}{study id column (for study_loocv).}
 
 \item{time}{time column (numeric or POSIXct) for time_series.}
+
+\item{primary_axis}{List with elements \code{type} (one of \code{"subject"},
+\code{"batch"}, \code{"study"}) and \code{col} (column name). Used only
+when \code{mode = "combined"} to define the primary grouping axis.
+Deprecated in favor of \code{constraints}; still supported for backward
+compatibility.}
+
+\item{secondary_axis}{List with elements \code{type} and \code{col}. Used
+only when \code{mode = "combined"} to define the secondary constraint axis.
+Training sets exclude samples whose secondary-axis levels appear in the
+test set. Deprecated in favor of \code{constraints}; still supported for
+backward compatibility.}
+
+\item{constraints}{A list of constraint specifications for \code{mode = "combined"}.
+Each element is a list with \code{type} (one of \code{"subject"}, \code{"batch"},
+\code{"study"}) and \code{col} (column name). The first element defines the
+primary grouping axis (fold driver); subsequent elements define exclusion
+constraints (training samples sharing constraint-axis levels with the test
+set are removed). Requires at least 2 elements. Cannot be used together with
+\code{primary_axis}/\code{secondary_axis}.}
 
 \item{v}{integer, number of folds (k) or rolling partitions.}
 

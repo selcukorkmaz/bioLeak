@@ -42,8 +42,9 @@ learner. These control the audit itself. Common options include:
 (logical), `ci_method` (character), `boot_B` (integer), `parallel`
 (logical), `seed` (integer), `return_perm` (logical), `batch_cols`
 (character vector), `coldata` (data.frame), `X_ref` (matrix/data.frame),
-`target_scan` (logical), `target_threshold` (numeric), `feature_space`
-(character), `sim_method` (character), `sim_threshold` (numeric),
+`target_scan` (logical), `target_threshold` (numeric),
+`target_p_adjust` (character), `target_alpha` (numeric),
+`feature_space` (character), `sim_method` (character), `sim_threshold` (numeric),
 `nn_k` (integer), `max_pairs` (integer), and `duplicate_scope` (character).
 See [audit_leakage()] for full definitions; changing these values changes
 each learner's audit.}

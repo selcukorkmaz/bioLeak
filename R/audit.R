@@ -76,6 +76,140 @@
   2 * stats::pt(-abs(tval), df = n - 2)
 }
 
+.bio_leakage_taxonomy <- function() {
+  data.frame(
+    mechanism_class = c(
+      "non_random_signal",
+      "confounding_alignment",
+      "proxy_target_leakage",
+      "duplicate_overlap",
+      "temporal_lookahead"
+    ),
+    evidence_slot = c(
+      "permutation_gap",
+      "batch_assoc",
+      "target_assoc",
+      "duplicates",
+      "duplicates"
+    ),
+    primary_statistics = c(
+      "gap,p_value",
+      "pval,cramer_v",
+      "score,p_value,p_value_adj",
+      "similarity,cross_fold",
+      "cross_fold,time-aware split"
+    ),
+    description = c(
+      "Model signal exceeds permutation null.",
+      "Fold assignments align with batch/study metadata.",
+      "Predictor-outcome association indicates potential target proxy leakage.",
+      "Near-duplicate samples bridge train/test partitions.",
+      "Similarity links violate temporal ordering constraints."
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+.bio_mechanism_summary <- function(perm_df, batch_df, target_df, dup_df, split_mode = NA_character_) {
+  out <- list()
+
+  perm_gap <- if (!is.null(perm_df) && nrow(perm_df)) perm_df$gap[[1]] else NA_real_
+  perm_p <- if (!is.null(perm_df) && nrow(perm_df)) perm_df$p_value[[1]] else NA_real_
+  out[[length(out) + 1L]] <- data.frame(
+    mechanism_class = "non_random_signal",
+    flagged = is.finite(perm_p) && perm_p <= 0.05 && is.finite(perm_gap) && perm_gap > 0,
+    evidence = "permutation_gap",
+    statistic = perm_gap,
+    p_value = perm_p,
+    stringsAsFactors = FALSE
+  )
+
+  batch_p <- if (!is.null(batch_df) && nrow(batch_df) && "pval" %in% names(batch_df)) {
+    suppressWarnings(min(batch_df$pval, na.rm = TRUE))
+  } else {
+    NA_real_
+  }
+  if (!is.finite(batch_p)) batch_p <- NA_real_
+  batch_v <- if (!is.null(batch_df) && nrow(batch_df) && "cramer_v" %in% names(batch_df)) {
+    suppressWarnings(max(batch_df$cramer_v, na.rm = TRUE))
+  } else {
+    NA_real_
+  }
+  if (!is.finite(batch_v)) batch_v <- NA_real_
+  out[[length(out) + 1L]] <- data.frame(
+    mechanism_class = "confounding_alignment",
+    flagged = is.finite(batch_p) && batch_p <= 0.05 && is.finite(batch_v) && batch_v >= 0.1,
+    evidence = "batch_assoc",
+    statistic = batch_v,
+    p_value = batch_p,
+    stringsAsFactors = FALSE
+  )
+
+  proxy_flag <- FALSE
+  proxy_stat <- NA_real_
+  proxy_p <- NA_real_
+  if (!is.null(target_df) && nrow(target_df)) {
+    if ("flag_fdr" %in% names(target_df) && any(target_df$flag_fdr %in% TRUE, na.rm = TRUE)) {
+      proxy_flag <- TRUE
+    } else if ("flag" %in% names(target_df) && any(target_df$flag %in% TRUE, na.rm = TRUE)) {
+      proxy_flag <- TRUE
+    }
+    if ("score" %in% names(target_df)) {
+      proxy_stat <- suppressWarnings(max(target_df$score, na.rm = TRUE))
+      if (!is.finite(proxy_stat)) proxy_stat <- NA_real_
+    }
+    p_col <- if ("p_value_adj" %in% names(target_df)) "p_value_adj" else if ("p_value" %in% names(target_df)) "p_value" else NULL
+    if (!is.null(p_col)) {
+      proxy_p <- suppressWarnings(min(target_df[[p_col]], na.rm = TRUE))
+      if (!is.finite(proxy_p)) proxy_p <- NA_real_
+    }
+  }
+  out[[length(out) + 1L]] <- data.frame(
+    mechanism_class = "proxy_target_leakage",
+    flagged = proxy_flag,
+    evidence = "target_assoc",
+    statistic = proxy_stat,
+    p_value = proxy_p,
+    stringsAsFactors = FALSE
+  )
+
+  dup_sim <- NA_real_
+  dup_flag <- FALSE
+  dup_cols <- c("sim", "cos_sim", "pearson")
+  if (!is.null(dup_df) && nrow(dup_df)) {
+    sim_col <- dup_cols[dup_cols %in% names(dup_df)]
+    if (length(sim_col)) {
+      dup_sim <- suppressWarnings(max(dup_df[[sim_col[[1]]]], na.rm = TRUE))
+      if (!is.finite(dup_sim)) dup_sim <- NA_real_
+    }
+    dup_flag <- TRUE
+  }
+  out[[length(out) + 1L]] <- data.frame(
+    mechanism_class = "duplicate_overlap",
+    flagged = dup_flag,
+    evidence = "duplicates",
+    statistic = dup_sim,
+    p_value = NA_real_,
+    stringsAsFactors = FALSE
+  )
+
+  lookahead_flag <- FALSE
+  if (identical(split_mode, "time_series") && !is.null(dup_df) && nrow(dup_df) &&
+      "cross_fold" %in% names(dup_df)) {
+    lookahead_flag <- any(dup_df$cross_fold %in% TRUE, na.rm = TRUE)
+  }
+  out[[length(out) + 1L]] <- data.frame(
+    mechanism_class = "temporal_lookahead",
+    flagged = lookahead_flag,
+    evidence = "duplicates",
+    statistic = NA_real_,
+    p_value = NA_real_,
+    stringsAsFactors = FALSE
+  )
+
+  do.call(rbind, out)
+}
+
 .align_by_ids <- function(X, ids_chr, sample_ids = NULL, warn = TRUE) {
   if (is.null(X) || (!is.data.frame(X) && !is.matrix(X))) return(NULL)
   rn <- rownames(X)
@@ -242,13 +376,17 @@
         if (stats::sd(x_ok) == 0) return(NULL)
         auc <- .auc_rank(x_ok, y_ok)
         score <- if (is.na(auc)) NA_real_ else abs(auc - 0.5) * 2
+        p_val <- tryCatch(
+          stats::wilcox.test(x_ok[y_ok == 1], x_ok[y_ok == 0], exact = FALSE)$p.value,
+          error = function(e) NA_real_
+        )
         data.frame(
           feature = col_names[j],
           type = "numeric",
           metric = "auc",
           value = auc,
           score = score,
-          p_value = NA_real_,
+          p_value = p_val,
           n = length(y_ok),
           n_levels = NA_integer_,
           stringsAsFactors = FALSE
@@ -568,10 +706,11 @@
 #'
 #' @description
 #' Computes a post-hoc leakage audit for a resampled model fit. The audit
-#' (1) compares observed cross-validated performance to a label-permutation
-#' null (by default refitting when data are available; otherwise using fixed
-#' predictions), (2) tests whether fold assignments
-#' are associated with batch or study metadata (confounding by design),
+#' (1) runs a permutation-gap test comparing observed cross-validated
+#' performance to a label-permutation null (by default refitting when data
+#' are available; otherwise using fixed predictions),
+#' (2) tests whether fold assignments are associated with batch or study
+#' metadata (confounding by design),
 #' (3) scans features for unusually strong outcome proxies, and (4) flags
 #' duplicate or near-duplicate samples in a reference feature matrix.
 #'
@@ -593,11 +732,11 @@
 #' @param B Integer scalar. Number of permutations used to build the null
 #'   distribution (default 200). Larger values reduce Monte Carlo error but
 #'   increase runtime.
-#' @param perm_stratify Logical scalar or `"auto"`. If TRUE (default), permutations
+#' @param perm_stratify Logical scalar or `"auto"`. If TRUE, permutations
 #'   are stratified within each fold (factor levels; numeric outcomes are binned
 #'   into quantiles when enough non-missing values are available). If FALSE, no
-#'   stratification is used. Stratification only applies when `coldata` supplies
-#'   the outcome; otherwise labels are shuffled within each fold.
+#'   stratification is used. Defaults to FALSE. Stratification only applies when
+#'   `coldata` supplies the outcome; otherwise labels are shuffled within each fold.
 #' @param perm_refit Logical scalar or `"auto"`. If FALSE, permutations keep
 #'   predictions fixed and shuffle labels (association test). If TRUE, each
 #'   permutation refits the model on permuted outcomes using `perm_refit_spec`.
@@ -672,6 +811,12 @@
 #' @param target_threshold Numeric scalar in (0,1). Threshold applied to the
 #'   association score used to flag proxy features. Higher values are stricter.
 #'   Default is 0.9.
+#' @param target_p_adjust Character scalar. Multiple-testing correction method
+#'   applied to finite `target_assoc$p_value` values. One of `"none"` (default),
+#'   `"BH"`, `"BY"`, `"holm"`, or `"bonferroni"`. Adds columns
+#'   `p_value_adj` and `flag_fdr` to `target_assoc`.
+#' @param target_alpha Numeric scalar in (0,1). Significance level used for
+#'   `flag_fdr` when `target_p_adjust != "none"`. Default is 0.05.
 #' @param feature_space Character scalar, `"raw"` or `"rank"`. If `"rank"`,
 #'   each row of `X_ref` is rank-transformed before similarity calculations.
 #'   This affects duplicate detection only. Default is `"raw"`.
@@ -698,13 +843,14 @@
 #' @return A \code{\linkS4class{LeakAudit}} S4 object containing:
 #'   \describe{
 #'     \item{\code{fit}}{The \code{LeakFit} object that was audited.}
-#'     \item{\code{permutation_gap}}{One-row data.frame with columns:
-#'       \code{metric_obs} (observed cross-validated metric), \code{perm_mean}
-#'       (mean of permuted metrics), \code{perm_sd} (standard deviation),
-#'       \code{gap} (observed minus permuted mean, or vice versa for loss metrics),
-#'       \code{z} (standardized gap), \code{p_value} (permutation p-value), and
-#'       \code{n_perm} (number of permutations). A large positive gap and small
-#'       p-value suggest the model captures signal beyond random label assignment.}
+#'     \item{\code{permutation_gap}}{One-row data.frame from the permutation-gap
+#'       test with columns: \code{metric_obs} (observed cross-validated metric),
+#'       \code{perm_mean} (mean of permuted metrics), \code{perm_sd} (standard
+#'       deviation), \code{gap} (observed minus permuted mean, or vice versa for
+#'       loss metrics), \code{z} (standardized gap), \code{p_value}
+#'       (permutation p-value), and \code{n_perm} (number of permutations). A
+#'       large positive gap and small p-value suggest the model captures signal
+#'       beyond random label assignment.}
 #'     \item{\code{perm_values}}{Numeric vector of length \code{B} containing
 #'       the metric value from each permutation. Useful for plotting the null
 #'       distribution. Empty if \code{return_perm = FALSE}.}
@@ -750,8 +896,10 @@
 #' AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
 #' categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
 #' one-way ANOVA (gaussian). The
-#' `score` column is the scaled effect size used for flagging
+#' `score` column is the scaled effect size used for heuristic flagging
 #' (`flag = score >= target_threshold`).
+#' When `target_p_adjust != "none"`, finite `p_value` entries also receive
+#' multiplicity-adjusted `p_value_adj` and `flag_fdr = (p_value_adj <= target_alpha)`.
 #' The univariate target leakage scan can miss multivariate proxies, interaction
 #' leakage, or features not included in `X_ref`. The multivariate scan (enabled
 #' by default for supported tasks) adds a model-based proxy check but still only
@@ -825,6 +973,8 @@ audit_leakage <- function(fit,
                           target_scan_multivariate_components = 10,
                           target_scan_multivariate_interactions = TRUE,
                           target_threshold = 0.9,
+                          target_p_adjust = c("none", "BH", "BY", "holm", "bonferroni"),
+                          target_alpha = 0.05,
                           feature_space = c("raw", "rank"),
                           sim_method = c("cosine", "pearson"),
                           sim_threshold = 0.995,
@@ -912,10 +1062,15 @@ audit_leakage <- function(fit,
   duplicate_scope <- match.arg(duplicate_scope)
   time_block <- match.arg(time_block)
   ci_method <- match.arg(ci_method)
+  target_p_adjust <- match.arg(target_p_adjust)
 
   if (!is.numeric(target_threshold) || length(target_threshold) != 1L ||
       !is.finite(target_threshold) || target_threshold <= 0 || target_threshold >= 1) {
     stop("target_threshold must be a single numeric value in (0,1).")
+  }
+  if (!is.numeric(target_alpha) || length(target_alpha) != 1L ||
+      !is.finite(target_alpha) || target_alpha <= 0 || target_alpha >= 1) {
+    stop("target_alpha must be a single numeric value in (0,1).")
   }
   if (!is.logical(target_scan_multivariate) || length(target_scan_multivariate) != 1L) {
     stop("target_scan_multivariate must be TRUE or FALSE.")
@@ -1256,6 +1411,13 @@ audit_leakage <- function(fit,
     pred_list <- pred_list_raw
   }
 
+  # Filter out empty (zero-row) folds to keep pred_list aligned with folds
+  non_empty <- vapply(pred_list, function(df) nrow(df) > 0L, logical(1))
+  if (!all(non_empty)) {
+    pred_list <- pred_list[non_empty]
+    folds <- folds[non_empty]
+  }
+
   all_pred <- do.call(rbind, pred_list)
 
   metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred, pred_df = all_pred)
@@ -1582,6 +1744,8 @@ audit_leakage <- function(fit,
     p_value    = pval,
     n_perm     = length(perm_vals)
   )
+  perm_df$mechanism_class <- "non_random_signal"
+  perm_df <- perm_df[, c("mechanism_class", setdiff(names(perm_df), "mechanism_class")), drop = FALSE]
 
   perm_df[] <- lapply(perm_df, function(x)
     if (is.numeric(x)) round(x, 6) else x)
@@ -1846,6 +2010,37 @@ audit_leakage <- function(fit,
     }
   }
 
+  if (nrow(batch_df)) {
+    batch_df$mechanism_class <- "confounding_alignment"
+    batch_df <- batch_df[, c("mechanism_class", setdiff(names(batch_df), "mechanism_class")), drop = FALSE]
+  }
+  if (nrow(target_df)) {
+    target_df$mechanism_class <- "proxy_target_leakage"
+    target_df$p_value_adj <- NA_real_
+    target_df$flag_fdr <- NA
+    if (identical(target_p_adjust, "none")) {
+      target_df$flag_fdr <- as.logical(target_df$flag)
+    } else if ("p_value" %in% names(target_df)) {
+      finite_idx <- which(is.finite(target_df$p_value))
+      if (length(finite_idx)) {
+        target_df$p_value_adj[finite_idx] <- stats::p.adjust(
+          target_df$p_value[finite_idx],
+          method = target_p_adjust
+        )
+        target_df$flag_fdr <- !is.na(target_df$p_value_adj) &
+          is.finite(target_df$p_value_adj) &
+          target_df$p_value_adj <= target_alpha
+      } else {
+        target_df$flag_fdr <- rep(FALSE, nrow(target_df))
+      }
+    }
+    target_df <- target_df[, c("mechanism_class", setdiff(names(target_df), "mechanism_class")), drop = FALSE]
+  }
+  if (nrow(target_multivariate)) {
+    target_multivariate$mechanism_class <- "proxy_target_leakage"
+    target_multivariate <- target_multivariate[, c("mechanism_class", setdiff(names(target_multivariate), "mechanism_class")), drop = FALSE]
+  }
+
   # --- Duplicate / near-duplicate detection ---------------------------------
   dup_df <- data.frame()
   if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
@@ -1909,9 +2104,13 @@ audit_leakage <- function(fit,
     Xn <- .row_l2_normalize(X)
 
     n <- nrow(Xn)
+    p <- ncol(Xn)
     candidate_pairs <- NULL
 
-    if (n > 3000 && requireNamespace("RANN", quietly = TRUE)) {
+    use_ann <- (n > 500 || (n * p > 1.5e6)) &&
+               requireNamespace("RANN", quietly = TRUE)
+
+    if (use_ann) {
       # approximate k-NN search; cosine/pearson ~ 1 - 0.5*||u - v||^2 for unit vectors
       nn <- RANN::nn2(Xn, k = min(nn_k + 1, n))  # includes self
       idx <- rep(seq_len(n), times = ncol(nn$nn.idx))
@@ -1925,8 +2124,33 @@ audit_leakage <- function(fit,
       if (length(keep)) {
         candidate_pairs <- data.frame(i = idx[keep], j = jdx[keep], sim = simv[keep])
       }
+    } else if (n > 500) {
+      # chunked exact computation — avoids full n*n allocation
+      block_size <- 200L
+      pair_list <- list()
+      for (start in seq(1L, n, by = block_size)) {
+        end <- min(start + block_size - 1L, n)
+        block_idx <- start:end
+        S_block <- Xn[block_idx, , drop = FALSE] %*% t(Xn)
+        # zero out self-matches and upper triangle within the block
+        for (bi in seq_along(block_idx)) {
+          ri <- block_idx[bi]
+          S_block[bi, ri:n] <- 0
+        }
+        hits <- which(S_block >= sim_threshold, arr.ind = TRUE)
+        if (nrow(hits) > 0) {
+          pair_list[[length(pair_list) + 1L]] <- data.frame(
+            i = block_idx[hits[, 1]],
+            j = hits[, 2],
+            sim = S_block[hits]
+          )
+        }
+      }
+      if (length(pair_list)) {
+        candidate_pairs <- do.call(rbind, pair_list)
+      }
     } else {
-      # exact; cap output
+      # exact small-n path
       S <- .cosine_sim_block(Xn)
       S[upper.tri(S, TRUE)] <- 0
       which_dup <- which(S >= sim_threshold, arr.ind = TRUE)
@@ -1935,6 +2159,12 @@ audit_leakage <- function(fit,
     }
 
     if (!is.null(candidate_pairs)) {
+      # Canonicalize and deduplicate pairs (kNN branch may produce (i,j) and (j,i))
+      swap <- candidate_pairs$i > candidate_pairs$j
+      tmp <- candidate_pairs$i[swap]
+      candidate_pairs$i[swap] <- candidate_pairs$j[swap]
+      candidate_pairs$j[swap] <- tmp
+      candidate_pairs <- candidate_pairs[!duplicated(candidate_pairs[, c("i", "j")]), ]
       compute_cross_fold <- function(pairs) {
         n_pairs <- nrow(pairs)
         if (!n_pairs) return(logical(0))
@@ -2089,6 +2319,18 @@ audit_leakage <- function(fit,
     }
     }
   }
+  if (nrow(dup_df)) {
+    dup_df$mechanism_class <- "duplicate_overlap"
+    dup_df <- dup_df[, c("mechanism_class", setdiff(names(dup_df), "mechanism_class")), drop = FALSE]
+  }
+
+  mechanism_summary <- .bio_mechanism_summary(
+    perm_df = perm_df,
+    batch_df = batch_df,
+    target_df = target_df,
+    dup_df = dup_df,
+    split_mode = fit@splits@mode %||% NA_character_
+  )
 
   # --- Assemble S4 object ----------------------------------------------------
   perm_values <- if (isTRUE(return_perm)) perm_vals else numeric(0)
@@ -2117,10 +2359,14 @@ audit_leakage <- function(fit,
         target_scan_multivariate_interactions = target_scan_multivariate_interactions,
         target_multivariate = target_multivariate,
         target_threshold = target_threshold,
+        target_p_adjust = target_p_adjust,
+        target_alpha = target_alpha,
         sim_method = sim_method,
         feature_space = feature_space,
         duplicate_threshold = sim_threshold,
         duplicate_scope = duplicate_scope,
+        taxonomy = .bio_leakage_taxonomy(),
+        mechanism_summary = mechanism_summary,
         nn_k = nn_k,
         max_pairs = max_pairs,
         batch_cols = batch_cols,
@@ -2128,7 +2374,8 @@ audit_leakage <- function(fit,
         ci_delta = seci$ci,
         se_delta = seci$se,
         ci_method = ci_method,
-        include_z = include_z
+        include_z = include_z,
+        provenance = fit@info$provenance %||% NULL
       ))
 }
 
@@ -2163,8 +2410,9 @@ audit_leakage <- function(fit,
 #'   (logical), `ci_method` (character), `boot_B` (integer), `parallel`
 #'   (logical), `seed` (integer), `return_perm` (logical), `batch_cols`
 #'   (character vector), `coldata` (data.frame), `X_ref` (matrix/data.frame),
-#'   `target_scan` (logical), `target_threshold` (numeric), `feature_space`
-#'   (character), `sim_method` (character), `sim_threshold` (numeric),
+#'   `target_scan` (logical), `target_threshold` (numeric),
+#'   `target_p_adjust` (character), `target_alpha` (numeric),
+#'   `feature_space` (character), `sim_method` (character), `sim_threshold` (numeric),
 #'   `nn_k` (integer), `max_pairs` (integer), and `duplicate_scope` (character).
 #'   See [audit_leakage()] for full definitions; changing these values changes
 #'   each learner's audit.

@@ -16,7 +16,7 @@ simulate_leakage_suite(
   K = 5,
   repeats = 1,
   horizon = 0,
-  B = 1000,
+  B = 200,
   seeds = 1:10,
   parallel = FALSE,
   signal_strength = 1,
