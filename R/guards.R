@@ -549,7 +549,10 @@
     n1 <- nrow(g1); n0 <- nrow(g0)
     se <- sqrt(s1^2 / n1 + s0^2 / n0); se[se == 0] <- Inf
     tstat <- (m1 - m0) / se
-    k <- max(50, ceiling(0.10 * length(tstat)))
+    k <- if (!is.null(fs_cfg$top_k) && is.numeric(fs_cfg$top_k) && fs_cfg$top_k >= 1L)
+      as.integer(fs_cfg$top_k)
+    else
+      max(50L, ceiling(0.10 * length(tstat)))
     ord <- order(abs(tstat), decreasing = TRUE)
     selected <- ord[seq_len(min(k, length(ord)))]
     X <- X[, selected, drop = FALSE]

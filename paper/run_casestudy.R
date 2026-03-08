@@ -188,7 +188,8 @@ audit_guarded <- audit_leakage(
   target_scan = TRUE,
   target_scan_multivariate = TRUE,
   target_threshold = 0.9,
-  sim_threshold = 0.995
+  sim_threshold = 0.995,
+  max_pairs = 50000
 )
 
 cat(sprintf("Guarded AUC: %.3f (SD: %.3f)\n",
@@ -260,7 +261,8 @@ audit_leaky <- audit_leakage(
   target_scan = TRUE,
   target_scan_multivariate = TRUE,
   target_threshold = 0.9,
-  sim_threshold = 0.995
+  sim_threshold = 0.995,
+  max_pairs = 50000
 )
 
 cat(sprintf("Leaky AUC: %.3f (SD: %.3f)\n",

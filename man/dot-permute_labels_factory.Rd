@@ -17,6 +17,7 @@
   batch_col = NULL,
   study_col = NULL,
   time_col = NULL,
+  perm_refit = TRUE,
   verbose = FALSE
 )
 }
@@ -42,6 +43,10 @@ splits are used, fold assignments are read from the
 \item{group_col, batch_col, study_col}{optional metadata columns.}
 
 \item{time_col}{optional metadata column name for time-series ordering.}
+
+\item{perm_refit}{logical; if TRUE model is retrained on permuted labels
+(block permutation preserves subject structure); if FALSE predictions are
+fixed and simple label shuffle is used for \code{subject_grouped} mode.}
 
 \item{verbose}{logical; print progress messages.}
 }

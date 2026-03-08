@@ -1533,7 +1533,8 @@ audit_leakage <- function(fit,
         folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
         block_len = block_len, seed = seed,
         group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-        study_col = fit@splits@info$study, time_col = fit@splits@info$time
+        study_col = fit@splits@info$study, time_col = fit@splits@info$time,
+        perm_refit = TRUE
       )
     }
 
@@ -1628,7 +1629,8 @@ audit_leakage <- function(fit,
         folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
         block_len = block_len, seed = seed,
         group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-        study_col = fit@splits@info$study, time_col = fit@splits@info$time
+        study_col = fit@splits@info$study, time_col = fit@splits@info$time,
+        perm_refit = FALSE
       )
     }
     if (is.null(perm_source)) {
@@ -1996,7 +1998,8 @@ audit_leakage <- function(fit,
             folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
             block_len = block_len, seed = seed,
             group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-            study_col = fit@splits@info$study, time_col = fit@splits@info$time
+            study_col = fit@splits@info$study, time_col = fit@splits@info$time,
+            perm_refit = FALSE
           )
           permute_outcome <- function(b) perm_source(b)[[1]]
         }
@@ -2094,6 +2097,11 @@ audit_leakage <- function(fit,
       # skip duplicate detection when train/test alignment is required
     } else {
       X <- as.matrix(X_use)
+    # Replace NA/NaN/Inf with column medians so RANN::nn2 doesn't fail
+    if (anyNA(X) || any(!is.finite(X))) {
+      col_med <- apply(X, 2, function(v) { v <- v[is.finite(v)]; if (length(v)) median(v) else 0 })
+      for (j in seq_len(ncol(X))) { bad <- !is.finite(X[, j]); if (any(bad)) X[bad, j] <- col_med[j] }
+    }
     # choose feature space
     if (feature_space == "rank") {
       X <- t(apply(X, 1, function(row) rank(row, ties.method = "average", na.last = "keep")))

@@ -88,3 +88,63 @@ LeakSplits <- function(mode = NA_character_, indices = list(), info = list()) {
 LeakFit <- function(...) methods::new("LeakFit", ...)
 
 LeakAudit <- function(...) methods::new("LeakAudit", ...)
+
+#' @rdname LeakClasses
+#' @slot metric Performance metric compared between pipelines
+#' @slot exchangeability Exchangeability assumption used for the sign-flip test
+#' @slot tier Inference tier label based on effective number of repeats
+#' @slot strict Whether strict mode was requested
+#' @slot R_eff Effective number of paired repeats available for inference
+#' @slot delta_lsi Huber-robust point estimate of repeat-level metric difference
+#' @slot delta_lsi_ci BCa 95\% CI for delta_lsi (NA when R_eff < 10)
+#' @slot delta_metric Arithmetic mean of repeat-level metric differences
+#' @slot delta_metric_ci BCa 95\% CI for delta_metric (NA when R_eff < 10)
+#' @slot p_value Sign-flip randomization test p-value (NA when R_eff < 5 or unpaired)
+#' @slot inference_ok TRUE when tier A (R_eff >= 20, paired, finite p and CI)
+#' @slot folds_naive Per-fold data frame for the naive pipeline
+#' @slot folds_guarded Per-fold data frame for the guarded pipeline
+#' @slot repeats_naive Per-repeat aggregate data frame for the naive pipeline
+#' @slot repeats_guarded Per-repeat aggregate data frame for the guarded pipeline
+#' @slot info Additional metadata including R_naive, R_guarded, paired status
+#' @seealso [delta_lsi()]
+#' @exportClass LeakDeltaLSI
+setClass("LeakDeltaLSI",
+  slots = c(
+    metric          = "character",
+    exchangeability = "character",
+    tier            = "character",
+    strict          = "logical",
+    R_eff           = "integer",
+    delta_lsi       = "numeric",
+    delta_lsi_ci    = "numeric",
+    delta_metric    = "numeric",
+    delta_metric_ci = "numeric",
+    p_value         = "numeric",
+    inference_ok    = "logical",
+    folds_naive     = "data.frame",
+    folds_guarded   = "data.frame",
+    repeats_naive   = "data.frame",
+    repeats_guarded = "data.frame",
+    info            = "list"
+  ),
+  prototype = list(
+    metric          = character(0),
+    exchangeability = character(0),
+    tier            = "D_insufficient",
+    strict          = FALSE,
+    R_eff           = 0L,
+    delta_lsi       = NA_real_,
+    delta_lsi_ci    = c(NA_real_, NA_real_),
+    delta_metric    = NA_real_,
+    delta_metric_ci = c(NA_real_, NA_real_),
+    p_value         = NA_real_,
+    inference_ok    = FALSE,
+    folds_naive     = data.frame(),
+    folds_guarded   = data.frame(),
+    repeats_naive   = data.frame(),
+    repeats_guarded = data.frame(),
+    info            = list()
+  )
+)
+
+LeakDeltaLSI <- function(...) methods::new("LeakDeltaLSI", ...)

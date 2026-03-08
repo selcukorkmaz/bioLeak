@@ -39,26 +39,60 @@
 }
 
 .permute_subject_grouped <- function(y, subj, strata = NULL) {
-  subj <- factor(subj)
+  subj   <- factor(subj)
   blocks <- split(seq_along(y), subj)
   values <- lapply(blocks, function(ix) y[ix])
-  ord <- seq_along(blocks)
+  ord    <- seq_along(blocks)
+  sizes  <- vapply(blocks, length, integer(1L))
+
+  # Two-stage permutation:
+  # Stage 1 — block-swap subjects of equal size within each stratum.
+  #   Only same-size blocks are swapped to avoid R recycling and label
+  #   corruption.
+  # Stage 2 — any subject whose block could not be swapped (unique size
+  #   within its stratum) has its own observations element-wise shuffled
+  #   within the stratum. Under H0 labels are exchangeable, so this is
+  #   valid and avoids an over-conservative test at small n.
+  perm_ord <- ord
+  swapped  <- logical(length(ord))
+
   if (!is.null(strata)) {
-    block_strata <- vapply(ord, function(i) .majority_level(strata[blocks[[i]]]), character(1))
-    split_idx <- split(ord, block_strata)
-    values_perm <- vector("list", length(blocks))
-    for (nm in names(split_idx)) {
-      idx <- split_idx[[nm]]
-      perm_vals <- values[sample(idx)]
-      values_perm[idx] <- perm_vals
+    block_strata <- vapply(ord,
+                           function(i) .majority_level(strata[blocks[[i]]]),
+                           character(1L))
+    for (nm in unique(block_strata)) {
+      in_stratum <- ord[block_strata == nm]
+      for (sz in unique(sizes[in_stratum])) {
+        eligible <- in_stratum[sizes[in_stratum] == sz]
+        if (length(eligible) > 1L) {
+          perm_ord[eligible] <- sample(eligible)
+          swapped[eligible]  <- TRUE
+        }
+      }
     }
   } else {
-    values_perm <- values[sample(ord)]
+    for (sz in unique(sizes)) {
+      eligible <- ord[sizes == sz]
+      if (length(eligible) > 1L) {
+        perm_ord[eligible] <- sample(eligible)
+        swapped[eligible]  <- TRUE
+      }
+    }
   }
+
+  # Apply block swaps for swapped blocks
   out <- y
-  for (i in seq_along(blocks)) {
-    out[blocks[[i]]] <- values_perm[[i]]
+  for (i in ord[swapped]) out[blocks[[i]]] <- values[[perm_ord[i]]]
+
+  # Element-wise shuffle for un-swapped blocks (no stratum constraint).
+  # Stratifying the fallback shuffle by the binary outcome would be identity
+  # (all zeros stay zeros, all ones stay ones), so we shuffle all unswapped
+  # positions together.  Under H0 labels are exchangeable, making this valid.
+  unswapped_pos <- unlist(blocks[!swapped], use.names = FALSE)
+  if (length(unswapped_pos) > 1L) {
+    out[unswapped_pos] <- sample(out[unswapped_pos])
   }
+
   out
 }
 
@@ -112,6 +146,9 @@
 #' @param seed integer seed.
 #' @param group_col,batch_col,study_col optional metadata columns.
 #' @param time_col optional metadata column name for time-series ordering.
+#' @param perm_refit logical; if TRUE model is retrained on permuted labels
+#'   (block permutation preserves subject structure); if FALSE predictions are
+#'   fixed and simple label shuffle is used for \code{subject_grouped} mode.
 #' @param verbose logical; print progress messages.
 #' @return A function that returns a list of permuted outcome vectors, one per fold.
 #' @keywords internal
@@ -120,6 +157,7 @@
                                     time_block, block_len, seed,
                                     group_col = NULL, batch_col = NULL,
                                     study_col = NULL, time_col = NULL,
+                                    perm_refit = TRUE,
                                     verbose = FALSE) {
   if (is.null(cd) || !outcome %in% names(cd)) {
     stop("Metadata with outcome column required for restricted permutations.")
@@ -218,16 +256,23 @@
       }
       permuted <- switch(mode,
         subject_grouped = {
-          subj_col <- if (!is.null(group_col) && group_col %in% names(cd)) cd[[group_col]] else NULL
-          if (is.null(subj_col) && "group" %in% names(cd)) subj_col <- cd[["group"]]
-          if (is.null(subj_col)) subj_col <- seq_along(y_all)
-          subj <- subj_col[te_idx]
-          strata <- if (!is.null(strata_vec)) strata_vec[te_idx] else NULL
-          if (isTRUE(verbose) && !is.null(strata)) {
-            message("[permute_labels] Subject-grouped strata used: ",
-                    paste(sort(unique(stats::na.omit(strata))), collapse = ", "))
+          # For perm_refit=FALSE predictions are fixed; simple shuffle gives the
+          # correct null and avoids degenerate/inflated-Type-I-error behaviour
+          # from block permutation constrained by subject size and outcome strata.
+          if (!isTRUE(perm_refit)) {
+            sample(y_all[te_idx])
+          } else {
+            subj_col <- if (!is.null(group_col) && group_col %in% names(cd)) cd[[group_col]] else NULL
+            if (is.null(subj_col) && "group" %in% names(cd)) subj_col <- cd[["group"]]
+            if (is.null(subj_col)) subj_col <- seq_along(y_all)
+            subj <- subj_col[te_idx]
+            strata <- if (!is.null(strata_vec)) strata_vec[te_idx] else NULL
+            if (isTRUE(verbose) && !is.null(strata)) {
+              message("[permute_labels] Subject-grouped strata used: ",
+                      paste(sort(unique(stats::na.omit(strata))), collapse = ", "))
+            }
+            .permute_subject_grouped(y_all[te_idx], subj, strata)
           }
-          .permute_subject_grouped(y_all[te_idx], subj, strata)
         },
         batch_blocked = {
           batch_vals <- NULL
