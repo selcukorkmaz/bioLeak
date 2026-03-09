@@ -10,6 +10,7 @@ delta_lsi(
   metric = "auc",
   exchangeability = c("iid", "by_group", "within_batch", "blocked_time"),
   learner = NULL,
+  higher_is_better = NULL,
   M_boot = 2000L,
   M_flip = 10000L,
   strict = FALSE,
@@ -34,6 +35,15 @@ the sign-flip test. Informational; does not change the computation. One of
 
 \item{learner}{Optional character. Learner name to select from multi-learner
 fits. If \code{NULL}, the first learner found in \code{fit@metrics} is used.}
+
+\item{higher_is_better}{Logical or \code{NULL}. Whether a higher value of
+\code{metric} indicates better performance. When \code{NULL} (default),
+auto-detected from the metric name: \code{"rmse"}, \code{"mse"},
+\code{"mae"}, \code{"log_loss"}, \code{"brier"}, \code{"error"},
+\code{"loss"}, and \code{"deviance"} are treated as lower-is-better;
+all others default to higher-is-better. Setting this correctly ensures
+that a positive \code{delta_lsi} always indicates leakage inflation
+(the naive pipeline is artificially more optimistic than the guarded one).}
 
 \item{M_boot}{Integer. Number of bootstrap samples for BCa CI (default 2000).}
 
@@ -62,19 +72,28 @@ For each fit, per-fold metric values are extracted from \code{fit@metrics}
 (or recomputed from \code{fit@predictions} if necessary). Fold test-set
 sizes are used as weights to aggregate fold metrics into per-repeat
 estimates \eqn{\mu_r}. The repeat-level delta
-\eqn{\Delta_r = \mu_r^{\text{naive}} - \mu_r^{\text{guarded}}} captures
-leakage-induced performance inflation for each CV repeat.
+\eqn{\Delta_r = s \cdot (\mu_r^{\text{naive}} - \mu_r^{\text{guarded}})}
+captures leakage-induced performance inflation for each CV repeat, where
+\eqn{s = +1} for higher-is-better metrics (e.g., AUC) and \eqn{s = -1}
+for lower-is-better metrics (e.g., RMSE), so that \eqn{\Delta_r > 0}
+always indicates the naive pipeline is more optimistic than the guarded one.
 
 The \strong{delta_lsi} point estimate is the Huber M-estimator (k = 1.345)
 applied to \eqn{\{\Delta_r\}}, which is robust to occasional outlier
-repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\Delta_r}
+repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\{\Delta_r\}}
 for easy interpretation in the original metric's units.
+
+Pairing requires that \code{fit_naive} and \code{fit_guarded} share
+\emph{identical fold structures} (same test-set membership per fold) in
+addition to the same number of repeats.  When repeat counts match but fold
+structures differ, a warning is issued and the fits are treated as unpaired.
 
 When \eqn{R_{\text{eff}} \geq 5} (equal, paired repeats), a sign-flip
 randomization test (Phipson & Smyth, 2010) is performed: under
 \eqn{H_0} (no leakage) the sign of each \eqn{\Delta_r} is exchangeable.
 All \eqn{2^R} sign combinations are enumerated exactly for
-\eqn{R \leq 15}; Monte Carlo sampling is used for larger \eqn{R}.
+\eqn{R \leq 15} (no continuity correction); Monte Carlo sampling is used
+for larger \eqn{R} with the Phipson & Smyth (2010) correction.
 
 BCa bootstrap confidence intervals (Efron, 1987) require
 \eqn{R_{\text{eff}} \geq 10}.

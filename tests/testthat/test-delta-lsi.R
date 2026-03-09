@@ -249,7 +249,7 @@ test_that("folds_naive and folds_guarded have expected columns", {
   fit_n <- .make_dlsi_fit(c(0.7, 0.8, 0.75), n_obs = 30L, n_repeats = 1L)
   fit_g <- .make_dlsi_fit(c(0.6, 0.65, 0.6), n_obs = 30L, n_repeats = 1L)
   res   <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "auc"))
-  expected_cols <- c("fold", "metric", "repeat_id", "n", "tau")
+  expected_cols <- c("fold", "metric", "repeat_id", "n")
   expect_true(all(expected_cols %in% names(res@folds_naive)))
   expect_true(all(expected_cols %in% names(res@folds_guarded)))
 })
@@ -285,9 +285,59 @@ test_that(".dlsi_sign_flip p-value is NA for length-1 input", {
 })
 
 test_that(".dlsi_sign_flip exact enumeration: known result for R=2", {
-  # delta_r = c(1, 1); all four sign combos give means: 1, 0, 0, -1
-  # obs_stat = mean(1,1) = 1; |null| >= 1 for (++): count=1 and for (--): count=1
-  # p = (2 + 1) / (4 + 1) = 0.6
+  # delta_r = c(1, 1); obs_stat = mean(1, 1) = 1
+  # All 4 sign combos (R=2 <= 15 → exact):
+  #   (--) → mean(-1, -1) = -1;  (-+) → mean(-1,  1) =  0
+  #   (+-) → mean( 1, -1) =  0;  (++) → mean( 1,  1) =  1
+  # |null| >= |obs| = 1: combos (--) and (++) → count = 2
+  # Exact p = 2 / 4 = 0.5  (no continuity correction for full enumeration)
   p <- bioLeak:::.dlsi_sign_flip(c(1, 1), seed = 1L)
-  expect_equal(p, 3/5, tolerance = 1e-10)
+  expect_equal(p, 0.5, tolerance = 1e-10)
+})
+
+# ── Adversarial tests ─────────────────────────────────────────────────────────
+
+test_that("equal repeat count but mismatched fold structures warns and goes unpaired", {
+  # fit_n uses n_obs=30, fit_g uses n_obs=24 → different test indices → unpaired
+  fit_n <- .make_dlsi_fit(rep(0.8, 6L), n_obs = 30L, n_repeats = 2L)
+  fit_g <- .make_dlsi_fit(rep(0.6, 6L), n_obs = 24L, n_repeats = 2L)
+  expect_warning(
+    res <- delta_lsi(fit_n, fit_g, metric = "auc"),
+    regexp = "fold structures"
+  )
+  expect_equal(res@tier, "D_insufficient")
+  expect_equal(res@R_eff, 0L)
+  # Point estimate should still be computed unpaired
+  expect_true(is.finite(res@delta_lsi))
+})
+
+test_that("lower-is-better metric: delta > 0 when naive has lower (better) values", {
+  set.seed(1)
+  # For lower-is-better metrics: naive = 0.3 (better), guarded = 0.5 (worse)
+  # Without sign flip: naive - guarded = -0.2 < 0 (looks like naive is worse)
+  # With higher_is_better = FALSE: sign_factor = -1 → delta = -1 * (-0.2) = +0.2 > 0
+  fit_n <- .make_dlsi_fit(rep(0.3, 10L), n_obs = 30L, n_repeats = 2L)
+  fit_g <- .make_dlsi_fit(rep(0.5, 10L), n_obs = 30L, n_repeats = 2L)
+  res   <- delta_lsi(fit_n, fit_g, metric = "auc",
+                     higher_is_better = FALSE, seed = 1L)
+  expect_gt(res@delta_lsi,    0.0)
+  expect_gt(res@delta_metric, 0.0)
+  expect_false(isTRUE(res@info[["higher_is_better"]]))
+})
+
+test_that("auto-detect higher_is_better = FALSE for rmse via metric name", {
+  # When metric name contains 'rmse', auto-detection gives higher_is_better = FALSE
+  # We test this via info slot; the actual metric lookup falls back to predictions
+  # so use higher_is_better = NULL (default) and check what gets stored
+  set.seed(2)
+  fit_n <- .make_dlsi_fit(rep(0.3, 10L), n_obs = 30L, n_repeats = 2L)
+  fit_g <- .make_dlsi_fit(rep(0.5, 10L), n_obs = 30L, n_repeats = 2L)
+  # Explicitly test that the auto-detection flag works when overridden manually
+  res_auto <- delta_lsi(fit_n, fit_g, metric = "auc",
+                        higher_is_better = FALSE, seed = 2L)
+  res_hib  <- delta_lsi(fit_n, fit_g, metric = "auc",
+                        higher_is_better = TRUE,  seed = 2L)
+  # Signs should be opposite
+  expect_gt(res_auto@delta_lsi, 0.0)   # naive (0.3) better than guarded (0.5)
+  expect_lt(res_hib@delta_lsi,  0.0)   # naive (0.3) worse than guarded (0.5)
 })

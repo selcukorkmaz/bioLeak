@@ -103,28 +103,19 @@
   sizes
 }
 
-# Two-pass τ stabilisation: MAD of per-fold predictions.
-# Returns a named numeric vector  fold_seq_char -> tau.
-.dlsi_tau <- function(pred_df, fold_seq) {
-  if (is.null(pred_df) || !"fold" %in% names(pred_df) || !"pred" %in% names(pred_df)) {
-    return(setNames(rep(1e-3, length(fold_seq)), as.character(fold_seq)))
-  }
-
-  # Pass 1: MAD per fold
-  s <- vapply(fold_seq, function(f) {
-    p <- as.numeric(pred_df$pred[pred_df$fold == f])
-    p <- p[is.finite(p)]
-    if (length(p) < 2L) return(NA_real_)
-    stats::mad(p, constant = 1.0, na.rm = TRUE)
-  }, numeric(1L))
-
-  s_clean   <- s[is.finite(s) & s > 0]
-  tau_floor <- if (length(s_clean)) max(1e-3, stats::median(s_clean) / 10) else 1e-3
-
-  # Pass 2: apply floor
-  tau                <- pmax(s, tau_floor)
-  tau[!is.finite(tau)] <- tau_floor
-  setNames(tau, as.character(fold_seq))
+# Check whether two fits share exactly the same fold-level test indices.
+# Returns TRUE only when every fold's test set is identical (same observations,
+# same order after sorting).  This guards against pairing fits that happen to
+# have the same repeat count but were run on different data splits.
+.dlsi_splits_match <- function(fit_naive, fit_guarded) {
+  idx_n <- fit_naive@splits@indices
+  idx_g <- fit_guarded@splits@indices
+  if (length(idx_n) != length(idx_g)) return(FALSE)
+  all(vapply(seq_along(idx_n), function(i) {
+    te_n <- sort(as.integer(idx_n[[i]]$test %||% integer(0)))
+    te_g <- sort(as.integer(idx_g[[i]]$test %||% integer(0)))
+    identical(te_n, te_g)
+  }, logical(1L)))
 }
 
 # Huber M-estimator of location (iterative; Huber k = 1.345).
@@ -197,7 +188,12 @@
 # Sign-flip randomization test (Phipson & Smyth, 2010).
 # H0: mean(delta_r) = 0 (no leakage inflation).
 # Test statistic: arithmetic mean (well-defined under sign-flip null).
-# Uses exact enumeration for R <= 15, Monte Carlo otherwise.
+#
+# Exact enumeration (R <= 15): all 2^R sign combinations are evaluated.
+#   p = count(|null| >= |obs|) / 2^R  — no continuity correction.
+#
+# Monte Carlo (R > 15): Phipson & Smyth (2010) correction:
+#   p = (count + 1) / (M + 1)  — guards against p = 0 from sampling.
 .dlsi_sign_flip <- function(delta_r, M_flip = 10000L, seed = 42L) {
   delta_r  <- as.numeric(delta_r[is.finite(delta_r)])
   R        <- length(delta_r)
@@ -208,28 +204,32 @@
 
   set.seed(seed)
 
-  null_stats <- if (R <= 15L) {
-    # Exact enumeration over all 2^R sign combinations
-    n_combos <- 2L^R
-    vapply(seq_len(n_combos), function(j) {
+  if (R <= 15L) {
+    # ── Exact enumeration ──────────────────────────────────────────────────
+    n_combos   <- 2L^R
+    null_stats <- vapply(seq_len(n_combos), function(j) {
       bits  <- as.integer(intToBits(j - 1L)[seq_len(R)])
       signs <- ifelse(bits == 1L, 1.0, -1.0)
       mean(signs * delta_r)
     }, numeric(1L))
+    null_stats <- as.numeric(null_stats[is.finite(null_stats)])
+    if (!length(null_stats)) return(NA_real_)
+    # Exact p-value: proportion of null stats at least as extreme as observed.
+    # No continuity correction — the null distribution is fully enumerated.
+    sum(abs(null_stats) >= abs(obs_stat) - .Machine$double.eps * 100) /
+      length(null_stats)
   } else {
-    # Monte Carlo sign-flip
-    replicate(M_flip, {
+    # ── Monte Carlo sign-flip ──────────────────────────────────────────────
+    null_stats <- replicate(M_flip, {
       signs <- sample(c(-1.0, 1.0), R, replace = TRUE)
       mean(signs * delta_r)
     })
+    null_stats <- as.numeric(null_stats[is.finite(null_stats)])
+    if (!length(null_stats)) return(NA_real_)
+    # Phipson & Smyth (2010) +1 correction prevents p = 0 from Monte Carlo.
+    (sum(abs(null_stats) >= abs(obs_stat) - .Machine$double.eps * 100) + 1L) /
+      (length(null_stats) + 1L)
   }
-
-  null_stats <- as.numeric(null_stats[is.finite(null_stats)])
-  if (!length(null_stats)) return(NA_real_)
-
-  # Two-sided p-value with +1 continuity correction (Phipson & Smyth)
-  (sum(abs(null_stats) >= abs(obs_stat) - .Machine$double.eps * 100) + 1L) /
-    (length(null_stats) + 1L)
 }
 
 # ── Main function ─────────────────────────────────────────────────────────────
@@ -246,19 +246,28 @@
 #' (or recomputed from \code{fit@@predictions} if necessary). Fold test-set
 #' sizes are used as weights to aggregate fold metrics into per-repeat
 #' estimates \eqn{\mu_r}. The repeat-level delta
-#' \eqn{\Delta_r = \mu_r^{\text{naive}} - \mu_r^{\text{guarded}}} captures
-#' leakage-induced performance inflation for each CV repeat.
+#' \eqn{\Delta_r = s \cdot (\mu_r^{\text{naive}} - \mu_r^{\text{guarded}})}
+#' captures leakage-induced performance inflation for each CV repeat, where
+#' \eqn{s = +1} for higher-is-better metrics (e.g., AUC) and \eqn{s = -1}
+#' for lower-is-better metrics (e.g., RMSE), so that \eqn{\Delta_r > 0}
+#' always indicates the naive pipeline is more optimistic than the guarded one.
 #'
 #' The \strong{delta_lsi} point estimate is the Huber M-estimator (k = 1.345)
 #' applied to \eqn{\{\Delta_r\}}, which is robust to occasional outlier
-#' repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\Delta_r}
+#' repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\{\Delta_r\}}
 #' for easy interpretation in the original metric's units.
+#'
+#' Pairing requires that \code{fit_naive} and \code{fit_guarded} share
+#' \emph{identical fold structures} (same test-set membership per fold) in
+#' addition to the same number of repeats.  When repeat counts match but fold
+#' structures differ, a warning is issued and the fits are treated as unpaired.
 #'
 #' When \eqn{R_{\text{eff}} \geq 5} (equal, paired repeats), a sign-flip
 #' randomization test (Phipson & Smyth, 2010) is performed: under
 #' \eqn{H_0} (no leakage) the sign of each \eqn{\Delta_r} is exchangeable.
 #' All \eqn{2^R} sign combinations are enumerated exactly for
-#' \eqn{R \leq 15}; Monte Carlo sampling is used for larger \eqn{R}.
+#' \eqn{R \leq 15} (no continuity correction); Monte Carlo sampling is used
+#' for larger \eqn{R} with the Phipson & Smyth (2010) correction.
 #'
 #' BCa bootstrap confidence intervals (Efron, 1987) require
 #' \eqn{R_{\text{eff}} \geq 10}.
@@ -284,6 +293,14 @@
 #'   \code{"blocked_time"}.
 #' @param learner Optional character. Learner name to select from multi-learner
 #'   fits. If \code{NULL}, the first learner found in \code{fit@@metrics} is used.
+#' @param higher_is_better Logical or \code{NULL}. Whether a higher value of
+#'   \code{metric} indicates better performance. When \code{NULL} (default),
+#'   auto-detected from the metric name: \code{"rmse"}, \code{"mse"},
+#'   \code{"mae"}, \code{"log_loss"}, \code{"brier"}, \code{"error"},
+#'   \code{"loss"}, and \code{"deviance"} are treated as lower-is-better;
+#'   all others default to higher-is-better. Setting this correctly ensures
+#'   that a positive \code{delta_lsi} always indicates leakage inflation
+#'   (the naive pipeline is artificially more optimistic than the guarded one).
 #' @param M_boot Integer. Number of bootstrap samples for BCa CI (default 2000).
 #' @param M_flip Integer. Maximum Monte Carlo samples for sign-flip test when
 #'   R_eff > 15 (default 10000).
@@ -303,6 +320,7 @@ delta_lsi <- function(
     metric          = "auc",
     exchangeability = c("iid", "by_group", "within_batch", "blocked_time"),
     learner         = NULL,
+    higher_is_better = NULL,
     M_boot          = 2000L,
     M_flip          = 10000L,
     strict          = FALSE,
@@ -313,6 +331,17 @@ delta_lsi <- function(
 
   if (!inherits(fit_naive,   "LeakFit")) stop("fit_naive must be a LeakFit object.")
   if (!inherits(fit_guarded, "LeakFit")) stop("fit_guarded must be a LeakFit object.")
+
+  # ── Resolve metric directionality ────────────────────────────────────────────
+  if (is.null(higher_is_better)) {
+    lower_is_better <- grepl(
+      "rmse|mse|mae|log_loss|logloss|brier|error|loss|deviance",
+      tolower(metric)
+    )
+    higher_is_better <- !lower_is_better
+  }
+  # sign_factor > 0 means "naive - guarded > 0 is leakage"; flip for lower-is-better
+  sign_factor <- if (isTRUE(higher_is_better)) 1.0 else -1.0
 
   # Resolve learners (one per fit; may differ)
   lrn_n <- .dlsi_resolve_learner(fit_naive,   learner)
@@ -336,25 +365,20 @@ delta_lsi <- function(
   sizes_n <- .dlsi_fold_sizes(fit_naive,   pred_n)
   sizes_g <- .dlsi_fold_sizes(fit_guarded, pred_g)
 
-  # τ per fold (two-pass MAD stabilisation)
-  tau_n <- .dlsi_tau(pred_n, fold_seq_n)
-  tau_g <- .dlsi_tau(pred_g, fold_seq_g)
-
   # Build fold-level data frames
-  .build_folds <- function(fm, rep_ids, sizes, tau_vec, fold_seq) {
+  .build_folds <- function(fm, rep_ids, sizes, fold_seq) {
     idx <- match(fm$fold, fold_seq)
     data.frame(
       fold      = fm$fold,
       metric    = fm$metric,
       repeat_id = rep_ids[idx],
       n         = sizes[idx],
-      tau       = tau_vec[as.character(fm$fold)],
       stringsAsFactors = FALSE
     )
   }
 
-  folds_n <- .build_folds(fm_n, rep_ids_n, sizes_n, tau_n, fold_seq_n)
-  folds_g <- .build_folds(fm_g, rep_ids_g, sizes_g, tau_g, fold_seq_g)
+  folds_n <- .build_folds(fm_n, rep_ids_n, sizes_n, fold_seq_n)
+  folds_g <- .build_folds(fm_g, rep_ids_g, sizes_g, fold_seq_g)
   folds_n$n[is.na(folds_n$n)] <- 1L
   folds_g$n[is.na(folds_g$n)] <- 1L
 
@@ -381,9 +405,22 @@ delta_lsi <- function(
   R_naive   <- if (!is.null(reps_n)) nrow(reps_n) else 0L
   R_guarded <- if (!is.null(reps_g)) nrow(reps_g) else 0L
 
-  # Paired design requires equal number of repeats
-  paired <- (R_naive > 0L && R_guarded > 0L && R_naive == R_guarded)
-  R_eff  <- if (paired) as.integer(R_naive) else 0L
+  # ── Pairing: equal count AND matching fold structures ─────────────────────
+  same_count <- (R_naive > 0L && R_guarded > 0L && R_naive == R_guarded)
+  if (same_count) {
+    splits_ok <- .dlsi_splits_match(fit_naive, fit_guarded)
+    if (!splits_ok) {
+      warning(sprintf(
+        paste0("[delta_lsi] fit_naive and fit_guarded have R=%d repeats each ",
+               "but different fold structures; treating as unpaired."),
+        R_naive
+      ))
+    }
+    paired <- splits_ok
+  } else {
+    paired <- FALSE
+  }
+  R_eff <- if (paired) as.integer(R_naive) else 0L
 
   # Inference tier
   tier <- if (R_eff >= 20L) "A_full_inference" else
@@ -400,19 +437,19 @@ delta_lsi <- function(
     if (isTRUE(strict)) stop(msg) else warning(msg)
   }
 
-  # Per-repeat ΔLSI values (paired: element-wise)
-  delta_r <- if (paired) reps_n$metric - reps_g$metric else NULL
+  # Per-repeat Δ values — sign_factor applied so positive = leakage inflation
+  delta_r <- if (paired) sign_factor * (reps_n$metric - reps_g$metric) else NULL
 
   # Point estimates
   delta_lsi_est    <- if (!is.null(delta_r)) {
     .dlsi_huber(delta_r)
   } else {
-    .dlsi_huber(reps_n$metric) - .dlsi_huber(reps_g$metric)
+    sign_factor * (.dlsi_huber(reps_n$metric) - .dlsi_huber(reps_g$metric))
   }
   delta_metric_est <- if (!is.null(delta_r)) {
     mean(delta_r, na.rm = TRUE)
   } else {
-    mean(reps_n$metric, na.rm = TRUE) - mean(reps_g$metric, na.rm = TRUE)
+    sign_factor * (mean(reps_n$metric, na.rm = TRUE) - mean(reps_g$metric, na.rm = TRUE))
   }
 
   # BCa CI (requires R_eff >= 10 and paired)
@@ -444,11 +481,12 @@ delta_lsi <- function(
 
   # Metadata
   info_list <- list(
-    paired         = paired,
-    R_naive        = R_naive,
-    R_guarded      = R_guarded,
-    metric_naive   = .dlsi_huber(reps_n$metric),
-    metric_guarded = .dlsi_huber(reps_g$metric)
+    paired           = paired,
+    R_naive          = R_naive,
+    R_guarded        = R_guarded,
+    higher_is_better = higher_is_better,
+    metric_naive     = .dlsi_huber(reps_n$metric),
+    metric_guarded   = .dlsi_huber(reps_g$metric)
   )
   if (return_details) {
     info_list$delta_r     <- delta_r
@@ -480,8 +518,11 @@ delta_lsi <- function(
 
 #' @rdname LeakClasses
 setMethod("show", "LeakDeltaLSI", function(object) {
+  hib <- object@info[["higher_is_better"]]
+  hib_str <- if (is.null(hib)) "" else
+             if (isTRUE(hib)) " [higher=better]" else " [lower=better]"
   cat("A LeakDeltaLSI object\n")
-  cat(sprintf("  Metric:         %s\n", object@metric))
+  cat(sprintf("  Metric:         %s%s\n", object@metric, hib_str))
   cat(sprintf("  Tier:           %s  (R_eff = %d)\n", object@tier, object@R_eff))
   fmt <- function(x) if (is.finite(x)) sprintf("%.4f", x) else "NA"
   cat(sprintf("  delta_metric:   %s", fmt(object@delta_metric)))
@@ -511,6 +552,7 @@ setMethod("show", "LeakDeltaLSI", function(object) {
 #' @export
 summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
   fmt <- function(x) if (is.finite(x)) formatC(x, digits = digits, format = "f") else "NA"
+  hib <- object@info[["higher_is_better"]] %||% TRUE
 
   cat("\n=====================================\n")
   cat(" bioLeak Delta LSI Summary\n")
@@ -527,7 +569,8 @@ summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
   cat("\nNaive pipeline:    ", fmt(object@info[["metric_naive"]]   %||% NA_real_), "\n", sep = "")
   cat("Guarded pipeline:  ", fmt(object@info[["metric_guarded"]] %||% NA_real_), "\n", sep = "")
 
-  cat("\nPoint estimates (naive - guarded):\n")
+  direction <- if (isTRUE(hib)) "naive - guarded" else "-(naive - guarded)"
+  cat(sprintf("\nPoint estimates (%s; positive = leakage inflation):\n", direction))
   cat(sprintf("  delta_metric:  %s  (raw metric difference)\n", fmt(object@delta_metric)))
   ci_dm <- object@delta_metric_ci
   if (all(is.finite(ci_dm)))
