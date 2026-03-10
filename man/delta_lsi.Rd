@@ -19,10 +19,10 @@ delta_lsi(
 )
 }
 \arguments{
-\item{fit_naive}{A \code{\link{LeakFit}} object from the naive (unprotected)
+\item{fit_naive}{A \code{\linkS4class{LeakFit}} object from the naive (unprotected)
 evaluation pipeline.}
 
-\item{fit_guarded}{A \code{\link{LeakFit}} object from the guarded
+\item{fit_guarded}{A \code{\linkS4class{LeakFit}} object from the guarded
 (leakage-protected) evaluation pipeline.}
 
 \item{metric}{Character. Performance metric to compare. Must appear in
@@ -59,7 +59,7 @@ of a warning.}
 \item{seed}{Integer. Random seed for bootstrap and sign-flip test.}
 }
 \value{
-A \code{\link{LeakDeltaLSI}} object.
+A \code{\linkS4class{LeakDeltaLSI}} object.
 }
 \description{
 Compares a naive (potentially leaky) cross-validation pipeline against a

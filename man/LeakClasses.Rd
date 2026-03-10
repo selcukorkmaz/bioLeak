@@ -11,6 +11,9 @@
 \usage{
 \S4method{show}{LeakDeltaLSI}(object)
 }
+\arguments{
+\item{object}{A \code{\linkS4class{LeakDeltaLSI}} object.}
+}
 \value{
 An S4 object of the respective class.
 }

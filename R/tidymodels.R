@@ -183,17 +183,21 @@
   if (is.null(in_id)) {
     stop("rsplit object does not expose analysis indices.", call. = FALSE)
   }
-  if (is.null(out_id)) {
+  # Treat NULL, zero-length, or all-NA out_id as "assessment not provided"
+  if (is.null(out_id) || length(out_id) == 0L || all(is.na(out_id))) {
     if (is.null(n)) {
       stop("rsplit object does not expose assessment indices; provide n.", call. = FALSE)
     }
-    out_id <- setdiff(seq_len(n), in_id)
+    out_id <- setdiff(seq_len(n), in_id[!is.na(in_id)])
   }
+  # Drop any NA values from indices
+  in_id  <- in_id[!is.na(in_id)]
+  out_id <- out_id[!is.na(out_id)]
   if (!is.null(n)) {
-    if (any(in_id < 1L | in_id > n)) {
+    if (length(in_id) && any(in_id < 1L | in_id > n)) {
       stop("rsplit analysis indices exceed data rows.", call. = FALSE)
     }
-    if (any(out_id < 1L | out_id > n)) {
+    if (length(out_id) && any(out_id < 1L | out_id > n)) {
       stop("rsplit assessment indices exceed data rows.", call. = FALSE)
     }
   }

@@ -188,6 +188,9 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #'   with many unique values.
 #' @param learner Optional character scalar. When predictions include multiple
 #'   learners, selects the learner to summarize.
+#' @param strict_align Logical scalar. If TRUE, errors when coldata cannot be
+#'   aligned by row names or IDs and would fall back to row-order matching.
+#'   Default is FALSE.
 #' @return A data.frame with per-confounder, per-level metrics and counts.
 #' @examples
 #' set.seed(42)
@@ -221,7 +224,7 @@ calibration_summary <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
 #' @export
 confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
                                    min_n = 10, coldata = NULL, numeric_bins = 4,
-                                   learner = NULL) {
+                                   learner = NULL, strict_align = FALSE) {
   stopifnot(inherits(fit, "LeakFit"))
   pred_df <- .select_predictions_for_diagnostics(fit, "confounder sensitivity", learner = learner)
   if (!"id" %in% names(pred_df)) {
@@ -255,6 +258,10 @@ confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
       return(cd[ids_int, , drop = FALSE])
     }
     if (nrow(cd) == length(ids)) {
+      if (isTRUE(strict_align)) {
+        stop("coldata rownames do not match prediction ids and strict_align = TRUE; ",
+             "provide matching row names or a 'row_id' column.", call. = FALSE)
+      }
       warning("coldata rownames do not match prediction ids; assuming row order aligns to predictions.",
               call. = FALSE)
       return(cd)

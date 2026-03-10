@@ -45,20 +45,77 @@
     if (length(unique(g_lab)) < 2) g_lab <- NULL
   }
 
+  # Build constraint-aware components of primary groups.
+  # Subjects sharing any constraint-axis level form a component and should
+  # be assigned to the same fold to avoid excessive exclusion.
+  comp_map <- setNames(seq_along(p_levels), p_levels)
+  for (ax_vec in constraint_axes) {
+    ax_to_p <- split(as.character(p_groups), ax_vec)
+    for (members in ax_to_p) {
+      members <- unique(members)
+      if (length(members) > 1L) {
+        target_comp <- comp_map[members[1L]]
+        for (m in members[-1L]) {
+          old_comp <- comp_map[m]
+          if (old_comp != target_comp) comp_map[comp_map == old_comp] <- target_comp
+        }
+      }
+    }
+  }
+  components <- split(p_levels, comp_map)
+  n_comp <- length(components)
+  use_components <- n_comp >= v
+  if (!use_components && length(constraint_axes) > 0L) {
+    warning(sprintf(
+      paste0("Only %d constraint-linked component(s) of primary groups ",
+             "but v=%d folds; falling back to random group assignment."),
+      n_comp, v), call. = FALSE)
+  }
+
   for (r in seq_len(repeats)) {
     set.seed(seed + 1000 * r)
     if (isTRUE(compact)) fold_assign <- rep(NA_integer_, n)
 
-    # Step 1: assign primary groups to folds
-    if (!is.null(g_lab)) {
-      gfold <- integer(length(p_levels)); names(gfold) <- p_levels
-      for (cl in levels(g_lab)) {
-        g_in <- names(g_lab)[g_lab == cl]
-        gfold[g_in] <- sample(rep(seq_len(v), length.out = length(g_in)))
+    # Assign primary groups to folds
+    gfold <- integer(length(p_levels))
+    names(gfold) <- p_levels
+    if (use_components && length(constraint_axes) > 0L) {
+      # Constraint-aware: assign components via greedy bin packing
+      comp_order <- sample(n_comp)
+      if (!is.null(g_lab)) {
+        comp_labels <- vapply(components, function(comp) {
+          as.character(.majority_class(g_lab[comp]))
+        }, character(1))
+        g_levels <- levels(factor(g_lab))
+        fold_counts <- matrix(0L, nrow = v, ncol = length(g_levels),
+                              dimnames = list(NULL, g_levels))
+        for (ci in comp_order) {
+          cl <- comp_labels[ci]
+          candidates <- which(fold_counts[, cl] == min(fold_counts[, cl]))
+          target_fold <- if (length(candidates) == 1L) candidates else sample(candidates, 1L)
+          for (pg in components[[ci]]) gfold[pg] <- target_fold
+          fold_counts[target_fold, cl] <- fold_counts[target_fold, cl] + length(components[[ci]])
+        }
+      } else {
+        fold_counts <- rep(0L, v)
+        for (ci in comp_order) {
+          candidates <- which(fold_counts == min(fold_counts))
+          target_fold <- if (length(candidates) == 1L) candidates else sample(candidates, 1L)
+          for (pg in components[[ci]]) gfold[pg] <- target_fold
+          fold_counts[target_fold] <- fold_counts[target_fold] + length(components[[ci]])
+        }
       }
     } else {
-      gfold <- sample(rep(seq_len(v), length.out = length(p_levels)))
-      names(gfold) <- p_levels
+      # Random assignment (original behavior / fallback for highly connected data)
+      if (!is.null(g_lab)) {
+        for (cl in levels(g_lab)) {
+          g_in <- names(g_lab)[g_lab == cl]
+          gfold[g_in] <- sample(rep(seq_len(v), length.out = length(g_in)))
+        }
+      } else {
+        gfold <- sample(rep(seq_len(v), length.out = length(p_levels)))
+        names(gfold) <- p_levels
+      }
     }
 
     for (k in seq_len(v)) {
@@ -583,6 +640,7 @@ make_split_plan <- function(x, outcome = NULL,
       inner <- make_split_plan(
         x_inner, outcome = outcome, mode = mode, group = group,
         batch = batch, study = study, time = time, v = v,
+        constraints = constraints,
         repeats = 1, stratify = stratify, nested = FALSE,
         seed = seed + 1L, horizon = horizon, purge = purge, embargo = embargo,
         progress = FALSE

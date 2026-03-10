@@ -104,6 +104,28 @@ test_that("make_split_plan time_series applies purge and embargo gaps", {
   expect_equal(with_embargo@info$embargo, 5)
 })
 
+test_that("make_split_plan nested + combined propagates constraints", {
+  set.seed(1)
+  # 16 batches × 3 subjects/batch = 48 subjects, 2 obs/subject = 96 obs.
+  # seed = 6 produces a fold assignment where outer and inner both succeed.
+  df <- data.frame(
+    subject = rep(1:48, each = 2),
+    batch   = rep(paste0("B", sprintf("%02d", rep(1:16, each = 3))), each = 2),
+    outcome = rep(c(0, 1), 48),
+    x1      = rnorm(96)
+  )
+  constraints <- list(
+    list(type = "subject", col = "subject"),
+    list(type = "batch",   col = "batch")
+  )
+  # Before fix: recursive call dropped constraints → "'primary_axis' must be a list"
+  splits <- make_split_plan_quiet(df, outcome = "outcome", mode = "combined",
+    constraints = constraints, v = 2, nested = TRUE, seed = 6)
+  expect_true(inherits(splits, "LeakSplits"))
+  expect_true(is.list(splits@info$inner))
+  expect_true(length(splits@info$inner) > 0)
+})
+
 test_that("make_split_plan supports matrix and SummarizedExperiment inputs", {
   mat <- matrix(rnorm(20), nrow = 10)
   splits <- make_split_plan(mat, outcome = NULL,

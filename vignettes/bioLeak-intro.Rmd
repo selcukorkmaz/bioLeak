@@ -1051,7 +1051,7 @@ parsnip model specification or workflow, and supports two inner-CV modes:
 For rsample inputs, inner folds must already be present. Survival tasks are not
 yet supported.
 
-New in the development version (planned for v0.2.0):
+New in the development version (planned for v0.3.0):
 
 - deterministic `selection = "one_std_err"` with an explicit simplicity tie-break
 - fold-level tuning diagnostics in `tuned$fold_status`

@@ -11,7 +11,8 @@ confounder_sensitivity(
   min_n = 10,
   coldata = NULL,
   numeric_bins = 4,
-  learner = NULL
+  learner = NULL,
+  strict_align = FALSE
 )
 }
 \arguments{
@@ -33,6 +34,10 @@ with many unique values.}
 
 \item{learner}{Optional character scalar. When predictions include multiple
 learners, selects the learner to summarize.}
+
+\item{strict_align}{Logical scalar. If TRUE, errors when coldata cannot be
+aligned by row names or IDs and would fall back to row-order matching.
+Default is FALSE.}
 }
 \value{
 A data.frame with per-confounder, per-level metrics and counts.
