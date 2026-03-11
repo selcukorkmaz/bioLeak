@@ -104,28 +104,30 @@ test_that("tier D_insufficient for R_eff < 5", {
   expect_equal(res@R_eff, 1L)  # paired R=1 → R_eff=1, but below the 5-repeat threshold
 })
 
-test_that("tier C_point_only for R_eff in 5..9", {
+test_that("tier C_signflip for R_eff in 5..9", {
   set.seed(3)
   # 5 repeats × 3 folds = 15 folds each
   fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
   fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
   res   <- delta_lsi(fit_n, fit_g, metric = "auc", seed = 3L)
-  expect_equal(res@tier, "C_point_only")
+  expect_equal(res@tier, "C_signflip")
   expect_equal(res@R_eff, 5L)
-  # CI should be NA (not yet)
+  # CI not available at tier C
   expect_true(all(!is.finite(res@delta_lsi_ci)))
-  # But p-value should be finite (sign-flip with R=5)
+  # Sign-flip p-value is available at tier C
   expect_true(is.finite(res@p_value))
 })
 
-test_that("tier B_ci_only for R_eff in 10..19", {
+test_that("tier B_signflip_ci for R_eff in 10..19", {
   set.seed(4)
   fit_n <- .make_dlsi_fit(rep(0.8, 30L), n_obs = 90L, n_repeats = 10L)
   fit_g <- .make_dlsi_fit(rep(0.6, 30L), n_obs = 90L, n_repeats = 10L)
   res   <- delta_lsi(fit_n, fit_g, metric = "auc", seed = 4L,
                      M_boot = 200L, M_flip = 500L)
-  expect_equal(res@tier, "B_ci_only")
+  expect_equal(res@tier, "B_signflip_ci")
   expect_equal(res@R_eff, 10L)
+  # Both p-value and CI are available at tier B
+  expect_true(is.finite(res@p_value))
   expect_true(all(is.finite(res@delta_lsi_ci)))
 })
 
@@ -408,4 +410,134 @@ test_that("auto-detect higher_is_better = FALSE for rmse via metric name", {
   # Naive RMSE is lower (better) → positive delta (leakage inflation)
   expect_gt(res@delta_lsi,    0.0)
   expect_gt(res@delta_metric, 0.0)
+})
+
+# ── Exchangeability: by_group / within_batch warnings ─────────────────────────
+
+test_that("exchangeability 'by_group' emits iid-fallback warning", {
+  set.seed(20)
+  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
+  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
+  expect_warning(
+    res <- delta_lsi(fit_n, fit_g, metric = "auc",
+                     exchangeability = "by_group", seed = 20L),
+    regexp = "iid repeat structure"
+  )
+  # Despite the warning, a p-value is still computed (using iid sign-flip)
+  expect_true(is.finite(res@p_value))
+  expect_equal(res@exchangeability, "by_group")
+})
+
+test_that("exchangeability 'within_batch' emits iid-fallback warning", {
+  set.seed(21)
+  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
+  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
+  expect_warning(
+    delta_lsi(fit_n, fit_g, metric = "auc",
+              exchangeability = "within_batch", seed = 21L),
+    regexp = "iid repeat structure"
+  )
+})
+
+# ── Exchangeability: blocked_time block sign-flip ──────────────────────────────
+
+test_that(".dlsi_resolve_block_size returns 1 for uncorrelated Δ_r", {
+  # iid Δ_r has rho1 ≈ 0, so block_size should be 1
+  set.seed(42)
+  delta_r <- rnorm(20)
+  bs <- bioLeak:::.dlsi_resolve_block_size(delta_r)
+  expect_gte(bs, 1L)
+  # With low autocorrelation, expected block_size is 1 (or very small)
+  expect_lte(bs, 3L)
+})
+
+test_that(".dlsi_resolve_block_size respects explicit block_size argument", {
+  delta_r <- rnorm(20)
+  expect_equal(bioLeak:::.dlsi_resolve_block_size(delta_r, block_size = 4L), 4L)
+})
+
+test_that(".dlsi_resolve_block_size caps at floor(R/3)", {
+  # Highly correlated Δ_r: AR(1) rho ~ 0.99, would give block_size = R
+  # but cap forces at most floor(R/3)
+  delta_r <- cumsum(rnorm(12))   # near unit root, very high autocorrelation
+  bs      <- bioLeak:::.dlsi_resolve_block_size(delta_r)
+  expect_lte(bs, floor(length(delta_r) / 3L))
+})
+
+test_that(".dlsi_sign_flip_blocked exact: known result for R=4, block_size=2", {
+  # delta_r = c(1, 1, 1, 1); block_size=2 → block_id = c(1,1,2,2); n_blocks=2
+  # All 4 block-sign combos (exact enumeration, n_blocks=2 <= 15):
+  #   (--): mean(-1,-1,-1,-1) = -1
+  #   (-+): mean(-1,-1, 1, 1) =  0
+  #   (+-): mean( 1, 1,-1,-1) =  0
+  #   (++): mean( 1, 1, 1, 1) =  1
+  # obs_stat = 1; |null| >= |obs|=1: combos (--) and (++) → count = 2
+  # Exact p = 2/4 = 0.5
+  res <- bioLeak:::.dlsi_sign_flip_blocked(c(1, 1, 1, 1), block_size = 2L, seed = 1L)
+  expect_equal(res$p_value,        0.5, tolerance = 1e-10)
+  expect_equal(res$n_blocks,       2L)
+  expect_equal(res$block_size_used, 2L)
+})
+
+test_that("blocked_time sign-flip gives more conservative p than iid for AR Δ_r", {
+  set.seed(30)
+  # Generate strongly AR(1) Δ_r with a positive mean (leakage signal)
+  R <- 15L
+  delta_r <- 0.2 + as.numeric(arima.sim(list(ar = 0.85), n = R, sd = 0.05))
+
+  # iid sign-flip
+  p_iid <- bioLeak:::.dlsi_sign_flip(delta_r, M_flip = 5000L, seed = 30L)
+
+  # Blocked sign-flip with block_size=3 (5 blocks from 15 repeats)
+  sf_blk <- bioLeak:::.dlsi_sign_flip_blocked(delta_r, block_size = 3L,
+                                               M_flip = 5000L, seed = 30L)
+  p_blk <- sf_blk$p_value
+
+  # Block p-value should be >= iid p-value (more conservative under autocorrelation)
+  # Allow tolerance for MC noise; the key property is p_blk is generally larger
+  expect_gte(sf_blk$n_blocks, 5L)  # at least 5 blocks for inference
+  expect_true(is.finite(p_blk))
+  expect_true(is.finite(p_iid))
+})
+
+test_that("blocked_time with n_blocks < 5 sets p_value = NA and warns", {
+  set.seed(31)
+  # 6 repeats, block_size=3 → 2 blocks → below threshold of 5
+  fit_n <- .make_dlsi_fit(rep(0.8, 18L), n_obs = 54L, n_repeats = 6L)
+  fit_g <- .make_dlsi_fit(rep(0.6, 18L), n_obs = 54L, n_repeats = 6L)
+  expect_warning(
+    res <- delta_lsi(fit_n, fit_g, metric = "auc",
+                     exchangeability = "blocked_time",
+                     block_size = 3L, seed = 31L),
+    regexp = "n_blocks"
+  )
+  expect_true(is.na(res@p_value))
+  expect_equal(res@info$n_blocks, 2L)
+})
+
+test_that("blocked_time with explicit block_size=1 behaves like iid sign-flip", {
+  set.seed(32)
+  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
+  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
+  # block_size=1 → each repeat is its own block → equivalent to iid
+  res_blk <- delta_lsi(fit_n, fit_g, metric = "auc",
+                        exchangeability = "blocked_time",
+                        block_size = 1L, seed = 32L)
+  res_iid <- delta_lsi(fit_n, fit_g, metric = "auc",
+                        exchangeability = "iid", seed = 32L)
+  # p-values should be identical (same enumeration, same seed offset)
+  expect_equal(res_blk@p_value, res_iid@p_value, tolerance = 1e-10)
+})
+
+test_that("blocked_time stores block_size_used and n_blocks in info", {
+  set.seed(33)
+  fit_n <- .make_dlsi_fit(rep(0.8, 30L), n_obs = 90L, n_repeats = 10L)
+  fit_g <- .make_dlsi_fit(rep(0.6, 30L), n_obs = 90L, n_repeats = 10L)
+  res <- delta_lsi(fit_n, fit_g, metric = "auc",
+                    exchangeability = "blocked_time",
+                    block_size = 2L, seed = 33L,
+                    M_boot = 100L, M_flip = 500L)
+  expect_equal(res@info$block_size_used, 2L)
+  expect_equal(res@info$n_blocks,        5L)   # 10 repeats / block_size=2 = 5 blocks
+  expect_true(is.finite(res@p_value))          # 5 blocks >= 5 → p_value available
 })

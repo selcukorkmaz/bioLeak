@@ -81,6 +81,28 @@
 #' @param verbose Logical scalar. If \code{TRUE}, prints progress messages for
 #'   each seed. Does not affect results.
 #'
+#' @note
+#' This function is a general-purpose utility and its data-generation logic
+#' intentionally differs from the custom simulation used in the bioLeak
+#' manuscript (\file{paper/run_simulation.R}). Specific differences:
+#' \itemize{
+#'   \item \strong{peek_norm leakage}: this function uses a z-scored binary
+#'     outcome as the leak feature; the manuscript uses a noisy continuous
+#'     version (\code{as.numeric(y) + rnorm(n, 0, 0.3)}).
+#'   \item \strong{lookahead leakage}: this function shifts the binary outcome
+#'     (\code{c(y[-1], y[n])}); the manuscript shifts a continuous biomarker
+#'     (\code{linpred + noise}).
+#'   \item \strong{signal generation}: this function applies AR correlation to
+#'     predictors via \code{rho}; the manuscript adds AR(1) noise directly to
+#'     the linear predictor.
+#'   \item \strong{audit settings}: the manuscript uses
+#'     \code{perm_refit = FALSE} and \code{perm_stratify = TRUE};
+#'     this function uses \code{perm_refit = "auto"} and the
+#'     \code{perm_stratify} default (\code{FALSE}).
+#' }
+#' Users wishing to reproduce manuscript figures should run
+#' \file{paper/run_simulation.R} directly rather than calling this function.
+#'
 #' @return
 #' A \code{LeakSimResults} data frame with one row per seed and columns:
 #' \itemize{

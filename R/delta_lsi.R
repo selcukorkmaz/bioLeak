@@ -232,6 +232,86 @@
   }
 }
 
+# Auto-estimate block size from AR(1) autocorrelation of Δ_r for blocked_time
+# sign-flip.  With small R (5-20 values) the AR(1) estimate is noisy; the result
+# is capped at floor(R/3) to guarantee at least three independent blocks.
+.dlsi_resolve_block_size <- function(delta_r, block_size = NULL) {
+  R <- length(delta_r)
+  if (!is.null(block_size)) return(max(1L, as.integer(block_size)))
+  if (R < 4L) return(1L)
+  rho1 <- tryCatch(
+    stats::cor(delta_r[-R], delta_r[-1L]),
+    error = function(e) 0.0
+  )
+  rho1 <- if (is.finite(rho1)) max(0.0, rho1) else 0.0
+  # Effective block size from AR(1) rate: b ≈ 1/(1-rho1)
+  bs <- if (rho1 >= 0.99) R else max(1L, ceiling(1.0 / (1.0 - rho1)))
+  # Cap so there are at least 3 blocks; floor(R/3) is the upper limit
+  as.integer(min(bs, max(1L, floor(R / 3L))))
+}
+
+# Block sign-flip randomization test for temporally structured Δ_r.
+# Flips contiguous blocks of repeats together to preserve serial autocorrelation
+# under the null.  Returns a list(p_value, n_blocks, block_size_used).
+#
+# Exact enumeration (n_blocks <= 15): all 2^n_blocks block-sign vectors.
+#   p = count(|null| >= |obs|) / 2^n_blocks  — no continuity correction.
+#
+# Monte Carlo (n_blocks > 15): Phipson & Smyth (2010) correction:
+#   p = (count + 1) / (M + 1).
+.dlsi_sign_flip_blocked <- function(delta_r, block_size, M_flip = 10000L,
+                                    seed = 42L) {
+  delta_r    <- as.numeric(delta_r[is.finite(delta_r)])
+  R          <- length(delta_r)
+  block_size <- max(1L, as.integer(block_size))
+
+  if (R < 2L) return(list(p_value = NA_real_, n_blocks = 0L,
+                           block_size_used = block_size))
+
+  block_id <- ceiling(seq_len(R) / block_size)
+  n_blocks <- max(block_id)
+
+  # Single block: every sign vector flips all Δ_r simultaneously; p is always 1.
+  if (n_blocks < 2L)
+    return(list(p_value = 1.0, n_blocks = n_blocks,
+                block_size_used = block_size))
+
+  obs_stat <- mean(delta_r)
+  if (!is.finite(obs_stat))
+    return(list(p_value = NA_real_, n_blocks = n_blocks,
+                block_size_used = block_size))
+
+  set.seed(seed)
+
+  if (n_blocks <= 15L) {
+    # ── Exact enumeration over 2^n_blocks block-sign vectors ─────────────────
+    combos     <- as.matrix(expand.grid(rep(list(c(-1.0, 1.0)), n_blocks)))
+    null_stats <- apply(combos, 1L, function(bsigns) {
+      mean(bsigns[block_id] * delta_r)
+    })
+    null_stats <- as.numeric(null_stats[is.finite(null_stats)])
+    if (!length(null_stats))
+      return(list(p_value = NA_real_, n_blocks = n_blocks,
+                  block_size_used = block_size))
+    p_val <- sum(abs(null_stats) >= abs(obs_stat) - .Machine$double.eps * 100) /
+      length(null_stats)
+  } else {
+    # ── Monte Carlo with Phipson & Smyth (2010) correction ───────────────────
+    null_stats <- replicate(M_flip, {
+      bsigns <- sample(c(-1.0, 1.0), n_blocks, replace = TRUE)
+      mean(bsigns[block_id] * delta_r)
+    })
+    null_stats <- as.numeric(null_stats[is.finite(null_stats)])
+    if (!length(null_stats))
+      return(list(p_value = NA_real_, n_blocks = n_blocks,
+                  block_size_used = block_size))
+    p_val <- (sum(abs(null_stats) >= abs(obs_stat) - .Machine$double.eps * 100) +
+                1L) / (length(null_stats) + 1L)
+  }
+
+  list(p_value = p_val, n_blocks = n_blocks, block_size_used = block_size)
+}
+
 # ── Main function ─────────────────────────────────────────────────────────────
 
 #' Delta Leakage Sensitivity Index (ΔLSI)
@@ -275,9 +355,9 @@
 #'
 #' \subsection{Inference tiers}{
 #' \describe{
-#'   \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + p-value}
-#'   \item{\code{"B_ci_only"}}{10 <= R_eff < 20: point + BCa CI}
-#'   \item{\code{"C_point_only"}}{5 <= R_eff < 10: point + coarse sign-flip p}
+#'   \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + sign-flip p-value; \code{inference_ok = TRUE}}
+#'   \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20: point + sign-flip p-value + BCa CI}
+#'   \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI)}
 #'   \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
 #' }}
 #'
@@ -287,10 +367,23 @@
 #'   (leakage-protected) evaluation pipeline.
 #' @param metric Character. Performance metric to compare. Must appear in
 #'   \code{fit@@metrics} of both fits (e.g., \code{"auc"}, \code{"rmse"}).
-#' @param exchangeability Character. Exchangeability assumption used to justify
-#'   the sign-flip test. Informational; does not change the computation. One of
-#'   \code{"iid"} (default), \code{"by_group"}, \code{"within_batch"},
-#'   \code{"blocked_time"}.
+#' @param exchangeability Character. Exchangeability assumption for the
+#'   sign-flip test. One of \code{"iid"} (default), \code{"by_group"},
+#'   \code{"within_batch"}, \code{"blocked_time"}.
+#'   \code{"blocked_time"} activates a block sign-flip procedure that flips
+#'   contiguous groups of repeats together, preserving serial autocorrelation
+#'   under the null; see \code{block_size}.  \code{"by_group"} and
+#'   \code{"within_batch"} are stored and reported but inference still uses the
+#'   iid sign-flip procedure (a warning is issued; contributions welcome).
+#'   \code{"iid"} (default) applies the standard independent sign-flip test.
+#' @param block_size Integer or \code{NULL}. Block length for the block
+#'   sign-flip test, used only when \code{exchangeability = "blocked_time"}.
+#'   When \code{NULL} (default), the block size is auto-estimated from the
+#'   first-order autocorrelation of \eqn{\{\Delta_r\}} and capped at
+#'   \code{floor(R/3)} to ensure at least three independent blocks.  A warning
+#'   is issued when the estimate is used with \code{R_eff < 20} because the
+#'   AR(1) estimate is noisy at small sample sizes.  Provide an explicit integer
+#'   to override auto-estimation.
 #' @param learner Optional character. Learner name to select from multi-learner
 #'   fits. If \code{NULL}, the first learner found in \code{fit@@metrics} is used.
 #' @param higher_is_better Logical or \code{NULL}. Whether a higher value of
@@ -321,6 +414,7 @@ delta_lsi <- function(
     exchangeability = c("iid", "by_group", "within_batch", "blocked_time"),
     learner         = NULL,
     higher_is_better = NULL,
+    block_size      = NULL,
     M_boot          = 2000L,
     M_flip          = 10000L,
     strict          = FALSE,
@@ -432,8 +526,8 @@ delta_lsi <- function(
 
   # Inference tier
   tier <- if (R_eff >= 20L) "A_full_inference" else
-          if (R_eff >= 10L) "B_ci_only"        else
-          if (R_eff >=  5L) "C_point_only"     else
+          if (R_eff >= 10L) "B_signflip_ci"    else
+          if (R_eff >=  5L) "C_signflip"       else
                             "D_insufficient"
 
   if (tier == "D_insufficient") {
@@ -487,13 +581,57 @@ delta_lsi <- function(
     )
   }
 
-  # Sign-flip test (requires R_eff >= 5 and paired)
-  p_val <- NA_real_
+  # Sign-flip test (requires R_eff >= 5 and paired).
+  # Routing depends on exchangeability:
+  #   "blocked_time"       -> block sign-flip (contiguous blocks of Δ_r)
+  #   "by_group" / "within_batch" -> iid sign-flip with an explanatory warning
+  #   "iid"                -> standard independent sign-flip
+  p_val            <- NA_real_
+  block_size_used  <- NA_integer_
+  n_blocks_used    <- NA_integer_
+
   if (!is.null(delta_r) && R_eff >= 5L) {
-    p_val <- tryCatch(
-      .dlsi_sign_flip(delta_r, M_flip = M_flip, seed = seed + 2L),
-      error = function(e) NA_real_
-    )
+    if (exchangeability == "blocked_time") {
+      bs     <- .dlsi_resolve_block_size(delta_r, block_size)
+      if (is.null(block_size) && R_eff < 20L)
+        warning(sprintf(
+          paste0("[delta_lsi] exchangeability='blocked_time': block_size ",
+                 "auto-estimated as %d from AR(1) of \u0394r (R_eff=%d; ",
+                 "estimate is noisy at small R). Supply block_size explicitly ",
+                 "to override."),
+          bs, R_eff
+        ))
+      sf_out         <- .dlsi_sign_flip_blocked(delta_r, block_size = bs,
+                                                M_flip = M_flip,
+                                                seed = seed + 2L)
+      p_val          <- sf_out$p_value
+      block_size_used <- as.integer(sf_out$block_size_used)
+      n_blocks_used   <- as.integer(sf_out$n_blocks)
+      # If too few independent blocks for p < 0.05, set p to NA and warn.
+      if (!is.na(n_blocks_used) && n_blocks_used < 5L) {
+        min_p <- if (n_blocks_used >= 1L) 1.0 / 2.0^n_blocks_used else 1.0
+        warning(sprintf(
+          paste0("[delta_lsi] blocked_time sign-flip: n_blocks = %d < 5; ",
+                 "minimum achievable p = %.4f > 0.05. Setting p_value = NA. ",
+                 "Increase R_eff or reduce block_size."),
+          n_blocks_used, min_p
+        ))
+        p_val <- NA_real_
+      }
+    } else {
+      if (exchangeability %in% c("by_group", "within_batch"))
+        warning(sprintf(
+          paste0("[delta_lsi] exchangeability = '%s' is stored but the ",
+                 "sign-flip test still assumes iid repeat structure. ",
+                 "Use 'blocked_time' for temporal autocorrelation or 'iid' ",
+                 "to suppress this warning."),
+          exchangeability
+        ))
+      p_val <- tryCatch(
+        .dlsi_sign_flip(delta_r, M_flip = M_flip, seed = seed + 2L),
+        error = function(e) NA_real_
+      )
+    }
   }
 
   inference_ok <- (R_eff >= 20L && is.finite(p_val) && all(is.finite(ci_lsi)))
@@ -505,7 +643,9 @@ delta_lsi <- function(
     R_guarded        = R_guarded,
     higher_is_better = higher_is_better,
     metric_naive     = .dlsi_huber(reps_n$metric),
-    metric_guarded   = .dlsi_huber(reps_g$metric)
+    metric_guarded   = .dlsi_huber(reps_g$metric),
+    block_size_used  = block_size_used,
+    n_blocks         = n_blocks_used
   )
   if (return_details) {
     info_list$delta_r     <- delta_r
@@ -554,7 +694,8 @@ setMethod("show", "LeakDeltaLSI", function(object) {
     cat(sprintf("  [%.4f, %.4f] 95%% CI", object@delta_lsi_ci[1L], object@delta_lsi_ci[2L]))
   cat("\n")
   if (is.finite(object@p_value))
-    cat(sprintf("  p-value:        %.4f  (sign-flip)\n", object@p_value))
+    cat(sprintf("  p-value:        %.4f  (sign-flip; tests mean \u0394r)\n",
+                object@p_value))
   invisible(object)
 })
 
@@ -578,7 +719,20 @@ summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
   cat(" bioLeak Delta LSI Summary\n")
   cat("=====================================\n\n")
   cat(sprintf("Metric:            %s\n", object@metric))
-  cat(sprintf("Exchangeability:   %s\n", object@exchangeability))
+  exch <- object@exchangeability
+  cat(sprintf("Exchangeability:   %s\n", exch))
+  if (identical(exch, "blocked_time")) {
+    bs   <- object@info$block_size_used
+    nblk <- object@info$n_blocks
+    if (!is.null(bs) && !is.na(bs))
+      cat(sprintf("  Block sign-flip: block_size = %d, n_blocks = %d\n", bs, nblk))
+    else
+      cat("  Block sign-flip: not computed (R_eff < 5)\n")
+  } else if (exch %in% c("by_group", "within_batch")) {
+    cat(sprintf(
+      "  [Note: '%s' is stored; inference uses iid sign-flip.]\n", exch
+    ))
+  }
   cat(sprintf("Inference tier:    %s\n", object@tier))
   cat(sprintf("R_eff:             %d  (R_naive=%s, R_guarded=%s, paired=%s)\n",
               object@R_eff,
@@ -600,13 +754,31 @@ summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
   if (all(is.finite(ci_lsi)))
     cat(sprintf("  95%% BCa CI:    [%s, %s]\n", fmt(ci_lsi[1L]), fmt(ci_lsi[2L])))
 
-  cat("\nHypothesis test (H0: no leakage inflation):\n")
+  cat("\nHypothesis test  [H0: mean(\u0394r) = 0; sign-flip tests delta_metric]:\n")
   if (is.finite(object@p_value)) {
-    p <- object@p_value
+    p   <- object@p_value
     sig <- if (p < 0.001) "***" else if (p < 0.01) "**" else if (p < 0.05) "*" else ""
     cat(sprintf("  Sign-flip p:   %.4f %s\n", p, sig))
+    # Diagnostic: warn when p-value and BCa CI lead to different conclusions.
+    # This happens when the arithmetic mean (tested by p) and the Huber estimate
+    # (covered by the CI) diverge — a sign of outlier repeats skewing the mean.
+    if (all(is.finite(object@delta_lsi_ci))) {
+      pval_sig    <- p < 0.05
+      ci_exc_zero <- (object@delta_lsi_ci[1L] > 0 || object@delta_lsi_ci[2L] < 0)
+      if (pval_sig != ci_exc_zero)
+        cat(paste0("  [Note: p-value and BCa CI disagree. The p-value tests delta_metric\n",
+                   "   (mean); the CI covers delta_lsi (Huber robust). Outlier repeats\n",
+                   "   may be pulling the mean. Prefer delta_lsi for point estimates.]\n"))
+    }
   } else {
-    cat("  Sign-flip p:   NA  (requires paired R_eff >= 5)\n")
+    reason <- if (identical(object@exchangeability, "blocked_time") &&
+                  !is.null(object@info$n_blocks) &&
+                  !is.na(object@info$n_blocks) &&
+                  object@info$n_blocks < 5L)
+      sprintf("blocked_time: n_blocks = %d < 5", object@info$n_blocks)
+    else
+      "requires paired R_eff >= 5"
+    cat(sprintf("  Sign-flip p:   NA  (%s)\n", reason))
   }
 
   cat(sprintf("\nInference valid:   %s\n",

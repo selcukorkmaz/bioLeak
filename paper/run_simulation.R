@@ -2,6 +2,31 @@
 ## =================================================================
 ## Main simulation study for bioLeak manuscript (Section 3.1)
 ##
+## NOTE: This script uses a CUSTOM data-generation pipeline that is
+## intentionally different from the package-level simulate_leakage_suite().
+## Do NOT replace this script with simulate_leakage_suite() calls —
+## the two differ in the following ways:
+##
+##   peek_norm leakage:
+##     paper  -> as.numeric(y) + rnorm(n, 0, 0.3)  [noisy continuous y]
+##     package -> (y - mean(y)) / sd(y)             [z-scored binary y]
+##
+##   lookahead leakage:
+##     paper  -> shifted continuous biomarker (linpred + noise)
+##     package -> shifted binary outcome c(y[-1], y[n])
+##
+##   signal generation:
+##     paper  -> AR(1) noise added to linpred (arima.sim, ar=0.9, sd=0.3)
+##     package -> AR correlation on predictors via rho parameter (default rho=0)
+##
+##   audit_leakage() settings:
+##     paper  -> perm_refit=FALSE, perm_stratify=TRUE, target_scan=FALSE
+##     package -> perm_refit="auto", perm_stratify=FALSE (default), target_scan=TRUE
+##
+##   peek_norm preprocessing:
+##     paper  -> zscore normalization applied uniformly across all conditions
+##     package -> normalize="none" for peek_norm to preserve leakage signal
+##
 ## Custom loop using perm_refit=FALSE (fixed-prediction permutations)
 ## Parameters:
 ##   B = 50, Replicates = 20, perm_refit = FALSE

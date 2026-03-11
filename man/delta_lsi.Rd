@@ -11,6 +11,7 @@ delta_lsi(
   exchangeability = c("iid", "by_group", "within_batch", "blocked_time"),
   learner = NULL,
   higher_is_better = NULL,
+  block_size = NULL,
   M_boot = 2000L,
   M_flip = 10000L,
   strict = FALSE,
@@ -28,10 +29,17 @@ evaluation pipeline.}
 \item{metric}{Character. Performance metric to compare. Must appear in
 \code{fit@metrics} of both fits (e.g., \code{"auc"}, \code{"rmse"}).}
 
-\item{exchangeability}{Character. Exchangeability assumption used to justify
-the sign-flip test. Informational; does not change the computation. One of
-\code{"iid"} (default), \code{"by_group"}, \code{"within_batch"},
-\code{"blocked_time"}.}
+\item{exchangeability}{Character. Exchangeability assumption for the
+sign-flip test. \code{"blocked_time"} activates a block sign-flip procedure
+that flips contiguous groups of repeats together; \code{"by_group"} and
+\code{"within_batch"} are stored and reported but inference uses the iid
+sign-flip (a warning is issued); \code{"iid"} (default) applies the standard
+independent sign-flip.}
+
+\item{block_size}{Integer or \code{NULL}. Block length for the block sign-flip
+test, used only when \code{exchangeability = "blocked_time"}. When \code{NULL}
+(default), auto-estimated from AR(1) of the repeat deltas and capped at
+\code{floor(R/3)}.}
 
 \item{learner}{Optional character. Learner name to select from multi-learner
 fits. If \code{NULL}, the first learner found in \code{fit@metrics} is used.}
@@ -101,9 +109,9 @@ BCa bootstrap confidence intervals (Efron, 1987) require
 
 \subsection{Inference tiers}{
 \describe{
-  \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + p-value}
-  \item{\code{"B_ci_only"}}{10 <= R_eff < 20: point + BCa CI}
-  \item{\code{"C_point_only"}}{5 <= R_eff < 10: point + coarse sign-flip p}
+  \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + sign-flip p-value; \code{inference_ok = TRUE}}
+  \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20: point + sign-flip p-value + BCa CI}
+  \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI)}
   \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
 }}
 }

@@ -4,6 +4,11 @@
 ##
 ## 1. Splitting mode robustness: 4 modes x 5 leakage at (n=500, p=20, s=1.0)
 ## 2. Target leakage scan: same subset with target_scan=TRUE
+##
+## NOTE: Like run_simulation.R, this script uses a CUSTOM data-generation
+## pipeline that differs from the package-level simulate_leakage_suite().
+## See run_simulation.R for a full description of the differences.
+## Do NOT replace this script with simulate_leakage_suite() calls.
 ## =================================================================
 
 cat("=== bioLeak Supplementary Simulations ===\n")

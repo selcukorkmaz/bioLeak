@@ -1,3 +1,42 @@
+# bioLeak 0.3.1 (development)
+
+## Breaking changes
+
+* `delta_lsi()`: inference tier strings renamed to accurately reflect what each
+  tier provides.  `"C_point_only"` → `"C_signflip"` (the sign-flip p-value is
+  available at this tier, not just point estimates); `"B_ci_only"` →
+  `"B_signflip_ci"` (both the sign-flip p-value and BCa CI are available).
+  Code that compares `result@tier` against the old string literals must be
+  updated.
+
+## New features
+
+* `delta_lsi()` gains a `block_size` argument and makes `exchangeability`
+  actionable for `"blocked_time"` inputs.  When `exchangeability = "blocked_time"`,
+  the sign-flip test now uses a block procedure that flips contiguous blocks of
+  repeats together, preserving serial autocorrelation under the null.
+  `block_size` is auto-estimated from the AR(1) of the repeat-level deltas when
+  `NULL` (default) and capped at `floor(R/3)` to guarantee at least three
+  independent blocks.  The `@info` slot gains `block_size_used` and `n_blocks`
+  fields.  If the block structure yields fewer than five independent blocks,
+  `@p_value` is set to `NA` and a warning is issued.
+* `delta_lsi()` now emits an explicit warning when `exchangeability` is
+  `"by_group"` or `"within_batch"`, informing users that those modes are stored
+  but inference still uses the iid sign-flip procedure.  Previously these values
+  were accepted silently without affecting computation.
+
+## Bug fixes and improvements
+
+* `show()` and `summary()` for `LeakDeltaLSI` now label the sign-flip p-value
+  as testing `mean(Δr)` (delta_metric), not delta_lsi, making the
+  estimator–inference pairing explicit.
+* `summary()` prints a diagnostic note when the sign-flip p-value and BCa CI
+  lead to qualitatively different conclusions (one significant, one spanning
+  zero), which can occur when outlier repeats pull the arithmetic mean away from
+  the Huber estimate.
+* `summary()` prints the block size and number of blocks used when
+  `exchangeability = "blocked_time"`.
+
 # bioLeak 0.3.0
 
 ## New features
