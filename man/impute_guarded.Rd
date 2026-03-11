@@ -43,7 +43,8 @@ calling this function if reproducibility is needed.}
 \item{vars}{optional character vector; impute only selected variables}
 }
 \value{
-A LeakImpute object with imputed data and guard state.
+A list (S3 class \code{"LeakImpute"}) with elements \code{train},
+  \code{test}, \code{model}, \code{method}, \code{summary}, and \code{outliers}.
 }
 \description{
 Fits imputation parameters on the training data only, then applies the same

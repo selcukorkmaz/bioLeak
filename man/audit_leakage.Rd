@@ -38,7 +38,8 @@ audit_leakage(
   nn_k = 50,
   max_pairs = 5000,
   duplicate_scope = c("train_test", "all"),
-  learner = NULL
+  learner = NULL,
+  strict_align = FALSE
 )
 }
 \arguments{
@@ -194,6 +195,12 @@ pairs in `X_ref` regardless of fold assignment.}
 learner IDs, selects the learner to audit. If NULL and multiple learners
 are present, the function errors; if predictions lack learner IDs, this
 argument is ignored with a warning. Default is NULL.}
+
+\item{strict_align}{Logical scalar. If TRUE, errors instead of warning when
+\code{X_ref} or \code{coldata} cannot be aligned to predictions by row
+names or IDs and would otherwise fall back to row-order matching. Default
+is FALSE for backward compatibility. Set to TRUE in production pipelines to
+catch silent misalignment.}
 }
 \value{
 A \code{\linkS4class{LeakAudit}} S4 object containing:

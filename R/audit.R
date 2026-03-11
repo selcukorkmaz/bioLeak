@@ -182,7 +182,12 @@
       dup_sim <- suppressWarnings(max(dup_df[[sim_col[[1]]]], na.rm = TRUE))
       if (!is.finite(dup_sim)) dup_sim <- NA_real_
     }
-    dup_flag <- TRUE
+    # Only flag as leakage when cross-fold duplicates exist
+    if ("cross_fold" %in% names(dup_df)) {
+      dup_flag <- any(dup_df$cross_fold %in% TRUE, na.rm = TRUE)
+    } else {
+      dup_flag <- TRUE
+    }
   }
   out[[length(out) + 1L]] <- data.frame(
     mechanism_class = "duplicate_overlap",
@@ -210,7 +215,7 @@
   do.call(rbind, out)
 }
 
-.align_by_ids <- function(X, ids_chr, sample_ids = NULL, warn = TRUE) {
+.align_by_ids <- function(X, ids_chr, sample_ids = NULL, warn = TRUE, strict_align = FALSE) {
   if (is.null(X) || (!is.data.frame(X) && !is.matrix(X))) return(NULL)
   rn <- rownames(X)
   if (!is.null(rn) && all(ids_chr %in% rn)) {
@@ -225,6 +230,10 @@
     return(X[ids_int, , drop = FALSE])
   }
   if (nrow(X) == length(ids_chr)) {
+    if (isTRUE(strict_align)) {
+      stop("X_ref rownames do not match prediction ids and strict_align = TRUE; ",
+           "provide matching row names or a 'row_id' column.", call. = FALSE)
+    }
     if (warn) {
       warning("X_ref rownames do not match prediction ids; assuming row order aligns to predictions.",
               call. = FALSE)
@@ -842,6 +851,11 @@
 #'   learner IDs, selects the learner to audit. If NULL and multiple learners
 #'   are present, the function errors; if predictions lack learner IDs, this
 #'   argument is ignored with a warning. Default is NULL.
+#' @param strict_align Logical scalar. If TRUE, errors instead of warning when
+#'   \code{X_ref} or \code{coldata} cannot be aligned to predictions by row
+#'   names or IDs and would otherwise fall back to row-order matching. Default
+#'   is FALSE for backward compatibility. Set to TRUE in production pipelines to
+#'   catch silent misalignment.
 #' @return A \code{\linkS4class{LeakAudit}} S4 object containing:
 #'   \describe{
 #'     \item{\code{fit}}{The \code{LeakFit} object that was audited.}
@@ -983,7 +997,8 @@ audit_leakage <- function(fit,
                           nn_k = 50,
                           max_pairs = 5000,
                           duplicate_scope = c("train_test", "all"),
-                          learner = NULL) {
+                          learner = NULL,
+                          strict_align = FALSE) {
 
   # --- CRITICAL PATCH: Support LeakTune objects (via tune_resample) ---
   if (inherits(fit, "LeakTune")) {
@@ -1354,7 +1369,7 @@ audit_leakage <- function(fit,
     NULL
   }
 
-  align_coldata_for_perm <- function(cd, sample_ids, context) {
+  align_coldata_for_perm <- function(cd, sample_ids, context, strict_align = FALSE) {
     if (is.null(cd)) return(NULL)
     if (is.null(sample_ids) || !length(sample_ids)) {
       warning(sprintf("%s coldata alignment failed (missing sample ids); restricted permutations disabled.", context),
@@ -1392,6 +1407,10 @@ audit_leakage <- function(fit,
       return(NULL)
     }
     if (nrow(cd) == length(sample_ids)) {
+      if (isTRUE(strict_align)) {
+        stop(sprintf("%s coldata has no ids and strict_align = TRUE; provide matching row names or a 'row_id' column.",
+                     context), call. = FALSE)
+      }
       warning(sprintf("%s coldata has no ids; assuming row order aligns to splits for permutations.",
                       context), call. = FALSE)
       return(cd)
@@ -1502,8 +1521,13 @@ audit_leakage <- function(fit,
       }
       if (!is.null(refit_ids) && all(nzchar(refit_ids))) {
         refit_coldata <- align_coldata_for_perm(refit_coldata, refit_ids,
-                                                context = "perm_refit")
+                                                context = "perm_refit",
+                                                strict_align = strict_align)
       } else if (is.null(refit_ids) && nrow(refit_coldata) == n_refit) {
+        if (isTRUE(strict_align)) {
+          stop("perm_refit coldata has no ids and strict_align = TRUE; provide matching row names or a 'row_id' column.",
+               call. = FALSE)
+        }
         warning("perm_refit coldata has no ids; assuming row order aligns to refit data.",
                 call. = FALSE)
       } else if (is.null(refit_ids)) {
@@ -1617,7 +1641,8 @@ audit_leakage <- function(fit,
     perm_coldata <- NULL
     if (!is.null(coldata)) {
       sample_ids <- resolve_sample_ids(fit, fallback_n = nrow(fit@splits@info$coldata %||% data.frame()))
-      perm_coldata <- align_coldata_for_perm(coldata, sample_ids, context = "Permutation")
+      perm_coldata <- align_coldata_for_perm(coldata, sample_ids, context = "Permutation",
+                                              strict_align = strict_align)
     }
     if (!is.null(perm_coldata) && !is.null(outcome_col) && outcome_col %in% names(perm_coldata)) {
       folds_perm <- folds
@@ -1858,6 +1883,10 @@ audit_leakage <- function(fit,
 
     if (!aligned && is.numeric(ids_all) && max(ids_all, na.rm = TRUE) <= nrow(coldata)) {
       if (!is.null(rn) && !all(ids_all_chr %in% rn)) {
+        if (isTRUE(strict_align)) {
+          stop("`coldata` row names do not match prediction ids and strict_align = TRUE; ",
+               "provide matching row names or a 'row_id' column.", call. = FALSE)
+        }
         warning("`coldata` row names do not match prediction ids; aligning by row order.")
       }
       coldata <- coldata[ids_all, , drop = FALSE]
@@ -1942,7 +1971,8 @@ audit_leakage <- function(fit,
     }
     if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
     if (!is.null(X_ref) && !is.null(y_outcome)) {
-      X_scan <- .align_by_ids(X_ref, ids_all_chr, sample_ids = sample_ids)
+      X_scan <- .align_by_ids(X_ref, ids_all_chr, sample_ids = sample_ids,
+                              strict_align = strict_align)
       if (!is.null(X_scan)) {
         target_df <- .target_assoc_scan(
           X_scan, y_outcome, task,
@@ -2081,7 +2111,8 @@ audit_leakage <- function(fit,
     if (!is.null(sample_ids_all) && length(sample_ids_all)) {
       X_use <- .align_by_ids(
         X_ref, sample_ids_all, sample_ids = sample_ids_all,
-        warn = identical(duplicate_scope, "train_test")
+        warn = identical(duplicate_scope, "train_test"),
+        strict_align = strict_align
       )
     }
     if (is.null(X_use)) {
@@ -2099,7 +2130,7 @@ audit_leakage <- function(fit,
       X <- as.matrix(X_use)
     # Replace NA/NaN/Inf with column medians so RANN::nn2 doesn't fail
     if (anyNA(X) || any(!is.finite(X))) {
-      col_med <- apply(X, 2, function(v) { v <- v[is.finite(v)]; if (length(v)) median(v) else 0 })
+      col_med <- apply(X, 2, function(v) { v <- v[is.finite(v)]; if (length(v)) stats::median(v) else 0 })
       for (j in seq_len(ncol(X))) { bad <- !is.finite(X[, j]); if (any(bad)) X[bad, j] <- col_med[j] }
     }
     # choose feature space

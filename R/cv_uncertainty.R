@@ -14,6 +14,7 @@
 #' @return Scalar corrected variance, or \code{NA_real_} for single-fold input.
 #' @keywords internal
 .nb_corrected_var <- function(per_fold_vals, n_train = NULL, n_test = NULL) {
+  per_fold_vals <- per_fold_vals[is.finite(per_fold_vals)]
   K <- length(per_fold_vals)
   if (K < 2L) return(NA_real_)
   v <- stats::var(per_fold_vals)
@@ -72,28 +73,30 @@ cv_ci <- function(metrics_df, level = 0.95,
     for (mc in metric_cols) {
       vals <- sub[[mc]]
       if (!is.numeric(vals)) next
-      m <- mean(vals, na.rm = TRUE)
-      s <- stats::sd(vals, na.rm = TRUE)
+      vals_finite <- vals[is.finite(vals)]
+      K_eff <- length(vals_finite)
+      m <- if (K_eff > 0L) mean(vals_finite) else NA_real_
+      s <- if (K_eff > 1L) stats::sd(vals_finite) else NA_real_
       row[[paste0(mc, "_mean")]] <- m
       row[[paste0(mc, "_sd")]] <- s
 
-      if (K < 2L) {
+      if (K_eff < 2L) {
         row[[paste0(mc, "_ci_lo")]] <- NA_real_
         row[[paste0(mc, "_ci_hi")]] <- NA_real_
         next
       }
 
       if (identical(method, "nadeau_bengio")) {
-        corrected_var <- .nb_corrected_var(vals, n_train = n_train, n_test = n_test)
+        corrected_var <- .nb_corrected_var(vals_finite, n_train = n_train, n_test = n_test)
         se <- sqrt(corrected_var)
       } else {
-        se <- s / sqrt(K)
+        se <- s / sqrt(K_eff)
       }
 
-      # Use t-distribution for K < 30, normal otherwise
+      # Use t-distribution for K_eff < 30, normal otherwise
       alpha <- 1 - level
-      if (K < 30) {
-        q <- stats::qt(1 - alpha / 2, df = K - 1)
+      if (K_eff < 30) {
+        q <- stats::qt(1 - alpha / 2, df = K_eff - 1)
       } else {
         q <- stats::qnorm(1 - alpha / 2)
       }

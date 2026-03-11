@@ -19,7 +19,8 @@
 #' @param parallel logical; unused (kept for compatibility)
 #' @param return_outliers logical; unused (outlier flags not returned)
 #' @param vars optional character vector; impute only selected variables
-#' @return A LeakImpute object with imputed data and guard state.
+#' @return A list (S3 class \code{"LeakImpute"}) with elements \code{train},
+#'   \code{test}, \code{model}, \code{method}, \code{summary}, and \code{outliers}.
 #' @seealso [fit_resample()], [predict_guard()]
 #' @examples
 #' train <- data.frame(x = c(1, 2, NA, 4), y = c(NA, 1, 1, 0))

@@ -281,9 +281,9 @@
 #'   \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
 #' }}
 #'
-#' @param fit_naive A \code{\link{LeakFit}} object from the naive (unprotected)
+#' @param fit_naive A \code{\linkS4class{LeakFit}} object from the naive (unprotected)
 #'   evaluation pipeline.
-#' @param fit_guarded A \code{\link{LeakFit}} object from the guarded
+#' @param fit_guarded A \code{\linkS4class{LeakFit}} object from the guarded
 #'   (leakage-protected) evaluation pipeline.
 #' @param metric Character. Performance metric to compare. Must appear in
 #'   \code{fit@@metrics} of both fits (e.g., \code{"auc"}, \code{"rmse"}).
@@ -310,7 +310,7 @@
 #'   \eqn{\Delta_r} vector and the original fit objects in the \code{info} slot.
 #' @param seed Integer. Random seed for bootstrap and sign-flip test.
 #'
-#' @return A \code{\link{LeakDeltaLSI}} object.
+#' @return A \code{\linkS4class{LeakDeltaLSI}} object.
 #'
 #' @seealso \code{\link{audit_leakage}}, \code{\link{fit_resample}}
 #' @export
@@ -417,6 +417,14 @@ delta_lsi <- function(
       ))
     }
     paired <- splits_ok
+    if (paired) {
+      # Normalize guarded repeat_ids to match naive's positional mapping.
+      # .dlsi_splits_match() verified that sequential position i has identical
+      # test members in both fits, so naive's repeat_id labels are canonical.
+      rid_lookup <- setNames(folds_n$repeat_id, folds_n$fold)
+      folds_g$repeat_id <- unname(rid_lookup[as.character(folds_g$fold)])
+      reps_g <- .agg_repeats(folds_g)
+    }
   } else {
     paired <- FALSE
   }
@@ -528,6 +536,7 @@ delta_lsi <- function(
 # ── S4 show method ─────────────────────────────────────────────────────────────
 
 #' @rdname LeakClasses
+#' @param object A \code{\linkS4class{LeakDeltaLSI}} object.
 setMethod("show", "LeakDeltaLSI", function(object) {
   hib <- object@info[["higher_is_better"]]
   hib_str <- if (is.null(hib)) "" else

@@ -88,3 +88,33 @@ test_that(".nb_corrected_var without n_train falls back to var/K", {
   expected <- var(vals) / K
   expect_equal(res, expected)
 })
+
+test_that("cv_ci handles NA fold metrics correctly", {
+  df <- data.frame(
+    fold = 1:5,
+    learner = rep("glm", 5),
+    auc = c(0.9, NA, NA, NA, 0.7)
+  )
+
+  # Normal method: CI should be based on K_eff = 2, not K = 5
+  res_n <- cv_ci(df, method = "normal")
+  expect_equal(res_n$auc_mean, 0.8, tolerance = 1e-10)
+  # With only 2 informative folds, df = 1, CI should be wide
+  expect_true(all(is.finite(c(res_n$auc_ci_lo, res_n$auc_ci_hi))))
+
+  # Nadeau-Bengio method: should also produce finite CIs
+  res_nb <- cv_ci(df, method = "nadeau_bengio", n_train = 80, n_test = 20)
+  expect_true(all(is.finite(c(res_nb$auc_ci_lo, res_nb$auc_ci_hi))))
+  expect_equal(res_nb$auc_mean, 0.8, tolerance = 1e-10)
+})
+
+test_that("cv_ci returns NA CIs when only one finite fold", {
+  df <- data.frame(
+    fold = 1:3,
+    learner = rep("glm", 3),
+    auc = c(0.8, NA, NA)
+  )
+  res <- cv_ci(df, method = "normal")
+  expect_true(is.na(res$auc_ci_lo))
+  expect_true(is.na(res$auc_ci_hi))
+})

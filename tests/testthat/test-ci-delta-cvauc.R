@@ -9,6 +9,14 @@ test_that("se_ci_delta handles empty and zero-variance permutations", {
   expect_true(is.finite(out_zero$z))
 })
 
+test_that("se_ci_delta handles singleton permutation vector", {
+  out <- bioLeak:::.se_ci_delta(0.1, 0.05, 0.2)
+  # Should return NA gracefully instead of erroring
+  expect_true(is.na(out$se))
+  expect_true(all(is.na(out$ci)))
+  expect_true(is.na(out$z))
+})
+
 test_that("se_ci_delta handles finite variance permutations", {
   perm <- seq(0.1, 0.5, length.out = 25)
   out <- bioLeak:::.se_ci_delta(0.2, 0.1, perm, level = 0.9)

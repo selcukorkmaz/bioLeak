@@ -311,6 +311,37 @@ test_that("equal repeat count but mismatched fold structures warns and goes unpa
   expect_true(is.finite(res@delta_lsi))
 })
 
+test_that("relabeled repeat_ids do not corrupt pairing (regression)", {
+  n_folds <- 3L; n_obs <- 45L; n_repeats <- 5L
+
+  # Naive: per-repeat means decrease from 0.9 to 0.7
+  naive_aucs <- rep(c(0.9, 0.85, 0.80, 0.75, 0.70), each = n_folds)
+  fit_n <- .make_dlsi_fit(naive_aucs, n_obs = n_obs, n_repeats = n_repeats)
+
+  # Guarded: per-repeat means decrease from 0.8 to 0.6
+  guard_aucs <- rep(c(0.80, 0.75, 0.70, 0.65, 0.60), each = n_folds)
+  fit_g <- .make_dlsi_fit(guard_aucs, n_obs = n_obs, n_repeats = n_repeats)
+
+  # Reverse the repeat_id labels in guarded fit's splits.
+  # Original: positions 1-3 → rid=1, 4-6 → rid=2, ..., 13-15 → rid=5
+  # Reversed: positions 1-3 → rid=5, 4-6 → rid=4, ..., 13-15 → rid=1
+  new_idx <- fit_g@splits@indices
+  for (i in seq_along(new_idx)) {
+    new_idx[[i]]$repeat_id <- (n_repeats + 1L) - new_idx[[i]]$repeat_id
+  }
+  fit_g@splits@indices <- new_idx
+
+  res <- delta_lsi(fit_n, fit_g, metric = "auc",
+                   return_details = TRUE, seed = 42L)
+
+  # With correct positional pairing, every repeat delta should be exactly 0.1.
+  # Bug (before fix): deltas would be 0.3, 0.2, 0.1, 0.0, -0.1 due to
+  # repeat_id sort-order mismatch between the two fits.
+  expect_equal(res@info$delta_r, rep(0.1, n_repeats), tolerance = 1e-10)
+  expect_true(res@info$paired)
+  expect_equal(res@R_eff, n_repeats)
+})
+
 test_that("lower-is-better metric: delta > 0 when naive has lower (better) values", {
   set.seed(1)
   # For lower-is-better metrics: naive = 0.3 (better), guarded = 0.5 (worse)
@@ -364,18 +395,17 @@ test_that("metrics df without fold column falls back to predictions gracefully",
 })
 
 test_that("auto-detect higher_is_better = FALSE for rmse via metric name", {
-  # When metric name contains 'rmse', auto-detection gives higher_is_better = FALSE
-  # We test this via info slot; the actual metric lookup falls back to predictions
-  # so use higher_is_better = NULL (default) and check what gets stored
   set.seed(2)
+  # Naive RMSE = 0.3 (lower = better), guarded RMSE = 0.5
   fit_n <- .make_dlsi_fit(rep(0.3, 10L), n_obs = 30L, n_repeats = 2L)
   fit_g <- .make_dlsi_fit(rep(0.5, 10L), n_obs = 30L, n_repeats = 2L)
-  # Explicitly test that the auto-detection flag works when overridden manually
-  res_auto <- delta_lsi(fit_n, fit_g, metric = "auc",
-                        higher_is_better = FALSE, seed = 2L)
-  res_hib  <- delta_lsi(fit_n, fit_g, metric = "auc",
-                        higher_is_better = TRUE,  seed = 2L)
-  # Signs should be opposite
-  expect_gt(res_auto@delta_lsi, 0.0)   # naive (0.3) better than guarded (0.5)
-  expect_lt(res_hib@delta_lsi,  0.0)   # naive (0.3) worse than guarded (0.5)
+  # Add rmse column so .dlsi_fold_metrics can find it
+  fit_n@metrics$rmse <- fit_n@metrics$auc
+  fit_g@metrics$rmse <- fit_g@metrics$auc
+  # Auto-detect: metric="rmse" with higher_is_better=NULL (default)
+  res <- delta_lsi(fit_n, fit_g, metric = "rmse", seed = 2L)
+  expect_false(isTRUE(res@info[["higher_is_better"]]))
+  # Naive RMSE is lower (better) → positive delta (leakage inflation)
+  expect_gt(res@delta_lsi,    0.0)
+  expect_gt(res@delta_metric, 0.0)
 })
