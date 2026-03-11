@@ -30,16 +30,14 @@ evaluation pipeline.}
 \code{fit@metrics} of both fits (e.g., \code{"auc"}, \code{"rmse"}).}
 
 \item{exchangeability}{Character. Exchangeability assumption for the
-sign-flip test. \code{"blocked_time"} activates a block sign-flip procedure
-that flips contiguous groups of repeats together; \code{"by_group"} and
-\code{"within_batch"} are stored and reported but inference uses the iid
-sign-flip (a warning is issued); \code{"iid"} (default) applies the standard
-independent sign-flip.}
-
-\item{block_size}{Integer or \code{NULL}. Block length for the block sign-flip
-test, used only when \code{exchangeability = "blocked_time"}. When \code{NULL}
-(default), auto-estimated from AR(1) of the repeat deltas and capped at
-\code{floor(R/3)}.}
+sign-flip test. One of \code{"iid"} (default), \code{"by_group"},
+\code{"within_batch"}, \code{"blocked_time"}.
+\code{"blocked_time"} activates a block sign-flip procedure that flips
+contiguous groups of repeats together, preserving serial autocorrelation
+under the null; see \code{block_size}.  \code{"by_group"} and
+\code{"within_batch"} are stored and reported but inference still uses the
+iid sign-flip procedure (a warning is issued; contributions welcome).
+\code{"iid"} (default) applies the standard independent sign-flip test.}
 
 \item{learner}{Optional character. Learner name to select from multi-learner
 fits. If \code{NULL}, the first learner found in \code{fit@metrics} is used.}
@@ -52,6 +50,15 @@ auto-detected from the metric name: \code{"rmse"}, \code{"mse"},
 all others default to higher-is-better. Setting this correctly ensures
 that a positive \code{delta_lsi} always indicates leakage inflation
 (the naive pipeline is artificially more optimistic than the guarded one).}
+
+\item{block_size}{Integer or \code{NULL}. Block length for the block
+sign-flip test, used only when \code{exchangeability = "blocked_time"}.
+When \code{NULL} (default), the block size is auto-estimated from the
+first-order autocorrelation of \eqn{\{\Delta_r\}} and capped at
+\code{floor(R/3)} to ensure at least three independent blocks.  A warning
+is issued when the estimate is used with \code{R_eff < 20} because the
+AR(1) estimate is noisy at small sample sizes.  Provide an explicit integer
+to override auto-estimation.}
 
 \item{M_boot}{Integer. Number of bootstrap samples for BCa CI (default 2000).}
 
