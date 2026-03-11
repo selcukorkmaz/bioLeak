@@ -1051,7 +1051,7 @@ parsnip model specification or workflow, and supports two inner-CV modes:
 For rsample inputs, inner folds must already be present. Survival tasks are not
 yet supported.
 
-New in the development version (planned for v0.2.0):
+These features are available in the current stable release:
 
 - deterministic `selection = "one_std_err"` with an explicit simplicity tie-break
 - fold-level tuning diagnostics in `tuned$fold_status`
@@ -1633,6 +1633,423 @@ dashed red lines represent the 95% confidence interval for white noise; large
 bars outside the bands indicate residual temporal dependence. `plot_time_acf()`
 requires numeric predictions and time metadata aligned to the fit.
 
+## Cross-validation uncertainty with `cv_ci()`
+
+Standard cross-validation yields one metric value per fold. Because folds share
+training data, the per-fold values are positively correlated: the naive standard
+error `sd / sqrt(K)` systematically underestimates variability, making the
+resulting confidence intervals too narrow. `cv_ci()` addresses this with two
+approaches:
+
+- **`"normal"`** (default): uses the naive SEM `sd / sqrt(K)` with a
+  *t*-distribution on `K − 1` degrees of freedom. Fast and appropriate when
+  fold overlap is low (large datasets, many folds).
+
+- **`"nadeau_bengio"`**: applies the Nadeau–Bengio (2003) variance correction
+  `(1/K + n_test / n_train) × var(x)`, explicitly accounting for the fraction of
+  training samples shared across folds. Recommended for small datasets or
+  few-fold CV where fold correlation is non-negligible.
+
+The function accepts any data frame with `fold` and `learner` columns — such as
+`fit@metrics` from a `LeakFit` object — and returns one row per learner with
+four columns per metric: `<metric>_mean`, `<metric>_sd`, `<metric>_ci_lo`, and
+`<metric>_ci_hi`.
+
+```{r cv-ci}
+# Standard 95% CI from the leakage-safe fit
+ci_std <- cv_ci(fit_safe@metrics, level = 0.95, method = "normal")
+cat("Standard 95% CI:\n")
+print(ci_std)
+
+# Nadeau-Bengio corrected CI
+# For K-fold CV: n_train ≈ (K-1)/K × n, n_test ≈ n/K
+K_folds  <- length(unique(fit_safe@metrics$fold))
+n_total  <- nrow(df)
+
+ci_nb <- cv_ci(
+  fit_safe@metrics,
+  level   = 0.95,
+  method  = "nadeau_bengio",
+  n_train = round(n_total * (K_folds - 1L) / K_folds),
+  n_test  = round(n_total / K_folds)
+)
+cat("Nadeau-Bengio corrected 95% CI:\n")
+print(ci_nb)
+```
+
+The Nadeau–Bengio interval is typically wider because it correctly inflates the
+variance to account for fold overlap. Use it whenever the training-set fraction
+shared between consecutive folds is large — for example, 5-fold CV reuses 80%
+of training data across fold pairs, so correcting for this correlation matters.
+
+When multiple learners were fit, `cv_ci()` returns one row per learner.
+For repeated K-fold CV, average `n_train` and `n_test` across folds before
+passing them in; `fit@metrics` already stores per-fold counts if `audit_leakage()`
+annotated the object.
+
+# Delta Leakage Sensitivity Index: Quantifying Performance Inflation
+
+## Motivation
+
+`audit_leakage()` detects whether leakage is present via permutation tests and
+confounding checks. It cannot, however, directly answer: *by how much does
+leakage inflate my reported performance?* The **Delta Leakage Sensitivity
+Index** (ΔLSI) addresses this by rigorously comparing a naive (potentially
+leaky) cross-validation pipeline against a leakage-guarded one run on the same
+data.
+
+The core estimand is the repeat-level mean performance gap:
+
+$$\delta_{\text{metric}} = \overline{m}_{\text{naive}} - \overline{m}_{\text{guarded}}$$
+
+where each $\overline{m}$ is a fold-size–weighted average within a repeat,
+averaged across all repeats. For lower-is-better metrics (RMSE, MAE, log-loss,
+…) the sign is flipped so that a **positive ΔLSI always indicates
+leakage-induced inflation** regardless of direction.
+
+ΔLSI is designed for paired designs where both pipelines run on identical fold
+assignments, enabling a within-repeat paired comparison that eliminates
+between-fold variability from the test statistic. An unpaired fallback is
+available when fold structures differ.
+
+## Setting up a two-pipeline comparison
+
+A ΔLSI analysis requires two `LeakFit` objects:
+
+1. **Naive fit** — standard cross-validation without leakage safeguards (e.g.,
+   random row splits, global preprocessing, or leaky features).
+2. **Guarded fit** — leakage-aware cross-validation using subject-grouped splits
+   and preprocessing fit only on training folds.
+
+For the most powerful **paired** design, generate a single `LeakSplits` object
+and pass it to both `fit_resample()` calls. Pairing is validated automatically
+by comparing the sorted test-set indices of every fold; if the structures differ
+despite equal repeat counts, a warning is issued and analysis falls back to
+unpaired mode.
+
+```{r delta-lsi-data}
+set.seed(100)
+n_d    <- 120L
+subj_d <- rep(paste0("P", seq_len(30L)), each = 4L)   # 30 subjects, 4 obs each
+
+df_dlsi_guarded <- data.frame(
+  subject = subj_d,
+  outcome = factor(sample(c("case", "control"), n_d, replace = TRUE)),
+  x1      = rnorm(n_d),
+  x2      = rnorm(n_d)
+)
+
+# Leaky feature: subject-level mean of outcome
+# With subject-grouped splits, test subjects' leak value encodes their outcome
+df_dlsi_naive <- df_dlsi_guarded
+df_dlsi_naive$leak <- ave(
+  as.numeric(df_dlsi_guarded$outcome == "case"),
+  subj_d, FUN = mean
+)
+
+# Shared splits: 5-fold × 5 repeats → R_eff = 5 (tier C: point + p-value)
+splits_dlsi <- make_split_plan(
+  df_dlsi_guarded,
+  outcome = "outcome",
+  mode    = "subject_grouped",
+  group   = "subject",
+  v       = 5L,
+  repeats = 5L
+)
+```
+
+```{r delta-lsi-fits}
+# Naive fit: uses leaky feature (leak encodes test-subject outcome label)
+fit_dlsi_naive <- fit_resample(
+  df_dlsi_naive,
+  outcome = "outcome",
+  splits  = splits_dlsi,
+  learner = "glm",
+  metrics = "auc",
+  seed    = 1L
+)
+
+# Guarded fit: same splits, clean features only
+fit_dlsi_guarded <- fit_resample(
+  df_dlsi_guarded,
+  outcome = "outcome",
+  splits  = splits_dlsi,
+  learner = "glm",
+  metrics = "auc",
+  seed    = 1L
+)
+
+cat("Naive   AUC:", round(mean(fit_dlsi_naive@metrics$auc,   na.rm = TRUE), 3), "\n")
+cat("Guarded AUC:", round(mean(fit_dlsi_guarded@metrics$auc, na.rm = TRUE), 3), "\n")
+```
+
+## Running `delta_lsi()`
+
+```{r delta-lsi-run}
+result_dlsi <- delta_lsi(
+  fit_naive   = fit_dlsi_naive,
+  fit_guarded = fit_dlsi_guarded,
+  metric      = "auc",
+  M_boot      = 300L,
+  M_flip      = 300L,
+  seed        = 1L
+)
+
+summary(result_dlsi)
+```
+
+`summary()` reports the tier, effective repeats, both point estimates, the
+BCa CI (if available), and the sign-flip p-value (if available).
+
+## Inference tiers
+
+ΔLSI inference quality scales with the effective number of matched repeats
+(`R_eff`). The tier system makes this dependency explicit and prevents
+overconfident claims from sparse designs:
+
+| Tier | `R_eff` | Point estimate | p-value | BCa CI | `inference_ok` |
+|------|---------|---------------|---------|--------|---------------|
+| `D_insufficient` | < 5  | ✓ | — | — | FALSE |
+| `C_point_only`   | ≥ 5  | ✓ | ✓ | — | FALSE |
+| `B_ci_only`      | ≥ 10 | ✓ | ✓ | ✓ | FALSE |
+| `A_full_inference`| ≥ 20 | ✓ | ✓ | ✓ | TRUE  |
+
+Plan your repeated CV design around the desired tier:
+
+- **Tier C** (p-value only): 5-fold × 5 repeats → `R_eff = 5`
+- **Tier B** (CI available): 5-fold × 10 repeats → `R_eff = 10`
+- **Tier A** (full inference, `inference_ok = TRUE`): 5-fold × 20 repeats → `R_eff = 20`
+
+For paired designs, `R_eff` equals the number of matched repeats. For unpaired
+designs, `R_eff = 0` and only the raw delta_metric point estimate is available.
+
+```{r delta-lsi-tier}
+cat("Tier:          ", result_dlsi@tier, "\n")
+cat("R_eff:         ", result_dlsi@R_eff, "\n")
+cat("inference_ok:  ", result_dlsi@inference_ok, "\n")
+```
+
+## Statistical components
+
+### Sign-flip randomization test
+
+The sign-flip test evaluates H₀: δ = 0 (no leakage inflation). For each of
+the `R_eff` repeat-level differences δᵣ, the test randomly flips their signs
+and re-computes the mean. The p-value is the proportion of sign combinations
+with |mean| ≥ |observed|, making it a two-sided test.
+
+Two computation modes are used depending on `R_eff`:
+
+- **Exact enumeration** (`R_eff ≤ 15`): all 2^R sign combinations are
+  evaluated. The p-value is `count / 2^R` with **no** continuity correction —
+  exact computation requires no correction because every combination (including
+  the observed all-positive pattern) is enumerated.
+
+- **Monte Carlo** (`R_eff > 15`): `M_flip` random sign vectors are sampled.
+  The Phipson & Smyth (2010) `+1` correction — `p = (count + 1) / (M_flip + 1)`
+  — is applied to ensure the p-value is a valid probability under the null,
+  even in the extreme tail.
+
+### Huber-robust location estimate (`delta_lsi`)
+
+The `delta_lsi` slot uses the Huber M-estimator with scale fixed at the
+initial median absolute deviation (MAD). This provides robustness against
+outlier folds arising from unusually easy or difficult test partitions.
+When MAD = 0 (all δᵣ identical), the estimator reduces to the median, which
+equals the arithmetic mean in that case. The raw mean `delta_metric` is also
+always reported for comparability.
+
+The sign-flip test statistic uses the arithmetic mean (not Huber) because the
+mean has the correct null distribution under sign flipping, whereas the Huber
+estimator can degenerate when all repeat differences are equal.
+
+### BCa bootstrap confidence interval
+
+The 95% BCa (bias-corrected and accelerated) interval uses `M_boot` bootstrap
+resamples of the `R_eff` repeat-level deltas. Bias correction (z₀) accounts for
+the median deviation of bootstrap estimates from the observed statistic; the
+acceleration parameter (a) is estimated via jackknife to correct for
+distribution skewness. The statistic for the CI is the Huber M-estimator,
+matching the `delta_lsi` point estimate.
+
+BCa intervals are available from tier B (`R_eff ≥ 10`). Below that threshold,
+the bootstrap distribution is too sparse to estimate the acceleration reliably.
+
+```{r delta-lsi-components}
+# Slot-level access to all DLSI outputs
+cat("delta_metric:  ", round(result_dlsi@delta_metric, 4), "\n")
+cat("delta_lsi:     ", round(result_dlsi@delta_lsi,    4), "\n")
+cat("95% BCa CI:    [",
+    paste(round(result_dlsi@delta_lsi_ci, 4), collapse = ", "), "]\n")
+cat("p-value:       ",
+    if (is.na(result_dlsi@p_value)) "NA (tier D or unpaired)"
+    else format(result_dlsi@p_value, digits = 3), "\n")
+```
+
+## Paired vs. unpaired designs
+
+**Paired** (recommended): both fits use identical fold structures. Per-repeat
+differences δᵣ = m_naive,r − m_guarded,r are computed directly, eliminating
+fold-to-fold variance from the test statistic. `R_eff` equals the number of
+repeats. Pairing is validated by comparing sorted test-set indices for each
+fold element — equal repeat counts with differing index patterns produce a
+warning and fall back to unpaired.
+
+**Unpaired**: the two fits have different fold structures or different numbers
+of repeats (e.g., naive uses random splits, guarded uses subject-grouped
+splits). Only the overall performance summaries are compared; `R_eff = 0` and
+all inference is disabled. This mode is appropriate when the splitting scheme
+itself is part of what the comparison is testing.
+
+```{r delta-lsi-unpaired, warning=TRUE}
+# Unpaired: naive uses random row-wise splits, guarded uses subject-grouped splits
+splits_rand <- make_split_plan(
+  df_dlsi_naive,
+  outcome = "outcome",
+  mode    = "random",
+  v       = 5L,
+  repeats = 5L
+)
+
+fit_naive_rand <- fit_resample(
+  df_dlsi_naive,
+  outcome = "outcome",
+  splits  = splits_rand,
+  learner = "glm",
+  metrics = "auc",
+  seed    = 1L
+)
+
+r_unpaired <- suppressWarnings(
+  delta_lsi(fit_naive_rand, fit_dlsi_guarded, metric = "auc", seed = 1L)
+)
+
+cat(sprintf("Paired:        %s\n", r_unpaired@info$paired))
+cat(sprintf("R_eff:         %d  (0 = unpaired, inference disabled)\n", r_unpaired@R_eff))
+cat(sprintf("delta_metric:  %.4f  (naive raw mean - guarded raw mean)\n",
+            r_unpaired@delta_metric))
+cat(sprintf("p_value:       %s\n",
+            if (is.na(r_unpaired@p_value)) "NA" else r_unpaired@p_value))
+```
+
+## Metric direction with `higher_is_better`
+
+For lower-is-better metrics (RMSE, MAE, log-loss, Brier score, deviance),
+set `higher_is_better = FALSE` or let `delta_lsi()` auto-detect from the
+metric name. Auto-detected lower-is-better metric names:
+`rmse`, `mse`, `mae`, `log_loss`, `logloss`, `brier`, `error`, `loss`, `deviance`.
+
+When `higher_is_better = FALSE`, the sign of `delta_metric` is flipped so that
+a **positive** value still means the naive pipeline is inflated relative to
+guarded (i.e., naive has a *lower* error, which is paradoxically *better*
+performance — indicating leakage):
+
+```{r delta-lsi-direction}
+r_hib_true  <- suppressWarnings(delta_lsi(
+  fit_dlsi_naive, fit_dlsi_guarded,
+  metric           = "auc",
+  higher_is_better = TRUE,
+  seed             = 1L
+))
+r_hib_false <- suppressWarnings(delta_lsi(
+  fit_dlsi_naive, fit_dlsi_guarded,
+  metric           = "auc",
+  higher_is_better = FALSE,
+  seed             = 1L
+))
+
+cat(sprintf("hib = TRUE:   delta_metric = %+.4f  (positive = naive inflated)\n",
+            r_hib_true@delta_metric))
+cat(sprintf("hib = FALSE:  delta_metric = %+.4f  (sign flipped)\n",
+            r_hib_false@delta_metric))
+```
+
+The `info$higher_is_better` slot records the value used (after auto-detection),
+so analyses are fully reproducible:
+
+```{r delta-lsi-hib-slot}
+cat("higher_is_better used:", result_dlsi@info$higher_is_better, "\n")
+```
+
+## Accessing the `LeakDeltaLSI` object
+
+`delta_lsi()` returns a `LeakDeltaLSI` S4 object. All slots are accessible
+directly for programmatic downstream use:
+
+| Slot | Type | Description |
+|------|------|-------------|
+| `@metric` | character | Metric name used |
+| `@exchangeability` | character | Always `"iid"` (future: `"block"`) |
+| `@tier` | character | Inference tier label |
+| `@R_eff` | integer | Effective paired repeats (0 if unpaired) |
+| `@delta_metric` | numeric | Arithmetic mean performance gap |
+| `@delta_lsi` | numeric | Huber-robust performance gap |
+| `@delta_metric_ci` | numeric[2] | 95% BCa CI for `delta_metric` |
+| `@delta_lsi_ci` | numeric[2] | 95% BCa CI for `delta_lsi` |
+| `@p_value` | numeric | Sign-flip p-value (NA if tier D or unpaired) |
+| `@inference_ok` | logical | TRUE only at tier A (`R_eff ≥ 20`) |
+| `@folds_naive` | data.frame | Per-fold: fold, metric, delta_lsi |
+| `@folds_guarded` | data.frame | Per-fold: fold, metric, delta_lsi |
+| `@repeats_naive` | data.frame | Per-repeat: repeat_id, metric |
+| `@repeats_guarded` | data.frame | Per-repeat: repeat_id, metric |
+| `@info` | list | Metadata: paired, R_naive, R_guarded, higher_is_better, … |
+
+```{r delta-lsi-slots}
+# Per-repeat summaries for custom plotting
+head(result_dlsi@repeats_naive,   3)
+head(result_dlsi@repeats_guarded, 3)
+
+# Per-fold diagnostics
+head(result_dlsi@folds_naive,   3)
+head(result_dlsi@folds_guarded, 3)
+
+# Metadata
+str(result_dlsi@info)
+```
+
+The `@repeats_naive` and `@repeats_guarded` data frames are the primary
+substrate for diagnostic visualisation — plot `metric` by `repeat_id` for naive
+and guarded to see whether the gap is consistent across repeats or driven by
+a few outlier repeats.
+
+## Connection to `audit_leakage()`
+
+`delta_lsi()` and `audit_leakage()` answer complementary questions:
+
+| Question | Tool |
+|----------|------|
+| Does leakage produce non-random performance? | `audit_leakage()` — permutation gap + p-value |
+| What mechanisms drive the leakage? | `audit_leakage()` — `batch_assoc`, `target_assoc`, `duplicates` |
+| How large is the performance inflation? | `delta_lsi()` — `delta_metric`, `delta_lsi` |
+| Is the inflation statistically significant? | `delta_lsi()` — sign-flip p-value |
+| Do guards fully eliminate the inflation? | `delta_lsi()` — compare before/after guarding |
+
+A recommended two-step workflow:
+
+1. Run `audit_leakage(fit_naive)` to detect leakage and diagnose which
+   mechanism is responsible.
+2. Build a guarded pipeline that addresses those mechanisms, then run
+   `delta_lsi(fit_naive, fit_guarded)` to quantify how much inflation the
+   leakage introduced and whether guarding eliminated it.
+
+```{r delta-lsi-audit-connect}
+# Step 1: detect and characterise leakage
+audit_naive_dlsi <- audit_leakage(fit_dlsi_naive, metric = "auc", B = 20L)
+cat("Naive audit summary:\n")
+summary(audit_naive_dlsi)
+
+# Step 2: confirmed guards reduced inflation; check residual DLSI
+cat("\ndelta_metric (naive vs guarded):", round(result_dlsi@delta_metric, 4), "\n")
+if (!is.na(result_dlsi@p_value)) {
+  cat("Sign-flip p-value:              ", format(result_dlsi@p_value, digits = 3), "\n")
+}
+```
+
+A ΔLSI near zero after guarding and a non-significant p-value together provide
+strong evidence that the leakage source has been eliminated. A persistent
+positive ΔLSI after guarding indicates residual inflation — revisit the
+preprocessing pipeline for remaining leakage pathways.
+
 # Parallel Processing
 
 `bioLeak` uses the `future` framework for parallelism (Windows, macOS, Linux).
@@ -1725,6 +2142,11 @@ bioLeak uses S4 classes and list-like results to capture provenance and diagnost
   includes `fold_status`, selected parameters, and optional `final_model` /
   `final_workflow` when `refit = TRUE`
 - `LeakSimResults`: returned by `simulate_leakage_suite()` (per-seed results)
+- `LeakDeltaLSI`: returned by `delta_lsi()` (paired pipeline comparison).
+  Key slots: `@tier`, `@R_eff`, `@delta_metric`, `@delta_lsi`,
+  `@delta_lsi_ci`, `@p_value`, `@inference_ok`, `@folds_naive`,
+  `@folds_guarded`, `@repeats_naive`, `@repeats_guarded`, `@info`.
+  Summarise with `summary()`.
 
 Set `options(bioLeak.strict = TRUE)` to activate strict leakage mode, which
 escalates trained-recipe/workflow warnings to errors, warns on missing seeds,

@@ -29,7 +29,7 @@
   if (!is.null(learner) && "learner" %in% names(mdf))
     mdf <- mdf[as.character(mdf$learner) == learner, , drop = FALSE]
 
-  if (metric %in% names(mdf)) {
+  if (metric %in% names(mdf) && "fold" %in% names(mdf)) {
     out <- mdf[, c("fold", metric), drop = FALSE]
     names(out)[2L] <- "metric"
     return(out)
@@ -437,8 +437,19 @@ delta_lsi <- function(
     if (isTRUE(strict)) stop(msg) else warning(msg)
   }
 
-  # Per-repeat Δ values — sign_factor applied so positive = leakage inflation
-  delta_r <- if (paired) sign_factor * (reps_n$metric - reps_g$metric) else NULL
+  # Per-repeat Δ values — sign_factor applied so positive = leakage inflation.
+  # Align by repeat_id (both are sorted by .agg_repeats; guard against rare
+  # case where different repeats yield all-NA metrics in each fit).
+  delta_r <- if (paired) {
+    if (identical(reps_n$repeat_id, reps_g$repeat_id)) {
+      sign_factor * (reps_n$metric - reps_g$metric)
+    } else {
+      common <- intersect(reps_n$repeat_id, reps_g$repeat_id)
+      rn <- reps_n[match(common, reps_n$repeat_id), ]
+      rg <- reps_g[match(common, reps_g$repeat_id), ]
+      sign_factor * (rn$metric - rg$metric)
+    }
+  } else NULL
 
   # Point estimates
   delta_lsi_est    <- if (!is.null(delta_r)) {

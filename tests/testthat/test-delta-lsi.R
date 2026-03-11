@@ -325,6 +325,44 @@ test_that("lower-is-better metric: delta > 0 when naive has lower (better) value
   expect_false(isTRUE(res@info[["higher_is_better"]]))
 })
 
+test_that("metrics df without fold column falls back to predictions gracefully", {
+  # Build a LeakFit whose @metrics has the requested metric but no 'fold' column.
+  # delta_lsi should fall back to .dlsi_fold_metrics_from_preds() without crashing.
+  splits <- methods::new("LeakSplits",
+    mode    = "subject_grouped",
+    indices = list(
+      list(fold = 1L, repeat_id = 1L, test = 1:15, train = 16:30),
+      list(fold = 2L, repeat_id = 1L, test = 16:30, train = 1:15)
+    ),
+    info = list()
+  )
+  # @metrics has auc but NO fold column
+  mdf <- data.frame(learner = "glm", auc = c(0.7, 0.75), stringsAsFactors = FALSE)
+
+  set.seed(1)
+  make_preds <- function(te, auc_val) {
+    n <- length(te)
+    y <- rbinom(n, 1L, 0.5)
+    p <- pmin(1, pmax(0, rnorm(n, 0.5, auc_val / 2)))
+    data.frame(id = te, fold = if (min(te) == 1L) 1L else 2L,
+               learner = "glm", truth = y, pred = p, stringsAsFactors = FALSE)
+  }
+  preds <- list(make_preds(1:15, 0.7), make_preds(16:30, 0.75))
+
+  fit_bad <- methods::new("LeakFit",
+    splits = splits, metrics = mdf, metric_summary = data.frame(),
+    audit = data.frame(), predictions = preds, preprocess = list(),
+    learners = list(), outcome = "y", task = "binomial",
+    feature_names = character(0L), info = list()
+  )
+  fit_good <- .make_dlsi_fit(c(0.6, 0.65), n_obs = 30L, n_repeats = 1L)
+
+  # Should not crash; falls back to prediction-based metric recomputation
+  expect_no_error(suppressWarnings(
+    delta_lsi(fit_bad, fit_good, metric = "auc")
+  ))
+})
+
 test_that("auto-detect higher_is_better = FALSE for rmse via metric name", {
   # When metric name contains 'rmse', auto-detection gives higher_is_better = FALSE
   # We test this via info slot; the actual metric lookup falls back to predictions
