@@ -8,7 +8,7 @@
 In scope:
 - Preprocessing leakage: global imputation, scaling, filtering, or feature selection applied before resampling.
 - Dependence leakage: repeated measures, subject-level grouping, batch/site/study effects, and near-duplicate samples.
-- Resampling violations: group overlap, study holdout, and time-ordered evaluation.
+- Resampling violations: group overlap, study holdout, time-ordered evaluation, and multi-axis split constraints.
 - Diagnostic evidence: permutation-based performance gaps, batch/fold association tests, target leakage scans, and duplicate detection.
 
 Out of scope:
@@ -21,12 +21,14 @@ Out of scope:
 Standard cross-validation assumes independent samples and exchangeable labels. Biomedical datasets often violate these assumptions due to repeated measures, site effects, batch structure, and temporal dependence. These violations can inflate performance metrics even when a model does not generalize. `bioLeak` enforces leakage-aware resampling and provides post-hoc diagnostics that estimate how much apparent performance could be driven by leakage or confounding.
 
 ## Core functionality
-- Leakage-aware splitting (`make_split_plan`): subject-grouped, batch-blocked, study leave-out, and time-series splits with reproducible metadata.
-- Guarded preprocessing and fitting (`fit_resample`): train-only imputation, normalization, filtering, and feature selection; excludes split-defining columns from predictors; supports parsnip specs and built-in learners; returns per-fold metrics and predictions for instability checks.
+- Leakage-aware splitting (`make_split_plan`): subject-grouped, batch-blocked, study leave-out, time-series, and combined N-axis splits with reproducible metadata.
+- Split validation (`check_split_overlap`): explicit overlap checks across declared grouping axes; also run automatically in strict mode for standard split objects.
+- Guarded preprocessing and fitting (`fit_resample`): train-only winsorization, imputation, normalization, filtering, and feature selection; excludes split-defining columns from predictors; supports parsnip specs and built-in learners; returns per-fold metrics and predictions for instability checks.
 - Multiclass and survival modeling support in `fit_resample` with task-appropriate metrics (accuracy/macro-F1/log-loss; C-index).
 - Leak-safe hyperparameter tuning (`tune_resample`): nested CV with tidymodels tune/dials using leakage-aware splits.
 - Guarded vs leaky comparisons: run the same model with an intentionally leaky comparator (for example, global preprocessing or leaky features) to estimate performance inflation risk.
-- Leakage diagnostics (`audit_leakage`): permutation gap for signal vs permuted labels, batch/study association tests, target leakage scan on `X_ref`, and near-duplicate detection.
+- Leakage diagnostics (`audit_leakage`): permutation gap for signal vs permuted labels, batch/study association tests, univariate and multivariate target leakage scans on `X_ref`, near-duplicate detection, and mechanism-level risk summaries.
+- Audit metadata: mechanism taxonomy (`mechanism_class`, `taxonomy`, `mechanism_summary`) plus FDR-aware target-scan outputs (`p_value_adj`, `flag_fdr`) for more explicit evidence attribution.
 - Diagnostics polish: calibration checks (`calibration_summary`, `plot_calibration`) and confounder sensitivity (`confounder_sensitivity`, `plot_confounder_sensitivity`).
 - Simulation benchmark matrix (`benchmark_leakage_suite`): reproducible modality-by-leakage scenario grids with detection-rate summaries.
 - Reporting (`audit_report`): HTML summary of audit results for sharing and review.
@@ -158,6 +160,7 @@ Interpretation notes:
 - `fit_resample()` accepts `rsample` rset/rsplit objects as `splits`.
 - `as_rsample()` converts `LeakSplits` to an `rsample` rset.
 - `preprocess` can be a `recipes::recipe` (prepped on training folds, baked on test folds).
+- `guard_to_recipe()` converts guarded preprocessing specifications into a `recipes` pipeline when you want a recipe-backed workflow.
 - `learner` can be a `workflows::workflow`.
 - `metrics` accepts `yardstick::metric_set` objects.
 Note: When using recipes/workflows, the built-in guarded preprocessing list is not applied; ensure your recipe is leakage-safe.
@@ -196,8 +199,9 @@ if (requireNamespace("rsample", quietly = TRUE) &&
 ## Interpretation guidance
 - Permutation gap: large positive gaps indicate non-random signal; they do not by themselves indicate or refute leakage.
 - Batch/study association warnings indicate that folds align with metadata; this can reflect leakage or study design constraints.
-- Target leakage flags identify features overly aligned with the outcome; inspect data provenance before removing them.
+- Target leakage flags identify features overly aligned with the outcome; inspect data provenance before removing them. When enabled, FDR-adjusted columns (`p_value_adj`, `flag_fdr`) provide a more conservative screen.
 - Duplicate detection flags near-identical samples across train/test by default; use `duplicate_scope = "all"` to include within-fold duplicates and review for data-quality issues.
+- `audit@info$mechanism_summary` provides a compact mechanism-level risk view across permutation, confounding, target-proxy, duplicate, and temporal signals.
 
 Common misinterpretations:
 - "Non-significant permutation test means no leakage": false.
@@ -205,7 +209,7 @@ Common misinterpretations:
 - "No flagged features means no leakage": false; audits are limited to available metadata and `X_ref`.
 
 ## Project status and intended audience
-Status: experimental (version 0.3.0). APIs and defaults may change.
+Status: experimental. APIs and defaults may change.
 Intended audience: biomedical ML researchers, biostatisticians, and methodologists reviewing cross-validation and leakage risk.
 
 ## Citation and reproducibility
