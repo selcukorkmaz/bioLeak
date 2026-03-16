@@ -35,7 +35,10 @@
       "Bash(where R:*)",
       "Bash(R CMD:*)",
       "Bash(grep -n \"ttest\\\\|top_k\\\\|method.*ttest\\\\|feature.*select\" /Users/selcuk/Documents/GitHub/bioLeak/R/guards.R 2>/dev/null | head -20\ngrep -n \"ttest\\\\|top_k\" /Users/selcuk/Documents/GitHub/bioLeak/R/impute_guarded.R 2>/dev/null | head -10)",
-      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R CMD:*)"
+      "Bash(_R_CHECK_FORCE_SUGGESTS_=false R CMD:*)",
+      "Bash(find:*)",
+      "Bash(2)",
+      "Bash(cd:*)"
     ]
   }
 }

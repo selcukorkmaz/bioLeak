@@ -275,34 +275,50 @@
           }
         },
         batch_blocked = {
-          batch_vals <- NULL
-          if (!is.null(batch_col) && batch_col %in% names(cd)) batch_vals <- cd[[batch_col]]
-          if (is.null(batch_vals) && "batch" %in% names(cd)) batch_vals <- cd[["batch"]]
-          if (is.null(batch_vals)) stop("Batch column not found for batch_blocked mode.")
-          if (isTRUE(verbose)) {
-            ktab <- table(batch_vals[te_idx])
-            if (any(ktab == 1L)) {
-              message("[permute_labels] Note: ", sum(ktab == 1L),
-                      " batch level(s) in this fold have only one sample; permutation within those is identity.")
+          # For perm_refit=FALSE predictions are fixed; simple shuffle gives the
+          # correct null.  Restricted within-batch permutation with stratification
+          # collapses to the identity when each test fold is a single batch
+          # (because shuffling within batch × outcome cells changes nothing).
+          if (!isTRUE(perm_refit)) {
+            sample(y_all[te_idx])
+          } else {
+            batch_vals <- NULL
+            if (!is.null(batch_col) && batch_col %in% names(cd)) batch_vals <- cd[[batch_col]]
+            if (is.null(batch_vals) && "batch" %in% names(cd)) batch_vals <- cd[["batch"]]
+            if (is.null(batch_vals)) stop("Batch column not found for batch_blocked mode.")
+            if (isTRUE(verbose)) {
+              ktab <- table(batch_vals[te_idx])
+              if (any(ktab == 1L)) {
+                message("[permute_labels] Note: ", sum(ktab == 1L),
+                        " batch level(s) in this fold have only one sample; permutation within those is identity.")
+              }
             }
+            .permute_within_batch(y_all[te_idx], batch_vals[te_idx],
+                                  strata = if (!is.null(strata_vec)) strata_vec[te_idx] else NULL)
           }
-          .permute_within_batch(y_all[te_idx], batch_vals[te_idx],
-                                strata = if (!is.null(strata_vec)) strata_vec[te_idx] else NULL)
         },
         study_loocv = {
-          study_vals <- NULL
-          if (!is.null(study_col) && study_col %in% names(cd)) study_vals <- cd[[study_col]]
-          if (is.null(study_vals) && "study" %in% names(cd)) study_vals <- cd[["study"]]
-          if (is.null(study_vals)) stop("Study column not found for study_loocv mode.")
-          if (isTRUE(verbose)) {
-            ktab <- table(study_vals[te_idx])
-            if (any(ktab == 1L)) {
-              message("[permute_labels] Note: ", sum(ktab == 1L),
-                      " study level(s) in this fold have only one sample; permutation within those is identity.")
+          # For perm_refit=FALSE predictions are fixed; simple shuffle gives the
+          # correct null.  Restricted within-study permutation with stratification
+          # collapses to the identity when each test fold is a single study
+          # (because shuffling within study × outcome cells changes nothing).
+          if (!isTRUE(perm_refit)) {
+            sample(y_all[te_idx])
+          } else {
+            study_vals <- NULL
+            if (!is.null(study_col) && study_col %in% names(cd)) study_vals <- cd[[study_col]]
+            if (is.null(study_vals) && "study" %in% names(cd)) study_vals <- cd[["study"]]
+            if (is.null(study_vals)) stop("Study column not found for study_loocv mode.")
+            if (isTRUE(verbose)) {
+              ktab <- table(study_vals[te_idx])
+              if (any(ktab == 1L)) {
+                message("[permute_labels] Note: ", sum(ktab == 1L),
+                        " study level(s) in this fold have only one sample; permutation within those is identity.")
+              }
             }
+            .permute_within_study(y_all[te_idx], study_vals[te_idx],
+                                  strata = if (!is.null(strata_vec)) strata_vec[te_idx] else NULL)
           }
-          .permute_within_study(y_all[te_idx], study_vals[te_idx],
-                                strata = if (!is.null(strata_vec)) strata_vec[te_idx] else NULL)
         },
         time_series = {
           time_vals <- time_vec[te_idx]
