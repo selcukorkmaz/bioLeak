@@ -5,6 +5,10 @@
 <!-- badges: start -->
 [![CRAN status](https://www.r-pkg.org/badges/version/bioLeak)](https://CRAN.R-project.org/package=bioLeak)
 [![R-CMD-check](https://github.com/selcukorkmaz/bioLeak/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/selcukorkmaz/bioLeak/actions/workflows/R-CMD-check.yaml)
+[![Codecov](https://codecov.io/gh/selcukorkmaz/bioLeak/branch/main/graph/badge.svg)](https://codecov.io/gh/selcukorkmaz/bioLeak)
+[![CRAN downloads](https://cranlogs.r-pkg.org/badges/grand-total/bioLeak)](https://CRAN.R-project.org/package=bioLeak)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Lifecycle: stable](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
 <!-- badges: end -->
 
 `bioLeak` is an R package for detecting, quantifying, and diagnosing data leakage in biomedical machine-learning workflows. It provides leakage-resistant resampling, guarded preprocessing, post-hoc auditing, and inference tools for cross-validation and related evaluation settings.
