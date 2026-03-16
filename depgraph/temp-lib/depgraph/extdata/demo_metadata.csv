@@ -1,4 +1,0 @@
-sample_id,subject_id,batch_id,study_id,timepoint_id,assay_id,featureset_id,outcome_id
-S1,P1,B1,ST1,T0,RNAseq,FS_RNA_V1,Case
-S2,P1,B2,ST1,T1,RNAseq,FS_RNA_V1,Case
-S3,P2,B1,ST1,T0,RNAseq,FS_RNA_V1,Control
