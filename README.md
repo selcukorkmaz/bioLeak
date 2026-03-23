@@ -46,8 +46,8 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 | Function | Description |
 |---|---|
 | `fit_resample()` | Cross-validated fitting with train-only imputation, normalization, filtering, and feature selection; supports binomial, multiclass, regression, and survival tasks |
-| `tune_resample()` | Nested hyperparameter tuning via tidymodels `tune`/`dials` with leakage-aware outer splits and hyperparameter aggregation across folds |
-| `impute_guarded()` | Standalone train-only imputation (median, knn, missForest, mice) |
+| `tune_resample()` | Nested hyperparameter tuning via tidymodels `tune`/`dials` with leakage-aware outer splits and hyperparameter aggregation across folds; survival tasks are not yet supported |
+| `impute_guarded()` | Standalone train-only imputation (median, knn, missForest, none) |
 | `guard_to_recipe()` | Convert guarded preprocessing specifications to `recipes` pipelines |
 
 ### Auditing and diagnostics
@@ -238,12 +238,14 @@ if (requireNamespace("rsample", quietly = TRUE) &&
 ## Supported tasks and learners
 
 `bioLeak` supports four task types:
-- **Binomial classification** (metrics: AUC, accuracy, Brier score, log-loss, sensitivity, specificity, F1, with optional threshold tuning)
-- **Multiclass classification** (metrics: accuracy, macro-F1, log-loss)
-- **Regression** (metrics: RMSE, MAE, R-squared)
-- **Survival analysis** (metric: C-index)
+- **Binomial classification**: built-in character metrics are `auc`, `pr_auc`, and `accuracy`; additional metrics can be supplied via `yardstick::metric_set` when supported by the learner outputs.
+- **Multiclass classification**: built-in character metrics are `accuracy`, `macro_f1`, and `log_loss`.
+- **Regression**: built-in character metrics are `rmse` and `cindex`.
+- **Survival analysis**: built-in character metric is `cindex` in `fit_resample()`.
 
-The `learner` argument accepts parsnip model specs, workflows, or built-in learner strings (`"glm"`, `"glmnet"`, `"ranger"`, `"xgboost"`).
+The `learner` argument accepts parsnip model specs, workflows, or built-in learner strings (`"glmnet"`, `"ranger"`). Models such as base R `glm` or `xgboost` can still be used through parsnip/workflows or custom learners, but they are not built-in character learner names.
+
+Survival outcomes are supported in `fit_resample()`, but support is less complete across the package. In particular, `tune_resample()` does not yet support survival tasks.
 
 ## Methodological assumptions
 
