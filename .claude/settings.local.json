@@ -38,7 +38,13 @@
       "Bash(_R_CHECK_FORCE_SUGGESTS_=false R CMD:*)",
       "Bash(find:*)",
       "Bash(2)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(pdflatex -interaction=nonstopmode manuscript_jss.tex)",
+      "Bash(pdflatex -interaction=batchmode manuscript_jss.tex)",
+      "Bash(bibtex manuscript_jss)",
+      "Read(//c/Users/Selçuk/Documents/GitHub/bioLeak/**)",
+      "Bash(bash /tmp/check_manuscript.sh)",
+      "Bash(FILE=\"/c/Users/Selçuk/Documents/GitHub/bioLeak/paper/manuscript_jss.tex\" echo \"=== Final Verification ===\" echo \"\" echo \"Key sections present:\" grep -i \"section.*Introduction\" \"$FILE\")"
     ]
   }
 }

@@ -8,6 +8,14 @@
 %% new custom commands
 \newcommand{\class}[1]{`\code{#1}'}
 \newcommand{\fct}[1]{\code{#1()}}
+\newcommand{\placeholder}[1]{%
+  \ifmmode
+    \text{\texttt{\detokenize{[#1]}}}%
+  \else
+    \texttt{\detokenize{[#1]}}%
+  \fi
+}
+
 
 %% -- Article metainformation (author, title, ...) -----------------------------
 
@@ -152,7 +160,7 @@ leakage or confounding. The package therefore combines leakage-aware split
 plans, guarded preprocessing, cross-validated fitting, nested tuning,
 post-fitting audits, and reporting utilities in a single \proglang{R} workflow. The
 package is designed for practical use with tabular biomedical data and
-\texttt{SummarizedExperiment} objects, and it interoperates with common \proglang{R}
+\texttt{SummarizedExperiment} objects, and it interoperates with common R
 modeling infrastructure such as \texttt{parsnip}, \texttt{recipes},
 \texttt{workflows}, \texttt{yardstick}, and \texttt{rsample}.
 
@@ -251,7 +259,7 @@ matching rules, and thresholds \citep{winkler1999, christen2012, leskovec2014}.
 \section[Overview of the bioLeak Package]{Overview of the \texttt{bioLeak} Package}
 
 The package is organized around four design goals: leakage-aware modeling,
-reproducible workflows, diagnostic auditing, and compatibility with common \proglang{R}
+reproducible workflows, diagnostic auditing, and compatibility with common R
 modeling tools. The software focuses on biomedical prediction studies in which
 the user already has a labeled dataset and wants to evaluate whether reported
 performance may depend on leakage or confounding.
@@ -321,7 +329,7 @@ Auditing is provided by \texttt{audit\_leakage()}, which returns a
 association tests for batch or study metadata, target-leakage scans on a
 reference feature matrix, duplicate detection, and a compact mechanism-level
 summary stored in the object metadata. \texttt{audit\_report()} renders these
-results to a self-contained HTML report based on a bundled \proglang{R} Markdown template.
+results to a self-contained HTML report based on a bundled R Markdown template.
 For direct inflation comparisons between a naive and a guarded pipeline, the
 package also provides \texttt{delta\_lsi()}, which returns a
 \texttt{LeakDeltaLSI} object summarizing repeat-level performance differences,
@@ -998,8 +1006,8 @@ The clean baseline in \texttt{sim\_results\_all.rds} provides a direct check of
 the permutation-gap procedure under $s = 0$ and no injected leakage. Across all
 feature dimensions and sample sizes, the proportion of baseline runs with
 $p < 0.05$ was $6.7\%$. Broken down by sample size, the corresponding values
-were $10.0\%$ for $n = 100$, $8.3\%$ for $n = 250$, $1.7\%$ for $n = 500$, and
-$6.7\%$ for $n = 1000$. These figures are slightly variable around the nominal
+were $\placeholder{TYPE_I_N100}\%$ for $n = 100$, $\placeholder{TYPE_I_N250}\%$ for $n = 250$, $\placeholder{TYPE_I_N500}\%$ for $n = 500$, and
+$\placeholder{TYPE_I_N1000}\%$ for $n = 1000$. These figures are slightly variable around the nominal
 level, as expected with only twenty seeds per configuration, but they do not
 suggest a systematic failure of the stored null runs.
 
@@ -1008,7 +1016,7 @@ usually significant. However, with \texttt{perm\_refit = FALSE} the
 permutation-gap test detects prediction-label association rather than leakage
 specifically. Crucially, the clean baseline (\texttt{none}) also rejects at
 high rates when real signal is present: 84.4\% overall at $s > 0$,
-reaching $99\%$ at $n = 500$ and $100\%$ at $n = 1000$.
+reaching 0.99 at $n = 500$ and 1.00 at $n = 1000$.
 Table~\ref{tab:sim-power} includes this baseline alongside the leakage-injected
 runs so that the increment attributable to leakage is visible. Pooled over
 feature dimension and the two positive signal levels, the weakest leaky setting
@@ -1098,7 +1106,6 @@ produces the largest inflation, whereas the look-ahead construction yields the
 smallest average AUC increase. This difference is attributable to the
 particular manuscript design in \texttt{paper/run\_simulation.R}; it should not
 be read as a universal ranking of leakage severity.
-Figure~\ref{fig:sim-main} summarizes these patterns graphically.
 
 \begin{figure}[tbp]
 \centering
@@ -1181,7 +1188,7 @@ statistic. The $s = 0$ results confirm that the multivariate scan has genuine
 leakage-detection power when confounding with real signal is removed.
 Nonetheless, the univariate and multivariate scans should be interpreted
 jointly, and with knowledge of the reference matrix supplied to
-\texttt{X\_ref}. Figure~\ref{fig:sim-target} visualizes these results.
+\texttt{X\_ref}.
 
 \begin{figure}[tbp]
 \centering
@@ -1294,7 +1301,7 @@ This result is important for interpretation. It suggests that leakage-aware
 study holdout alone does not guarantee independence when public data resources
 contain replicated or near-replicated samples across studies. The duplicate
 screen therefore contributes information that is not captured by the resampling
-policy itself. Figure~\ref{fig:case-study} presents these summaries graphically.
+policy itself.
 
 \begin{figure}[tbp]
 \centering
@@ -1308,8 +1315,7 @@ cross-fold pair counts.}
 
 To quantify the AUC difference more formally, we applied \texttt{delta\_lsi()}
 to the paired fits (both evaluated on the same batch-blocked fold structure with
-20 repeats, as documented in \texttt{paper/run\_delta\_lsi.R}).
-The arithmetic mean inflation was $\widehat{\Delta}_{\mathrm{metric}}
+20 repeats, as documented in \texttt{paper/run\_delta\_lsi.R}). The arithmetic mean inflation was $\widehat{\Delta}_{\mathrm{metric}}
 = 0.085$ AUC, and the robust Huber estimate was
 $\widehat{\Delta}_{\mathrm{LSI}} = 0.085$ AUC, with a $95\%$ BCa
 bootstrap interval of $[0.078,\; 0.091]$. The sign-flip
@@ -1318,7 +1324,7 @@ naive pipeline exhibits
 systematic performance inflation relative to the guarded one. This pairing is
 important: because the naive and guarded pipelines share the same fold
 assignments, the repeat-level differences isolate the effect of leakage
-controls from the variance of fold sampling. Full \texttt{summary()} output
+controls from the variance of fold sampling.  Full \texttt{summary()} output
 for the \texttt{LeakDeltaLSI} object is reproduced in
 Appendix~\ref{app:delta-lsi}.
 
@@ -1415,7 +1421,7 @@ basic workflows even when some optional tools are not installed.
 
 \subsection{Relationship to existing software}
 
-\texttt{bioLeak} is not a general replacement for \proglang{R} machine-learning
+\texttt{bioLeak} is not a general replacement for R machine-learning
 frameworks such as \texttt{caret}, \texttt{tidymodels}, or \texttt{mlr3}. Its
 role is narrower and complementary. Those frameworks provide broad model
 interfaces, preprocessing tools, and resampling utilities. \texttt{bioLeak}
@@ -1547,7 +1553,6 @@ The author thanks the anonymous reviewers for constructive feedback.
 
 %% -- Appendix -----------------------------------------------------------------
 
-\appendix
 \newpage
 
 \section[Delta LSI Case Study Output]{Delta LSI Case Study Output}
@@ -1576,7 +1581,7 @@ Sign-flip test:
 \end{CodeOutput}
 
 \noindent
-The inference tier is \texttt{A\_full\_inference} because 20 repeats are
+The inference tier is \texttt{A_full_inference} because 20 repeats are
 sufficient for the sign-flip randomization test and BCa bootstrap intervals
 ($\geq 20$ repeats yield tier~A full inference).
 
