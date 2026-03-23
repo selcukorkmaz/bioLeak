@@ -125,11 +125,11 @@ cat(sprintf("Already completed: %d | Remaining: %d\n", n_done, n_remaining))
 if (n_remaining == 0L) {
   cat("All tasks already checkpointed. Assembling results...\n")
 } else {
-  ## ── Chunk remaining tasks: 1 task per chunk for fine-grained balancing ──
-  ## With future_lapply, the scheduler feeds chunks to idle workers on demand,
-  ## so 1-task chunks give the best load balancing with no extra overhead.
-  ## For very large runs, group into small batches to reduce scheduling cost.
-  tasks_per_chunk <- if (n_remaining > 2000L) 5L else 1L
+  ## ── Chunk remaining tasks into batches ─────────────────────────────────
+  ## Keep total chunk count modest (≤ ~100) to avoid exhausting macOS file
+  ## descriptors — each future uses inter-process connections that count
+  ## against the OS open-file limit (default 256 on macOS).
+  tasks_per_chunk <- max(5L, ceiling(n_remaining / 100L))
   chunk_ids <- split(remaining_idx,
                      ceiling(seq_along(remaining_idx) / tasks_per_chunk))
   cat(sprintf("Chunks: %d of ~%d task(s) each\n\n", length(chunk_ids),
@@ -294,7 +294,10 @@ for (i in seq_len(n_tasks)) {
   ckpt_key <- tasks$ckpt_key[i]
   ckpt_file <- file.path(ckpt_dir, sprintf("task_%s.rds", ckpt_key))
   if (file.exists(ckpt_file)) {
-    result_list[[i]] <- readRDS(ckpt_file)
+    result_list[[i]] <- tryCatch(readRDS(ckpt_file), error = function(e) {
+      warning(sprintf("Skipping corrupted checkpoint: %s (%s)", ckpt_file, e$message))
+      NULL
+    })
   }
 }
 result_list <- Filter(Negate(is.null), result_list)

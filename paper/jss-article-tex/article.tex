@@ -3,7 +3,12 @@
 %% -- LaTeX packages and custom commands ---------------------------------------
 
 %% recommended packages
-\usepackage{orcidlink,thumbpdf,lmodern}
+\IfFileExists{orcidlink.sty}{%
+  \usepackage{orcidlink}%
+}{%
+  \newcommand{\orcidlink}[1]{\href{https://orcid.org/##1}{\textsuperscript{[ORCID]}}}%
+}
+\usepackage{thumbpdf,lmodern}
 
 %% another package (only for this demo article)
 \usepackage{framed}

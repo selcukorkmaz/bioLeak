@@ -42,27 +42,41 @@ if (nrow(type1_by_n) > 0) {
   TYPE_I_LO <- TYPE_I_HI <- "NA"
 }
 
-## ---------------------------------------------------------------
-## 3. Detection power (Table 2)
-## ---------------------------------------------------------------
-## Use s>0 data for detection power — at s=0, some leakage types
-## (e.g., lookahead) are correctly undetectable, which would dilute power.
-leaky <- sim[sim$leakage != "none" & sim$s > 0, ]
+## Per-n Type I error rates
+get_type1_n <- function(n_val) {
+  x <- type1_by_n$type1_rate[type1_by_n$n == n_val]
+  if (length(x) == 0) return("NA")
+  sprintf("%.1f", x)
+}
+TYPE_I_N100  <- get_type1_n(100)
+TYPE_I_N250  <- get_type1_n(250)
+TYPE_I_N500  <- get_type1_n(500)
+TYPE_I_N1000 <- get_type1_n(1000)
 
-## Power pooled across p and s>0, by leakage and n
+## ---------------------------------------------------------------
+## 3. Permutation-gap rejection rates (Table 2) and baselines
+## ---------------------------------------------------------------
+## NOTE: With perm_refit=FALSE, the permutation-gap test detects
+## prediction-label association — not leakage specifically. At s>0,
+## even the clean "none" condition rejects at high rates because the
+## model exploits genuine signal. We report:
+##   (a) s>0 rejection rates for all leakage types (Table 2)
+##   (b) "none" baseline at s>0 (Table 2, for comparison)
+##   (c) s=0 rejection rates (leakage-specific, since signal is absent)
+
+## 3a. s>0 rejection rates by leakage and n
+leaky <- sim[sim$leakage != "none" & sim$s > 0, ]
 power_table <- aggregate(
   p_value ~ leakage + n, data = leaky,
   FUN = function(x) mean(x < 0.05)
 )
 names(power_table)[3] <- "power"
 
-## Reshape to wide format
 power_wide <- reshape(power_table, idvar = "leakage", timevar = "n",
                       direction = "wide")
-cat("\nDetection power (proportion p < 0.05):\n")
+cat("\nPermutation-gap rejection rates (s > 0):\n")
 print(power_wide)
 
-## Extract individual cells
 get_power <- function(lk, n_val) {
   x <- power_table[power_table$leakage == lk & power_table$n == n_val, "power"]
   if (length(x) == 0) return("NA")
@@ -88,6 +102,55 @@ TL_100  <- get_power("lookahead", 100)
 TL_250  <- get_power("lookahead", 250)
 TL_500  <- get_power("lookahead", 500)
 TL_1000 <- get_power("lookahead", 1000)
+
+## 3b. "none" baseline at s>0 (clean pipeline, real signal present)
+none_sig <- sim[sim$leakage == "none" & sim$s > 0, ]
+none_baseline <- aggregate(p_value ~ n, data = none_sig,
+                           FUN = function(x) mean(x < 0.05))
+names(none_baseline)[2] <- "reject"
+NONE_OVERALL <- sprintf("%.1f", mean(none_sig$p_value < 0.05) * 100)
+NONE_100  <- sprintf("%.2f", none_baseline$reject[none_baseline$n == 100])
+NONE_250  <- sprintf("%.2f", none_baseline$reject[none_baseline$n == 250])
+NONE_500  <- sprintf("%.2f", none_baseline$reject[none_baseline$n == 500])
+NONE_1000 <- sprintf("%.2f", none_baseline$reject[none_baseline$n == 1000])
+
+cat(sprintf("\nNone baseline at s>0: overall=%.1f%%, by n: %s %s %s %s\n",
+            mean(none_sig$p_value < 0.05) * 100,
+            NONE_100, NONE_250, NONE_500, NONE_1000))
+
+## 3c. s=0 leakage-specific detection (no real signal present)
+s0_leaky <- sim[sim$s == 0 & sim$leakage != "none", ]
+s0_power <- aggregate(p_value ~ leakage + n, data = s0_leaky,
+                      FUN = function(x) mean(x < 0.05))
+names(s0_power)[3] <- "power"
+cat("\nLeakage-specific detection at s=0:\n")
+print(reshape(s0_power, idvar = "leakage", timevar = "n", direction = "wide"))
+
+get_s0 <- function(lk, n_val) {
+  x <- s0_power[s0_power$leakage == lk & s0_power$n == n_val, "power"]
+  if (length(x) == 0) return("NA")
+  sprintf("%.2f", x)
+}
+
+S0_SO_100  <- get_s0("subject_overlap", 100)
+S0_SO_250  <- get_s0("subject_overlap", 250)
+S0_SO_500  <- get_s0("subject_overlap", 500)
+S0_SO_1000 <- get_s0("subject_overlap", 1000)
+
+S0_BC_100  <- get_s0("batch_confounded", 100)
+S0_BC_250  <- get_s0("batch_confounded", 250)
+S0_BC_500  <- get_s0("batch_confounded", 500)
+S0_BC_1000 <- get_s0("batch_confounded", 1000)
+
+S0_PP_100  <- get_s0("peek_norm", 100)
+S0_PP_250  <- get_s0("peek_norm", 250)
+S0_PP_500  <- get_s0("peek_norm", 500)
+S0_PP_1000 <- get_s0("peek_norm", 1000)
+
+S0_TL_100  <- get_s0("lookahead", 100)
+S0_TL_250  <- get_s0("lookahead", 250)
+S0_TL_500  <- get_s0("lookahead", 500)
+S0_TL_1000 <- get_s0("lookahead", 1000)
 
 ## Minimum power at s=2.0, n>=500
 high_s <- sim[sim$leakage != "none" & sim$s == 2.0 & sim$n >= 500, ]
@@ -135,14 +198,34 @@ if (file.exists(mode_file)) {
   mode_results <- readRDS(mode_file)
   mode_results <- mode_results[!is.na(mode_results$metric_obs), ]
 
+  ## Use s=0 rows if available (leakage-specific); fall back to all rows
+  if ("s" %in% names(mode_results)) {
+    mode_s0 <- mode_results[mode_results$s == 0, ]
+    cat(sprintf("\nSplitting modes: %d rows total, %d at s=0\n",
+                nrow(mode_results), nrow(mode_s0)))
+  } else {
+    mode_s0 <- mode_results
+    cat("\nSplitting modes: legacy format (no s column), using all rows\n")
+  }
+
   ## Exclude "none" — it's the clean baseline, not a leakage type
-  mode_leaky <- mode_results[mode_results$leakage != "none", ]
+  mode_leaky <- mode_s0[mode_s0$leakage != "none", ]
 
   mode_power <- aggregate(p_value ~ mode + leakage, data = mode_leaky,
                           FUN = function(x) mean(x < 0.05))
   names(mode_power)[3] <- "power"
-  cat("\nSplitting mode power:\n")
+  cat("\nSplitting mode detection (s=0, leakage-specific):\n")
   print(reshape(mode_power, idvar = "mode", timevar = "leakage", direction = "wide"))
+
+  ## Also check "none" baseline at s=0
+  mode_none <- mode_s0[mode_s0$leakage == "none", ]
+  if (nrow(mode_none) > 0) {
+    none_by_mode <- aggregate(p_value ~ mode, data = mode_none,
+                              FUN = function(x) mean(x < 0.05) * 100)
+    names(none_by_mode)[2] <- "reject_pct"
+    cat("\nNone baseline by mode (s=0):\n")
+    print(none_by_mode)
+  }
 
   get_mode_power <- function(md, lk) {
     x <- mode_power[mode_power$mode == md & mode_power$leakage == lk, "power"]
@@ -180,12 +263,28 @@ if (file.exists(mode_file)) {
 ## ---------------------------------------------------------------
 ## 6. Target leakage scan
 ## ---------------------------------------------------------------
+## The target scan now runs at both s=0 and s=1.0.
+## Use s=0 for leakage-detection metrics: at s=0 the real features are
+## pure noise, so the ONLY source of target association is the leak feature.
+## This lets us properly evaluate what the scan can and cannot catch.
+## At s=1.0, the multivariate scan always rejects (real signal dominates),
+## so those results are not leakage-specific.
 scan_file <- file.path(base_dir, "sim_results", "supplementary_target_scan.rds")
 if (file.exists(scan_file)) {
   scan_results <- readRDS(scan_file)
 
+  ## Select s=0 rows if the s column exists (backward compatible)
+  if ("s" %in% names(scan_results)) {
+    scan_s0 <- scan_results[scan_results$s == 0, ]
+    cat(sprintf("\nTarget scan: %d rows total, %d at s=0\n",
+                nrow(scan_results), nrow(scan_s0)))
+  } else {
+    scan_s0 <- scan_results
+    cat("\nTarget scan: legacy format (no s column), using all rows\n")
+  }
+
   ## Univariate detection rate (leak feature flagged) across all leakage types
-  scan_leaky <- scan_results[scan_results$leakage != "none", ]
+  scan_leaky <- scan_s0[scan_s0$leakage != "none", ]
   UNI_DETECT <- sprintf("%.0f", mean(scan_leaky$leak_feature_flagged, na.rm = TRUE) * 100)
 
   ## By type
@@ -199,7 +298,7 @@ if (file.exists(scan_file)) {
   UNI_SO <- get_uni("subject_overlap")
   UNI_PP <- get_uni("peek_norm")
 
-  ## Multivariate detection rate
+  ## Multivariate detection rate (leaky conditions at s=0)
   multi_valid <- scan_leaky$multivariate_p[!is.na(scan_leaky$multivariate_p)]
   if (length(multi_valid) > 0) {
     multi_detect <- mean(multi_valid < 0.05) * 100
@@ -208,11 +307,21 @@ if (file.exists(scan_file)) {
     MULTI_DETECT <- "NA"
   }
 
-  cat(sprintf("\nTarget scan: univariate=%s%%, multivariate=%s%%\n", UNI_DETECT, MULTI_DETECT))
+  ## Multivariate false-positive rate ("none" at s=0 — honest null baseline)
+  scan_none <- scan_s0[scan_s0$leakage == "none", ]
+  multi_none_p <- scan_none$multivariate_p[!is.na(scan_none$multivariate_p)]
+  if (length(multi_none_p) > 0) {
+    MULTI_NONE <- sprintf("%.0f", mean(multi_none_p < 0.05) * 100)
+  } else {
+    MULTI_NONE <- "NA"
+  }
+
+  cat(sprintf("\nTarget scan (s=0): univariate=%s%%, multivariate=%s%% (none baseline=%s%%)\n",
+              UNI_DETECT, MULTI_DETECT, MULTI_NONE))
   cat(sprintf("  SO=%s%%, PP=%s%%\n", UNI_SO, UNI_PP))
 } else {
   cat("\nWARNING: Target scan results not found. Using placeholders.\n")
-  UNI_DETECT <- MULTI_DETECT <- UNI_SO <- UNI_PP <- "NA"
+  UNI_DETECT <- MULTI_DETECT <- UNI_SO <- UNI_PP <- MULTI_NONE <- "NA"
 }
 
 ## ---------------------------------------------------------------
@@ -306,7 +415,70 @@ if (file.exists(cs_file)) {
 }
 
 ## ---------------------------------------------------------------
-## 8. Output placeholder mapping
+## 8. Delta LSI (case study + simulation)
+## ---------------------------------------------------------------
+## 8a. Case study delta_lsi (appended to casestudy_results.rds by run_delta_lsi.R)
+if (file.exists(cs_file)) {
+  cs <- readRDS(cs_file)
+  if (!is.null(cs$delta_lsi)) {
+    dl <- cs$delta_lsi
+    DLSI_METRIC  <- sprintf("%.3f", dl$delta_metric)
+    DLSI_ROBUST  <- sprintf("%.3f", dl$delta_lsi_robust)
+    DLSI_PVAL    <- if (!is.null(dl$p_value) && is.finite(dl$p_value)) {
+      if (dl$p_value < 0.001) "< 0.001" else sprintf("= %.4f", dl$p_value)
+    } else "NA"
+    DLSI_TIER    <- if (!is.null(dl$tier)) as.character(dl$tier) else "NA"
+    DLSI_REFF    <- if (!is.null(dl$n_repeats)) as.character(dl$n_repeats) else "NA"
+    DLSI_CI_LO   <- if (!is.null(dl$ci_lsi) && length(dl$ci_lsi) == 2 && all(is.finite(dl$ci_lsi)))
+      sprintf("%.3f", dl$ci_lsi[1]) else "NA"
+    DLSI_CI_HI   <- if (!is.null(dl$ci_lsi) && length(dl$ci_lsi) == 2 && all(is.finite(dl$ci_lsi)))
+      sprintf("%.3f", dl$ci_lsi[2]) else "NA"
+
+    cat(sprintf("\nDelta LSI (case study): metric=%.3f, robust=%.3f, p=%s, tier=%s, R_eff=%s\n",
+                dl$delta_metric, dl$delta_lsi_robust, DLSI_PVAL, DLSI_TIER, DLSI_REFF))
+  } else {
+    cat("\nWARNING: delta_lsi not found in casestudy_results.rds. Run run_delta_lsi.R first.\n")
+    DLSI_METRIC <- DLSI_ROBUST <- DLSI_PVAL <- DLSI_TIER <- DLSI_REFF <- "NA"
+    DLSI_CI_LO <- DLSI_CI_HI <- "NA"
+  }
+} else {
+  DLSI_METRIC <- DLSI_ROBUST <- DLSI_PVAL <- DLSI_TIER <- DLSI_REFF <- "NA"
+  DLSI_CI_LO <- DLSI_CI_HI <- "NA"
+}
+
+## 8b. Delta LSI simulation
+dlsi_sim_file <- file.path(base_dir, "sim_results", "delta_lsi_sim.rds")
+if (file.exists(dlsi_sim_file)) {
+  dlsi_sim <- readRDS(dlsi_sim_file)
+
+  ## Null condition: type I error
+  null_sub <- dlsi_sim[dlsi_sim$leakage == "none" & !is.na(dlsi_sim$p_value), ]
+  if (nrow(null_sub) > 0) {
+    DLSI_SIM_NULL_REJECT <- sprintf("%.1f", mean(null_sub$p_value < 0.05) * 100)
+    DLSI_SIM_NULL_MEAN   <- sprintf("%.4f", mean(null_sub$delta_metric, na.rm = TRUE))
+  } else {
+    DLSI_SIM_NULL_REJECT <- DLSI_SIM_NULL_MEAN <- "NA"
+  }
+
+  ## Alternative condition: power
+  alt_sub <- dlsi_sim[dlsi_sim$leakage == "peek_norm" & !is.na(dlsi_sim$p_value), ]
+  if (nrow(alt_sub) > 0) {
+    DLSI_SIM_ALT_REJECT <- sprintf("%.1f", mean(alt_sub$p_value < 0.05) * 100)
+    DLSI_SIM_ALT_MEAN   <- sprintf("%.4f", mean(alt_sub$delta_metric, na.rm = TRUE))
+  } else {
+    DLSI_SIM_ALT_REJECT <- DLSI_SIM_ALT_MEAN <- "NA"
+  }
+
+  cat(sprintf("\nDelta LSI sim: null reject=%.1f%%, alt reject=%.1f%%\n",
+              as.numeric(DLSI_SIM_NULL_REJECT), as.numeric(DLSI_SIM_ALT_REJECT)))
+} else {
+  cat("\nWARNING: delta_lsi_sim.rds not found. Run run_delta_lsi.R first.\n")
+  DLSI_SIM_NULL_REJECT <- DLSI_SIM_NULL_MEAN <- "NA"
+  DLSI_SIM_ALT_REJECT <- DLSI_SIM_ALT_MEAN <- "NA"
+}
+
+## ---------------------------------------------------------------
+## 9. Output placeholder mapping
 ## ---------------------------------------------------------------
 cat("\n\n======================================================\n")
 cat("PLACEHOLDER -> VALUE MAPPING\n")
@@ -320,8 +492,17 @@ placeholders <- list(
   "[TYPE_I_RATE]" = TYPE_I_RATE,
   "[TYPE_I_LO]" = TYPE_I_LO,
   "[TYPE_I_HI]" = TYPE_I_HI,
+  "[TYPE_I_N100]" = TYPE_I_N100,
+  "[TYPE_I_N250]" = TYPE_I_N250,
+  "[TYPE_I_N500]" = TYPE_I_N500,
+  "[TYPE_I_N1000]" = TYPE_I_N1000,
 
-  ## Section 4.1.2 - Table 2
+  ## Section 4.1.2 - Table 2 (s>0 rejection rates)
+  "[NONE_OVERALL]" = NONE_OVERALL,
+  "[NONE_100]" = NONE_100,
+  "[NONE_250]" = NONE_250,
+  "[NONE_500]" = NONE_500,
+  "[NONE_1000]" = NONE_1000,
   "[SO_100]" = SO_100,
   "[SO_250]" = SO_250,
   "[SO_500]" = SO_500,
@@ -339,6 +520,24 @@ placeholders <- list(
   "[TL_500]" = TL_500,
   "[TL_1000]" = TL_1000,
   "[MIN_POWER_S2]" = MIN_POWER_S2,
+
+  ## Section 4.1.2 - s=0 leakage-specific detection
+  "[S0_SO_100]" = S0_SO_100,
+  "[S0_SO_250]" = S0_SO_250,
+  "[S0_SO_500]" = S0_SO_500,
+  "[S0_SO_1000]" = S0_SO_1000,
+  "[S0_BC_100]" = S0_BC_100,
+  "[S0_BC_250]" = S0_BC_250,
+  "[S0_BC_500]" = S0_BC_500,
+  "[S0_BC_1000]" = S0_BC_1000,
+  "[S0_PP_100]" = S0_PP_100,
+  "[S0_PP_250]" = S0_PP_250,
+  "[S0_PP_500]" = S0_PP_500,
+  "[S0_PP_1000]" = S0_PP_1000,
+  "[S0_TL_100]" = S0_TL_100,
+  "[S0_TL_250]" = S0_TL_250,
+  "[S0_TL_500]" = S0_TL_500,
+  "[S0_TL_1000]" = S0_TL_1000,
 
   ## Section 4.1.3
   "[CLEAN_AUC]" = CLEAN_AUC,
@@ -370,6 +569,7 @@ placeholders <- list(
   "[UNI_SO]" = UNI_SO,
   "[UNI_PP]" = UNI_PP,
   "[MULTI_DETECT]" = MULTI_DETECT,
+  "[MULTI_NONE]" = MULTI_NONE,
 
   ## Section 4.2
   "[N]" = CS_N,
@@ -394,7 +594,22 @@ placeholders <- list(
   "[MULTI_P_LEAKY]" = MULTI_P_LEAKY,
   "[MULTI_P_GUARDED]" = MULTI_P_GUARDED,
   "[N_DUPS]" = N_DUPS,
-  "[DUP_DESC -- e.g., technical replicates or near-identical\\nexpression profiles from the same patient across studies]" = DUP_DESC
+  "[DUP_DESC -- e.g., technical replicates or near-identical\\nexpression profiles from the same patient across studies]" = DUP_DESC,
+
+  ## Section 4.2 - Delta LSI (case study)
+  "[DLSI_METRIC]" = DLSI_METRIC,
+  "[DLSI_ROBUST]" = DLSI_ROBUST,
+  "[DLSI_PVAL]" = DLSI_PVAL,
+  "[DLSI_TIER]" = DLSI_TIER,
+  "[DLSI_REFF]" = DLSI_REFF,
+  "[DLSI_CI_LO]" = DLSI_CI_LO,
+  "[DLSI_CI_HI]" = DLSI_CI_HI,
+
+  ## Appendix - Delta LSI simulation
+  "[DLSI_SIM_NULL_REJECT]" = DLSI_SIM_NULL_REJECT,
+  "[DLSI_SIM_NULL_MEAN]" = DLSI_SIM_NULL_MEAN,
+  "[DLSI_SIM_ALT_REJECT]" = DLSI_SIM_ALT_REJECT,
+  "[DLSI_SIM_ALT_MEAN]" = DLSI_SIM_ALT_MEAN
 )
 
 for (ph in names(placeholders)) {

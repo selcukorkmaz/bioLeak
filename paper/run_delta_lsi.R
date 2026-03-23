@@ -17,6 +17,8 @@ cat("Start time:", format(Sys.time()), "\n\n")
 
 library(bioLeak)
 
+base_dir <- "paper"
+
 ## ---------------------------------------------------------------
 ## Part A: Case Study Delta LSI
 ## ---------------------------------------------------------------
@@ -105,12 +107,16 @@ df_combined$study <- combined_study
 cat(sprintf("Dataset: N=%d, S=%d, G=%d\n",
             nrow(df_combined), length(unique(combined_study)), ncol(X_combined)))
 
-## --- Guarded pipeline (study LOOCV) with 5 repeats ---
-cat("\nFitting guarded pipeline (5 repeats)...\n")
+## --- Guarded pipeline (study-blocked CV) with 20 repeats ---
+## study_loocv ignores the repeats parameter (splits are deterministic),
+## so we use batch_blocked with batch="study" instead.  This keeps studies
+## as atomic units while randomizing their fold assignment each repeat,
+## giving R_eff = 20 for delta_lsi() inference.
+cat("\nFitting guarded pipeline (20 repeats, study-blocked)...\n")
 splits_guarded <- make_split_plan(
-  df_combined, outcome = "y", mode = "study_loocv",
-  study = "study", stratify = FALSE, seed = 42,
-  repeats = 5
+  df_combined, outcome = "y", mode = "batch_blocked",
+  batch = "study", v = 5, stratify = TRUE, seed = 42,
+  repeats = 20
 )
 
 preprocess_guarded <- list(
@@ -126,8 +132,8 @@ fit_guarded <- fit_resample(
 )
 cat(sprintf("Guarded AUC: %.3f\n", mean(fit_guarded@metrics$auc, na.rm = TRUE)))
 
-## --- Leaky pipeline (row-wise CV) with 5 repeats ---
-cat("Fitting leaky pipeline (5 repeats)...\n")
+## --- Leaky pipeline with 20 repeats (same splits for pairing) ---
+cat("Fitting leaky pipeline (20 repeats, study-blocked)...\n")
 df_leaky <- df_combined
 y_num <- as.numeric(as.character(df_leaky$y))
 df_leaky$leak_study_mean <- ave(y_num, df_leaky$study, FUN = mean)
@@ -167,18 +173,18 @@ dlsi <- delta_lsi(
 )
 
 cat("\n--- Delta LSI Summary (Case Study) ---\n")
-print(summary(dlsi))
+summary(dlsi)
 
 ## Save delta_lsi result
 dlsi_cs <- list(
   delta_lsi_obj = dlsi,
   delta_metric = dlsi@delta_metric,
   delta_lsi_robust = dlsi@delta_lsi,
-  ci_lsi = dlsi@ci_lsi,
-  ci_metric = dlsi@ci_metric,
+  ci_lsi = dlsi@delta_lsi_ci,
+  ci_metric = dlsi@delta_metric_ci,
   p_value = dlsi@p_value,
-  tier = dlsi@inference_tier,
-  n_repeats = dlsi@n_effective
+  tier = dlsi@tier,
+  n_repeats = dlsi@R_eff
 )
 
 ## Append to casestudy_results.rds
@@ -193,9 +199,19 @@ cat("Delta LSI appended to casestudy_results.rds\n")
 cat("\n=== Part B: Delta LSI Simulation ===\n\n")
 
 ## Small simulation to evaluate delta_lsi() properties:
-##   - Type I error: both pipelines are identical (no leakage) → δ should be ~0
+##   - Type I error: both arms get different pure-noise features (no leakage)
+##     → δ should fluctuate around 0, testing non-trivial calibration
 ##   - Power: naive has peek_norm leakage → δ should be significantly > 0
-## Design: n=200, p=20, 5 repeats × 5-fold CV, 20 seeds
+## Design: n=200, p=20, 20 repeats × 5-fold CV, 20 seeds
+##
+## The null arm uses the SAME splits for both pipelines (enabling pairing
+## and full inference tier). Both arms get 3 distinct pure-noise features
+## (uncorrelated with y). Since each arm has the same number of features
+## and the same regularization burden, the expected delta is 0, but
+## individual realizations fluctuate due to different noise draws.
+## This symmetric design avoids the systematic bias that arises when only
+## one arm has extra features (regularization dilution), while still
+## producing non-trivially-zero deltas that exercise the inference machinery.
 
 library(future)
 library(future.apply)
@@ -207,7 +223,7 @@ plan(multisession, workers = n_workers)
 n_seeds <- 20
 n_obs <- 200
 p_dim <- 20
-n_repeats <- 5
+n_repeats <- 20
 v_folds <- 5
 
 run_dlsi_sim <- function(seed, inject_leakage) {
@@ -225,34 +241,48 @@ run_dlsi_sim <- function(seed, inject_leakage) {
 
   batch <- sample(c("a", "b", "c"), n_obs, replace = TRUE)
 
-  ## Base data (guarded)
-  df_guarded <- data.frame(X, y = factor(y))
-  df_guarded$subject <- subject
-  df_guarded$batch <- batch
+  ## Base data (shared)
+  df_base <- data.frame(X, y = factor(y))
+  df_base$subject <- subject
+  df_base$batch <- batch
 
-  ## Leaky data: add peek_norm feature if inject_leakage = TRUE
-  df_naive <- df_guarded
   if (inject_leakage) {
+    ## Power arm: naive has peek_norm leakage, guarded is clean
+    df_guarded <- df_base
+    df_naive <- df_base
     df_naive$leak_global <- as.numeric(y) + rnorm(n_obs, 0, 0.3)
+  } else {
+    ## Null arm: BOTH arms get different noise features (symmetric design).
+    ## Each arm gets 3 pure-noise columns uncorrelated with y.
+    ## Same feature count, same regularization burden, but different noise
+    ## realizations → delta fluctuates around 0 (not systematically biased).
+    ## Using same splits → pairing works → full inference tier.
+    df_guarded <- df_base
+    df_guarded$noise_g1 <- rnorm(n_obs)
+    df_guarded$noise_g2 <- rnorm(n_obs)
+    df_guarded$noise_g3 <- rnorm(n_obs)
+    df_naive <- df_base
+    df_naive$noise_n1 <- rnorm(n_obs)
+    df_naive$noise_n2 <- rnorm(n_obs)
+    df_naive$noise_n3 <- rnorm(n_obs)
   }
-
-  ## Same splits for pairing
-  splits <- make_split_plan(
-    df_guarded, outcome = "y", mode = "subject_grouped",
-    group = "subject", v = v_folds, repeats = n_repeats,
-    stratify = TRUE, seed = seed, progress = FALSE
-  )
 
   preprocess <- list(
     impute = list(method = "median"), normalize = list(method = "zscore"),
     filter = list(var_thresh = 0, iqr_thresh = 0), fs = list(method = "none")
   )
 
+  ## Same splits for both arms → pairing enabled → full inference tier
+  splits <- make_split_plan(
+    df_guarded, outcome = "y", mode = "subject_grouped",
+    group = "subject", v = v_folds, repeats = n_repeats,
+    stratify = TRUE, seed = seed, progress = FALSE
+  )
+
   fit_g <- fit_resample(
     df_guarded, outcome = "y", splits = splits,
     preprocess = preprocess, learner = "glmnet", metrics = "auc", seed = seed
   )
-
   fit_n <- fit_resample(
     df_naive, outcome = "y", splits = splits,
     preprocess = preprocess, learner = "glmnet", metrics = "auc", seed = seed
@@ -272,7 +302,7 @@ run_dlsi_sim <- function(seed, inject_leakage) {
     ))
   }
 
-  ci <- if (length(dlsi@ci_lsi) == 2) dlsi@ci_lsi else c(NA, NA)
+  ci <- if (length(dlsi@delta_lsi_ci) == 2) dlsi@delta_lsi_ci else c(NA, NA)
 
   data.frame(
     seed = seed,
@@ -280,7 +310,7 @@ run_dlsi_sim <- function(seed, inject_leakage) {
     delta_metric = dlsi@delta_metric,
     delta_lsi = dlsi@delta_lsi,
     p_value = dlsi@p_value,
-    tier = dlsi@inference_tier,
+    tier = dlsi@tier,
     ci_lo = ci[1],
     ci_hi = ci[2],
     stringsAsFactors = FALSE

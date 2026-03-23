@@ -49,21 +49,26 @@ grid_modes <- expand.grid(
 )
 cat("Configs:", nrow(grid_modes), "\n\n")
 
-run_one_mode <- function(seed, mode_str, leakage_type, B) {
+run_one_mode <- function(seed, mode_str, leakage_type, B, s_val) {
   library(bioLeak)
   set.seed(seed)
 
-  n <- n_fix; p <- p_fix; s <- s_fix
+  n <- n_fix; p <- p_fix; s <- s_val
 
   X <- matrix(rnorm(n * p), n, p)
   colnames(X) <- sprintf("x%02d", seq_len(p))
   subject  <- sample(seq_len(max(5, n %/% 5)), n, replace = TRUE)
 
-  linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
-  linpred <- as.numeric(scale(linpred)) * s
-  ar_noise <- as.numeric(arima.sim(model = list(ar = 0.9), n = n,
-                                   sd = 0.3))
-  linpred <- linpred + ar_noise
+  ## Generate outcome: s=0 → pure noise, s>0 → signal + AR noise
+  if (s > 0) {
+    linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
+    linpred <- as.numeric(scale(linpred)) * s
+    ar_noise <- as.numeric(arima.sim(model = list(ar = 0.9), n = n,
+                                     sd = 0.3))
+    linpred <- linpred + ar_noise
+  } else {
+    linpred <- rep(0, n)
+  }
 
   y_prob  <- pnorm(linpred)
   y       <- rbinom(n, 1, y_prob)
@@ -125,7 +130,7 @@ run_one_mode <- function(seed, mode_str, leakage_type, B) {
   )
 
   data.frame(
-    seed = seed, mode = mode_str, leakage = leakage_type,
+    seed = seed, s = s, mode = mode_str, leakage = leakage_type,
     metric_obs = aud@permutation_gap$metric_obs,
     gap = aud@permutation_gap$gap,
     p_value = aud@permutation_gap$p_value,
@@ -133,26 +138,34 @@ run_one_mode <- function(seed, mode_str, leakage_type, B) {
   )
 }
 
+## Run at both s=0 (leakage-specific) and s=1.0 (signal present)
+mode_signals <- c(0, 1.0)
 mode_results <- list()
-for (i in seq_len(nrow(grid_modes))) {
-  cfg <- grid_modes[i, ]
-  t0 <- proc.time()
-  cat(sprintf("[%d/%d] mode=%-18s leakage=%-20s ... ",
-              i, nrow(grid_modes), cfg$mode, cfg$leakage))
+idx <- 0
+for (s_mode in mode_signals) {
+  cat(sprintf("\n--- s = %.1f ---\n", s_mode))
+  for (i in seq_len(nrow(grid_modes))) {
+    cfg <- grid_modes[i, ]
+    idx <- idx + 1
+    t0 <- proc.time()
+    cat(sprintf("  s=%.1f [%d/%d] mode=%-18s leakage=%-20s ... ",
+                s_mode, i, nrow(grid_modes), cfg$mode, cfg$leakage))
 
-  res_list <- future_lapply(seeds, function(seed) {
-    tryCatch(
-      run_one_mode(seed, cfg$mode, cfg$leakage, B),
-      error = function(e) {
-        data.frame(seed = seed, mode = cfg$mode, leakage = cfg$leakage,
-                   metric_obs = NA, gap = NA, p_value = NA,
-                   stringsAsFactors = FALSE)
-      }
-    )
-  }, future.seed = TRUE)
+    res_list <- future_lapply(seeds, function(seed) {
+      tryCatch(
+        run_one_mode(seed, cfg$mode, cfg$leakage, B, s_mode),
+        error = function(e) {
+          data.frame(seed = seed, s = s_mode, mode = cfg$mode,
+                     leakage = cfg$leakage,
+                     metric_obs = NA, gap = NA, p_value = NA,
+                     stringsAsFactors = FALSE)
+        }
+      )
+    }, future.seed = TRUE)
 
-  mode_results[[i]] <- do.call(rbind, res_list)
-  cat(sprintf("done (%.1fs)\n", (proc.time() - t0)[3]))
+    mode_results[[idx]] <- do.call(rbind, res_list)
+    cat(sprintf("done (%.1fs)\n", (proc.time() - t0)[3]))
+  }
 }
 
 mode_all <- do.call(rbind, mode_results)
@@ -164,110 +177,123 @@ cat("Part 1 saved.\n\n")
 ## ---------------------------------------------------------------
 cat("=== Part 2: Target Leakage Scan ===\n")
 
-## Only run on leakage conditions (not "none" for detection, but
-## include "none" for false-positive rate)
+## Run at both s=0 and s=1.0:
+##   s=0  → true null for real features; leakage features are the ONLY
+##           source of target association, so multivariate scan can
+##           properly evaluate leakage-specific detection.
+##   s=1.0 → real signal present; shows that the multivariate scan
+##           cannot separate leakage from genuine signal.
+scan_signals <- c(0, 1.0)
 scan_results <- list()
 idx <- 0
 
-for (lk in leakage_types) {
-  t0 <- proc.time()
-  cat(sprintf("leakage=%-20s ... ", lk))
+for (s_scan in scan_signals) {
+  cat(sprintf("\n--- s = %.1f ---\n", s_scan))
+  for (lk in leakage_types) {
+    t0 <- proc.time()
+    cat(sprintf("  s=%.1f  leakage=%-20s ... ", s_scan, lk))
 
-  res_list <- future_lapply(seeds, function(seed) {
-    library(bioLeak)
-    set.seed(seed)
-    n <- n_fix; p <- p_fix; s <- s_fix
+    res_list <- future_lapply(seeds, function(seed) {
+      library(bioLeak)
+      set.seed(seed)
+      n <- n_fix; p <- p_fix; s <- s_scan
 
-    X <- matrix(rnorm(n * p), n, p)
-    colnames(X) <- sprintf("x%02d", seq_len(p))
-    subject <- sample(seq_len(max(5, n %/% 5)), n, replace = TRUE)
+      X <- matrix(rnorm(n * p), n, p)
+      colnames(X) <- sprintf("x%02d", seq_len(p))
+      subject <- sample(seq_len(max(5, n %/% 5)), n, replace = TRUE)
 
-    linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
-    linpred <- as.numeric(scale(linpred)) * s
-    ar_noise <- as.numeric(arima.sim(model = list(ar = 0.9), n = n,
-                                     sd = 0.3))
-    linpred <- linpred + ar_noise
+      ## Generate outcome: s=0 → pure noise, s>0 → signal + AR noise
+      if (s > 0) {
+        linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
+        linpred <- as.numeric(scale(linpred)) * s
+        ar_noise <- as.numeric(arima.sim(model = list(ar = 0.9), n = n,
+                                         sd = 0.3))
+        linpred <- linpred + ar_noise
+      } else {
+        linpred <- rep(0, n)
+      }
 
-    y_prob  <- pnorm(linpred)
-    y       <- rbinom(n, 1, y_prob)
+      y_prob  <- pnorm(linpred)
+      y       <- rbinom(n, 1, y_prob)
 
-    ## Batch: independent of outcome by default
-    batch <- sample(c("a","b","c"), n, replace = TRUE)
-    study   <- sample(seq_len(max(3, n %/% 80)), n, replace = TRUE)
-    time_var <- seq_len(n)
+      ## Batch: independent of outcome by default
+      batch <- sample(c("a","b","c"), n, replace = TRUE)
+      study   <- sample(seq_len(max(3, n %/% 80)), n, replace = TRUE)
+      time_var <- seq_len(n)
 
-    ## Inject leakage features
-    if (lk == "subject_overlap") {
-      X <- cbind(X, leak_subj = ave(y, subject, FUN = mean))
-    } else if (lk == "batch_confounded") {
-      batch <- ifelse(y == 1,
-                      sample(c("a","b","c"), n, replace = TRUE, prob = c(0.6, 0.2, 0.2)),
-                      sample(c("a","b","c"), n, replace = TRUE, prob = c(0.15, 0.5, 0.35)))
-      X <- cbind(X, leak_batch = ave(y, batch, FUN = mean))
-    } else if (lk == "peek_norm") {
-      X <- cbind(X, leak_global = as.numeric(y) + rnorm(n, 0, 0.3))
-    } else if (lk == "lookahead") {
-      biomarker <- linpred + rnorm(n, 0, 0.5)
-      X <- cbind(X, leak_future = c(biomarker[-1], biomarker[n]))
-    }
+      ## Inject leakage features
+      if (lk == "subject_overlap") {
+        X <- cbind(X, leak_subj = ave(y, subject, FUN = mean))
+      } else if (lk == "batch_confounded") {
+        batch <- ifelse(y == 1,
+                        sample(c("a","b","c"), n, replace = TRUE, prob = c(0.6, 0.2, 0.2)),
+                        sample(c("a","b","c"), n, replace = TRUE, prob = c(0.15, 0.5, 0.35)))
+        X <- cbind(X, leak_batch = ave(y, batch, FUN = mean))
+      } else if (lk == "peek_norm") {
+        X <- cbind(X, leak_global = as.numeric(y) + rnorm(n, 0, 0.3))
+      } else if (lk == "lookahead") {
+        biomarker <- linpred + rnorm(n, 0, 0.5)
+        X <- cbind(X, leak_future = c(biomarker[-1], biomarker[n]))
+      }
 
-    df <- data.frame(X, y = factor(y))
-    df$subject <- subject; df$batch <- batch
-    df$study <- study; df$time <- time_var
+      df <- data.frame(X, y = factor(y))
+      df$subject <- subject; df$batch <- batch
+      df$study <- study; df$time <- time_var
 
-    splits <- make_split_plan(
-      df, outcome = "y", mode = "subject_grouped",
-      group = "subject", batch = "batch", study = "study", time = "time",
-      v = 5, stratify = TRUE, seed = seed,
-      progress = FALSE
-    )
+      splits <- make_split_plan(
+        df, outcome = "y", mode = "subject_grouped",
+        group = "subject", batch = "batch", study = "study", time = "time",
+        v = 5, stratify = TRUE, seed = seed,
+        progress = FALSE
+      )
 
-    preprocess <- list(
-      impute = list(method = "median"), normalize = list(method = "zscore"),
-      filter = list(var_thresh = 0, iqr_thresh = 0), fs = list(method = "none")
-    )
+      preprocess <- list(
+        impute = list(method = "median"), normalize = list(method = "zscore"),
+        filter = list(var_thresh = 0, iqr_thresh = 0), fs = list(method = "none")
+      )
 
-    fit <- fit_resample(
-      df, outcome = "y", splits = splits,
-      preprocess = preprocess,
-      learner = "glmnet", metrics = "auc", seed = seed
-    )
+      fit <- fit_resample(
+        df, outcome = "y", splits = splits,
+        preprocess = preprocess,
+        learner = "glmnet", metrics = "auc", seed = seed
+      )
 
-    ## Get X_ref (numeric features only)
-    X_ref <- as.matrix(df[, grep("^x|^leak", names(df))])
+      ## Get X_ref (numeric features only)
+      X_ref <- as.matrix(df[, grep("^x|^leak", names(df))])
 
-    aud <- audit_leakage(
-      fit, metric = "auc", B = B,
-      perm_refit = FALSE, perm_stratify = TRUE,
-      seed = seed,
-      X_ref = X_ref,
-      target_scan = TRUE,
-      target_scan_multivariate = TRUE,
-      target_threshold = 0.9,
-      return_perm = FALSE
-    )
+      aud <- audit_leakage(
+        fit, metric = "auc", B = B,
+        perm_refit = FALSE, perm_stratify = TRUE,
+        seed = seed,
+        X_ref = X_ref,
+        target_scan = TRUE,
+        target_scan_multivariate = TRUE,
+        target_threshold = 0.9,
+        return_perm = FALSE
+      )
 
-    ## Extract target scan results
-    ta <- aud@target_assoc
-    leak_flagged <- any(grepl("^leak", ta$feature[ta$flag == TRUE]))
+      ## Extract target scan results
+      ta <- aud@target_assoc
+      leak_flagged <- any(grepl("^leak", ta$feature[ta$flag == TRUE]))
 
-    ## Multivariate scan p-value
-    mv <- aud@info$target_multivariate
-    multi_p <- if (!is.null(mv) && nrow(mv) > 0 && "p_value" %in% names(mv))
-      mv$p_value[1] else NA
+      ## Multivariate scan p-value
+      mv <- aud@info$target_multivariate
+      multi_p <- if (!is.null(mv) && nrow(mv) > 0 && "p_value" %in% names(mv))
+        mv$p_value[1] else NA
 
-    data.frame(
-      seed = seed, leakage = lk,
-      n_flagged = sum(ta$flag, na.rm = TRUE),
-      leak_feature_flagged = leak_flagged,
-      multivariate_p = multi_p,
-      stringsAsFactors = FALSE
-    )
-  }, future.seed = TRUE)
+      data.frame(
+        seed = seed, s = s, leakage = lk,
+        n_flagged = sum(ta$flag, na.rm = TRUE),
+        leak_feature_flagged = leak_flagged,
+        multivariate_p = multi_p,
+        stringsAsFactors = FALSE
+      )
+    }, future.seed = TRUE)
 
-  idx <- idx + 1
-  scan_results[[idx]] <- do.call(rbind, res_list)
-  cat(sprintf("done (%.1fs)\n", (proc.time() - t0)[3]))
+    idx <- idx + 1
+    scan_results[[idx]] <- do.call(rbind, res_list)
+    cat(sprintf("done (%.1fs)\n", (proc.time() - t0)[3]))
+  }
 }
 
 scan_all <- do.call(rbind, scan_results)
