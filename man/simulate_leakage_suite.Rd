@@ -79,7 +79,7 @@ split more conservative and can reduce leakage from temporal proximity.}
 
 \item{B}{Integer scalar >= 1. Number of permutations used by
 \code{audit_leakage()} to compute the permutation gap and p-value (default
-1000). Larger values yield more stable p-values but increase runtime.}
+200). Larger values yield more stable p-values but increase runtime.}
 
 \item{seeds}{Integer vector. Monte Carlo seeds (default \code{1:10}). One row
 of output is produced per seed; changing \code{seeds} changes the simulated

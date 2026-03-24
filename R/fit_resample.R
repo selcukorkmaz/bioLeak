@@ -1153,7 +1153,11 @@ fit_resample <- function(x, outcome, splits,
         Xteg <- Xteg[, intersect(keep_cols, names(Xteg)), drop = FALSE]
         missing_in_test <- setdiff(names(Xtrg), names(Xteg))
         if (length(missing_in_test)) {
-          for (nm in missing_in_test) Xteg[[nm]] <- 0
+          for (nm in missing_in_test) {
+            Xteg[[nm]] <- if (is.numeric(Xtrg[[nm]])) mean(Xtrg[[nm]], na.rm = TRUE) else 0
+          }
+          warning("Test fold missing columns filled from training statistics: ",
+                  paste(missing_in_test, collapse = ", "), call. = FALSE)
         }
         Xteg <- Xteg[, names(Xtrg), drop = FALSE]
       }
@@ -1214,7 +1218,9 @@ fit_resample <- function(x, outcome, splits,
           if (identical(mname, "macro_f1")) return(.multiclass_macro_f1(yte, pred_class))
           if (identical(mname, "log_loss")) {
             if (is.null(prob_mat)) {
-              stop("log_loss requires class probability predictions for multiclass tasks.")
+              warning("log_loss requires class probability predictions; returning NA.",
+                      call. = FALSE)
+              return(NA_real_)
             }
             return(.multiclass_log_loss(yte, prob_mat))
           }

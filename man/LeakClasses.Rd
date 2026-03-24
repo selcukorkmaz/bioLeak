@@ -29,7 +29,7 @@ These classes capture splits, model fits, and audit diagnostics produced by
 
 \item{\code{indices}}{List of resampling descriptors (train/test indices when available)}
 
-\item{\code{info}}{Metadata associated with split or fit}
+\item{\code{info}}{(LeakSplits) Metadata associated with the split plan (mode, coldata, hash, etc.)}
 
 \item{\code{splits}}{A [`LeakSplits`] object used for resampling}
 
@@ -51,7 +51,7 @@ These classes capture splits, model fits, and audit diagnostics produced by
 
 \item{\code{feature_names}}{Feature names included in the model}
 
-\item{\code{info}}{Additional metadata about the fit}
+\item{\code{info}}{(LeakFit) Metadata about the model fit (sample IDs, timings, provenance, etc.)}
 
 \item{\code{fit}}{A [`LeakFit`] object used to generate the audit}
 
@@ -66,6 +66,8 @@ These classes capture splits, model fits, and audit diagnostics produced by
 \item{\code{duplicates}}{Data frame detailing duplicate records}
 
 \item{\code{trail}}{List capturing audit trail information}
+
+\item{\code{info}}{(LeakAudit) Metadata about the audit (mechanism summary, settings, provenance, etc.)}
 
 \item{\code{metric}}{Performance metric compared between pipelines}
 
@@ -97,7 +99,7 @@ These classes capture splits, model fits, and audit diagnostics produced by
 
 \item{\code{repeats_guarded}}{Per-repeat aggregate data frame for the guarded pipeline}
 
-\item{\code{info}}{Additional metadata including R_naive, R_guarded, paired status}
+\item{\code{info}}{(LeakDeltaLSI) Metadata including R_naive, R_guarded, paired status, and block details}
 }}
 
 \seealso{

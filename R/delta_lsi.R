@@ -774,7 +774,7 @@ summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
   if (all(is.finite(ci_lsi)))
     cat(sprintf("  95%% BCa CI:    [%s, %s]\n", fmt(ci_lsi[1L]), fmt(ci_lsi[2L])))
 
-  cat("\nHypothesis test  [H0: mean(\u0394r) = 0; sign-flip tests delta_metric]:\n")
+  cat("\nHypothesis test  [H0: no systematic inflation; paired repeat signs exchangeable]:\n")
   if (is.finite(object@p_value)) {
     p   <- object@p_value
     sig <- if (p < 0.001) "***" else if (p < 0.01) "**" else if (p < 0.05) "*" else ""

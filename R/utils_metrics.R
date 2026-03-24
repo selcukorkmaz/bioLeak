@@ -59,7 +59,8 @@
     prec <- if ((tp + fp) > 0) tp / (tp + fp) else NA_real_
     rec <- if ((tp + fn) > 0) tp / (tp + fn) else NA_real_
     if (is.na(prec) && is.na(rec)) return(NA_real_)
-    if (is.na(prec) || is.na(rec) || (prec + rec) == 0) return(0)
+    if (is.na(prec) || is.na(rec)) return(NA_real_)
+    if ((prec + rec) == 0) return(0)
     2 * prec * rec / (prec + rec)
   }, numeric(1))
   if (all(is.na(f1_vals))) return(NA_real_)

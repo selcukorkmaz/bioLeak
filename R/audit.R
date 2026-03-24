@@ -584,7 +584,8 @@
         return(list(score = NA_real_, value = NA_real_, n_obs = sum(ok), metric = "auc"))
       }
       auc <- .auc_rank(preds[ok], y01[ok])
-      return(list(score = auc, value = auc, n_obs = sum(ok), metric = "auc"))
+      score <- if (is.na(auc)) NA_real_ else abs(auc - 0.5) * 2
+      return(list(score = score, value = auc, n_obs = sum(ok), metric = "auc"))
     }
     ok <- is.finite(preds) & is.finite(y_num)
     if (sum(ok) < 3L) {
@@ -1776,8 +1777,10 @@ audit_leakage <- function(fit,
   perm_df$mechanism_class <- "non_random_signal"
   perm_df <- perm_df[, c("mechanism_class", setdiff(names(perm_df), "mechanism_class")), drop = FALSE]
 
-  perm_df[] <- lapply(perm_df, function(x)
-    if (is.numeric(x)) round(x, 6) else x)
+  perm_df[] <- lapply(perm_df, function(x) {
+    if (!is.numeric(x)) return(x)
+    signif(x, 6)
+  })
 
   # --- Batch / study association with folds ---------------------------------
   ids_pred <- all_pred$id

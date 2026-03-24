@@ -6,7 +6,7 @@
 #' @slot mode Splitting mode. One of "subject_grouped", "batch_blocked",
 #'   "study_loocv", "time_series", or "combined".
 #' @slot indices List of resampling descriptors (train/test indices when available)
-#' @slot info Metadata associated with split or fit
+#' @slot info (LeakSplits) Metadata associated with the split plan (mode, coldata, hash, etc.)
 #' @return An S4 object of the respective class.
 #' @seealso [make_split_plan()], [fit_resample()], [audit_leakage()]
 #' @rdname LeakClasses
@@ -27,7 +27,7 @@ setClass("LeakSplits",
 #' @slot outcome Outcome variable name
 #' @slot task Modeling task name
 #' @slot feature_names Feature names included in the model
-#' @slot info Additional metadata about the fit
+#' @slot info (LeakFit) Metadata about the model fit (sample IDs, timings, provenance, etc.)
 #' @seealso [fit_resample()]
 #' @exportClass LeakFit
 setClass("LeakFit",
@@ -53,6 +53,7 @@ setClass("LeakFit",
 #' @slot target_assoc Data frame of feature-wise outcome associations
 #' @slot duplicates Data frame detailing duplicate records
 #' @slot trail List capturing audit trail information
+#' @slot info (LeakAudit) Metadata about the audit (mechanism summary, settings, provenance, etc.)
 #' @seealso [audit_leakage()], [audit_report()]
 #' @exportClass LeakAudit
 setClass("LeakAudit",
@@ -105,7 +106,7 @@ LeakAudit <- function(...) methods::new("LeakAudit", ...)
 #' @slot folds_guarded Per-fold data frame for the guarded pipeline
 #' @slot repeats_naive Per-repeat aggregate data frame for the naive pipeline
 #' @slot repeats_guarded Per-repeat aggregate data frame for the guarded pipeline
-#' @slot info Additional metadata including R_naive, R_guarded, paired status
+#' @slot info (LeakDeltaLSI) Metadata including R_naive, R_guarded, paired status, and block details
 #' @seealso [delta_lsi()]
 #' @exportClass LeakDeltaLSI
 setClass("LeakDeltaLSI",
