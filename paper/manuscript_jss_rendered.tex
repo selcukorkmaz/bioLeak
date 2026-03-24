@@ -287,19 +287,7 @@ splits <- make_split_plan(
 
 splits
 \end{CodeInput}
-\begin{CodeOutput}
-LeakSplits object (mode = subject_grouped, v = 5, repeats = 1)
-Outcome: outcome | Stratified: TRUE | Nested: FALSE
-------------------------------------------------------
-  repeat fold n_train n_test
-       1    1      96     24
-       1    2      96     24
-       1    3      96     24
-       1    4      96     24
-       1    5      96     24
-------------------------------------------------------
-Total folds: 5 | Hash: a1b2c3d4e5f6
-\end{CodeOutput}
+\input{generated/workflow-splits.tex}
 
 \noindent
 The split plan is created successfully and yields five subject-grouped folds of equal size. Because all repeated measurements from a given subject are assigned to the same fold, the resampling design prevents subject overlap between training and test sets. In this synthetic example, the object serves as the common evaluation structure for both the guarded and intentionally leaky fits considered below.
@@ -330,27 +318,10 @@ fit_guarded <- fit_resample(
 
 summary(fit_guarded)
 \end{CodeInput}
-\begin{CodeOutput}
-===========================
- bioLeak Model Fit Summary
-===========================
-
-Task: binomial
-Outcome: outcome
-Positive class: case
-Learners: logistic_reg
-Total folds: 5
-Fold status: 5 success, 0 skipped, 0 failed
-Refit performed: No
-Hash: 7a3f2e1b4c9d
-
-Cross-validated metrics (mean +/- SD):
-  metric learner    mean      sd
-     auc     glm  0.5417  0.1024
-\end{CodeOutput}
+\input{generated/workflow-fit-guarded.tex}
 
 \noindent
-The guarded fit completes successfully across all five folds and yields only modest discrimination (mean AUC 0.54). In this synthetic example, that result is expected because the predictors are mostly noise and no label-derived feature has been introduced. This fitted object therefore serves as the guarded baseline for the leaky comparator examined in the following subsection.
+The guarded fit completes successfully across all five folds and yields only modest discrimination (mean AUC 0.58). In this synthetic example, that result is expected because the predictors are mostly noise and no label-derived feature has been introduced. This fitted object therefore serves as the guarded baseline for the leaky comparator examined in the following subsection.
 
 The same interface extends to multiclass classification, regression, and survival settings, although the available metrics and supported options differ by task type. For survival analysis, the outcome is specified using time and event columns, and concordance-based evaluation is supported. For continuous regression, common metrics include \texttt{rmse}, \texttt{mae}, and $R^2$.
 
@@ -379,32 +350,7 @@ fit_leaky <- fit_resample(
 
 summary(fit_leaky)
 \end{CodeInput}
-\begin{CodeOutput}
-===========================
- bioLeak Model Fit Summary
-===========================
-
-Task: binomial
-Outcome: outcome
-Positive class: case
-Learners: logistic_reg/glm
-Total folds: 5
-Fold status: 5 success, 0 skipped, 0 failed
-Refit performed: No
-Hash: h9bcac8d4
-
-Cross-validated metrics (mean +/- SD):
-           learner auc_mean auc_sd auc_ci_lo auc_ci_hi
-1 logistic_reg/glm     0.92  0.054      0.82      1.00
-
-Audit overview:
- fold n_train n_test          learner features_final
-    1      96     24 logistic_reg/glm              5
-    2      96     24 logistic_reg/glm              5
-    3      96     24 logistic_reg/glm              5
-    4      96     24 logistic_reg/glm              5
-    5      96     24 logistic_reg/glm              5
-\end{CodeOutput}
+\input{generated/workflow-fit-leaky.tex}
 
 \noindent
 The intentionally leaky comparator yields a markedly higher cross-validated AUC than the guarded fit shown earlier. Because the grouped split structure is unchanged, this increase is attributable to the label-derived subject-level feature rather than to a change in resampling design. The example therefore illustrates how leakage can inflate apparent predictive performance even when fold construction itself is appropriate.
@@ -426,44 +372,10 @@ audit_guarded <- audit_leakage(
 
 summary(audit_guarded)
 \end{CodeInput}
-\begin{CodeOutput}
-==============================
- bioLeak Leakage Audit Summary
-==============================
-
-Task: binomial | Outcome: outcome | Splitting mode: subject_grouped
-Hash: 7a3f2e1b4c9d | Folds: 5 | Repeats: 1
-
-Label-Permutation Association Test:
-  Method: fixed predictions
-  Observed metric: 0.5417
-  Permuted mean +/- SD: 0.5012 +/- 0.0389
-  Gap: 0.0405 (larger gap = stronger non-random signal)
-
-Batch / Study Association:
-  batch (repeat 1): Chi^2 = 4.123 (df = 4), p = 0.3897
-
-Target Leakage Scan:
-  Features checked: 3 | Flagged (score >= 0.90): 0
-
-Multivariate Target Scan: not available.
-
-Near-Duplicate Samples:
-  No near-duplicates detected.
-
-Mechanism Risk Assessment:
-  mechanism_class      flagged evidence
-  subject_overlap      FALSE   OK: subject-grouped splits
-  batch_confounded     FALSE   OK: batch Chi^2 not significant
-  preprocessing_leak   FALSE   OK: guarded preprocessing
-  target_leakage       FALSE   OK: no features flagged
-
-Interpretation:
-  Modest non-random signal. No leakage indicators flagged.
-\end{CodeOutput}
+\input{generated/workflow-audit-guarded.tex}
 
 \noindent
-In this example, the audit detects modest predictive signal but does not flag subject overlap, batch-related structure, target leakage, or near-duplicate samples. The guarded fit therefore appears consistent with non-random but not obviously leakage-driven discrimination.
+In this example, the audit detects only modest predictive signal and does not flag subject overlap, batch-related structure, or strong target leakage. The duplicate-detection component does identify several highly similar train--test pairs in the small synthetic reference matrix, illustrating that this audit module can be sensitive even in toy examples and should be interpreted in the context of the chosen similarity threshold and feature representation.
 
 The resulting \texttt{LeakAudit} object stores permutation summaries, feature-level target-association results, duplicate-detection output, and the audit settings used to generate them. The permutation module is diagnostic rather than dispositive: a positive gap suggests predictive signal beyond chance, but the remaining audit components are needed to judge whether that signal may be inflated by leakage.
 
@@ -487,7 +399,7 @@ The returned value is the path to the generated HTML file, which can then be ope
 
 The previous subsections present each stage separately. In practice, the full
 workflow is usually executed as one analysis script that constructs a split
-plan, fits guarded and naive comparators, audits the guarded fit, quantifies
+plan, fits guarded and leaky comparators, audits the guarded fit, quantifies
 inflation, and renders a report. The following code block illustrates that
 sequence in one place.
 
@@ -693,7 +605,8 @@ practice this means they must share the same fold structure, not merely the
 same number of repeats. If fold membership differs, the package falls back to an
 unpaired comparison of repeat-level summaries and suppresses formal inference.
 This distinction is important. If the user changes both the predictors and the
-resampling design, the resulting performance difference cannot be attributed solely to leakage control
+resampling design, the resulting performance difference cannot be attributed
+only to leakage-aware preprocessing.
 
 The returned \texttt{LeakDeltaLSI} object stores the metric name, the
 exchangeability assumption, the effective number of paired repeats, robust and
@@ -712,45 +625,16 @@ $p$-value, and BCa intervals.
 intervals and $p$-value.
 \end{enumerate}
 
-A typical call compares a naive and a guarded fit built from the same
-\texttt{LeakSplits} object:
+A typical \texttt{delta\_lsi()} analysis compares a leaky and a guarded fit
+built from the same \texttt{LeakSplits} object. The stored case-study result
+distributed with the paper can be reloaded and summarized as follows:
 
 \begin{CodeInput}
-inflation <- delta_lsi(
-  fit_leaky = fit_leaky,
-  fit_guarded = fit_guarded,
-  metric = "auc",
-  M_boot = 2000,
-  M_flip = 10000,
-  seed = 42
-)
+inflation <- readRDS("paper/casestudy_results.rds")$delta_lsi$delta_lsi_obj
 
 summary(inflation)
 \end{CodeInput}
-\begin{CodeOutput}
-=====================================
- bioLeak Delta LSI Summary
-=====================================
-
-Metric:            auc
-Exchangeability:   iid
-Inference tier:    A_full_inference
-R_eff:             20  (R_leaky=20, R_guarded=20, paired=TRUE)
-
-Leaky pipeline:    0.700
-Guarded pipeline:  0.614
-
-Point estimates (leaky - guarded; positive = leakage inflation):
-  delta_metric:  0.085  (raw metric difference)
-  95% BCa CI:    [0.078, 0.091]
-  delta_lsi:     0.085  (Huber-robust)
-  95% BCa CI:    [0.078, 0.091]
-
-Hypothesis test  [H0: mean(dr) = 0; sign-flip tests delta_metric]:
-  Sign-flip p:   0.0001 ***
-
-Inference valid:   YES (tier A)
-\end{CodeOutput}
+\input{generated/delta-lsi-summary.tex}
 
 \noindent
 In practice, \texttt{delta\_lsi()} is most useful when an analyst wants to
@@ -839,12 +723,7 @@ via \texttt{paper/compile\_results.R}.
 sim <- readRDS("paper/sim_results_all.rds")
 head(sim)
 \end{CodeInput}
-\begin{CodeOutput}
-  seed   n   p   s     leakage metric_obs perm_mean    gap p_value
-1    1 100  10 0.0        none     0.5200    0.5014  0.019    0.24
-2    2 100  10 0.0        none     0.4850    0.4998 -0.015    0.64
-...
-\end{CodeOutput}
+\input{generated/sim-head.tex}
 
 The clean baseline in \texttt{sim\_results\_all.rds} provides a direct check of
 the permutation-gap procedure under $s = 0$ and no injected leakage. Across all
@@ -1064,9 +943,7 @@ biomedical machine learning \citep{golub1999, simon2003, tarca2006}.
 cs <- readRDS("paper/casestudy_results.rds")
 names(cs)
 \end{CodeInput}
-\begin{CodeOutput}
-[1] "N"         "S"         "G"         "guarded"   "leaky"     "delta_lsi"
-\end{CodeOutput}
+\input{generated/casestudy-names.tex}
 
 Two workflows were evaluated. The guarded workflow used
 \texttt{study\_loocv}, median imputation, z-score normalization, t-test feature
@@ -1407,25 +1284,11 @@ The author thanks the anonymous reviewers for constructive feedback.
 
 The following is the full \texttt{summary()} output of the
 \texttt{LeakDeltaLSI} object returned by \texttt{delta\_lsi()} when comparing
-the naive and guarded case-study pipelines described in Section~7. Both fits
+the leaky and guarded case-study pipelines described in Section~7. Both fits
 share the same batch-blocked fold structure with 20 repeats, enabling paired
 repeat-level inference.
 
-\begin{CodeOutput}
-Delta LSI Summary
-=================
-Metric:            auc
-Exchangeability:   iid
-Inference tier:    A_full_inference
-R_eff:             20
-
-Point estimates:
-  delta_metric (mean):  0.085
-  delta_lsi (Huber):    0.085
-
-Sign-flip test:
-  p-value:              < 0.001
-\end{CodeOutput}
+\input{generated/appendix-delta-lsi-summary.tex}
 
 \noindent
 The inference tier is \texttt{A\_full\_inference} because 20 repeats are

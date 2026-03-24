@@ -1,0 +1,24 @@
+\begin{CodeOutput}
+=====================================
+ bioLeak Delta LSI Summary
+=====================================
+
+Metric:            auc
+Exchangeability:   iid
+Inference tier:    A_full_inference
+R_eff:             20  (R_leaky=20, R_guarded=20, paired=TRUE)
+
+Leaky pipeline:    0.700
+Guarded pipeline:  0.614
+
+Point estimates (leaky - guarded; positive = leakage inflation):
+  delta_metric:  0.085  (raw metric difference)
+  95% BCa CI:    [0.078, 0.091]
+  delta_lsi:     0.085  (Huber-robust)
+  95% BCa CI:    [0.078, 0.091]
+
+Hypothesis test  [H0: mean(delta_r) = 0; sign-flip tests delta_metric]:
+  Sign-flip p:   0.0001 ***
+
+Inference valid:   YES (tier A)
+\end{CodeOutput}

@@ -17,6 +17,6 @@
 Invisibly returns \code{object}.
 }
 \description{
-Prints a human-readable summary of the ΔLSI analysis comparing naive vs
+Prints a human-readable summary of the ΔLSI analysis comparing leaky vs
 guarded evaluation pipelines.
 }

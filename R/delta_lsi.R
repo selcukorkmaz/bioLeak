@@ -337,7 +337,7 @@
 #' repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\{\Delta_r\}}
 #' for easy interpretation in the original metric's units.
 #'
-#' Pairing requires that \code{fit_naive} and \code{fit_guarded} share
+#' Pairing requires that \code{fit_leaky} and \code{fit_guarded} share
 #' \emph{identical fold structures} (same test-set membership per fold) in
 #' addition to the same number of repeats.  When repeat counts match but fold
 #' structures differ, a warning is issued and the fits are treated as unpaired.
@@ -361,8 +361,8 @@
 #'   \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
 #' }}
 #'
-#' @param fit_naive A \code{\linkS4class{LeakFit}} object from the naive (unprotected)
-#'   evaluation pipeline.
+#' @param fit_leaky A \code{\linkS4class{LeakFit}} object from the leaky
+#'   (unprotected) evaluation pipeline.
 #' @param fit_guarded A \code{\linkS4class{LeakFit}} object from the guarded
 #'   (leakage-protected) evaluation pipeline.
 #' @param metric Character. Performance metric to compare. Must appear in
@@ -408,7 +408,7 @@
 #' @seealso \code{\link{audit_leakage}}, \code{\link{fit_resample}}
 #' @export
 delta_lsi <- function(
-    fit_naive,
+    fit_leaky,
     fit_guarded,
     metric          = "auc",
     exchangeability = c("iid", "by_group", "within_batch", "blocked_time"),
@@ -419,11 +419,30 @@ delta_lsi <- function(
     M_flip          = 10000L,
     strict          = FALSE,
     return_details  = FALSE,
-    seed            = 42L
+    seed            = 42L,
+    ...
 ) {
+  extras <- list(...)
+  if ("fit_naive" %in% names(extras)) {
+    if (!missing(fit_leaky)) {
+      stop("Use either fit_leaky or the deprecated fit_naive argument, not both.")
+    }
+    fit_leaky <- extras$fit_naive
+    extras$fit_naive <- NULL
+    warning("delta_lsi(): fit_naive is deprecated; use fit_leaky instead.")
+  }
+  if (length(extras)) {
+    stop(
+      sprintf(
+        "Unused argument(s): %s",
+        paste(names(extras), collapse = ", ")
+      )
+    )
+  }
+
   exchangeability <- match.arg(exchangeability)
 
-  if (!inherits(fit_naive,   "LeakFit")) stop("fit_naive must be a LeakFit object.")
+  if (!inherits(fit_leaky,   "LeakFit")) stop("fit_leaky must be a LeakFit object.")
   if (!inherits(fit_guarded, "LeakFit")) stop("fit_guarded must be a LeakFit object.")
 
   # ── Resolve metric directionality ────────────────────────────────────────────
@@ -438,25 +457,25 @@ delta_lsi <- function(
   sign_factor <- if (isTRUE(higher_is_better)) 1.0 else -1.0
 
   # Resolve learners (one per fit; may differ)
-  lrn_n <- .dlsi_resolve_learner(fit_naive,   learner)
+  lrn_n <- .dlsi_resolve_learner(fit_leaky,   learner)
   lrn_g <- .dlsi_resolve_learner(fit_guarded, learner)
 
   # Per-fold metric data frames: columns fold, metric
-  fm_n <- .dlsi_fold_metrics(fit_naive,   metric, lrn_n)
+  fm_n <- .dlsi_fold_metrics(fit_leaky,   metric, lrn_n)
   fm_g <- .dlsi_fold_metrics(fit_guarded, metric, lrn_g)
 
   # Sequential fold positions (1..N) for each fit
-  fold_seq_n <- seq_along(fit_naive@splits@indices)
+  fold_seq_n <- seq_along(fit_leaky@splits@indices)
   fold_seq_g <- seq_along(fit_guarded@splits@indices)
 
   # Repeat IDs and fold sizes
-  rep_ids_n <- .dlsi_repeat_ids(fit_naive)
+  rep_ids_n <- .dlsi_repeat_ids(fit_leaky)
   rep_ids_g <- .dlsi_repeat_ids(fit_guarded)
 
-  pred_n <- .dlsi_combine_preds(fit_naive,   lrn_n)
+  pred_n <- .dlsi_combine_preds(fit_leaky,   lrn_n)
   pred_g <- .dlsi_combine_preds(fit_guarded, lrn_g)
 
-  sizes_n <- .dlsi_fold_sizes(fit_naive,   pred_n)
+  sizes_n <- .dlsi_fold_sizes(fit_leaky,   pred_n)
   sizes_g <- .dlsi_fold_sizes(fit_guarded, pred_g)
 
   # Build fold-level data frames
@@ -502,10 +521,10 @@ delta_lsi <- function(
   # ── Pairing: equal count AND matching fold structures ─────────────────────
   same_count <- (R_naive > 0L && R_guarded > 0L && R_naive == R_guarded)
   if (same_count) {
-    splits_ok <- .dlsi_splits_match(fit_naive, fit_guarded)
+    splits_ok <- .dlsi_splits_match(fit_leaky, fit_guarded)
     if (!splits_ok) {
       warning(sprintf(
-        paste0("[delta_lsi] fit_naive and fit_guarded have R=%d repeats each ",
+        paste0("[delta_lsi] fit_leaky and fit_guarded have R=%d repeats each ",
                "but different fold structures; treating as unpaired."),
         R_naive
       ))
@@ -532,7 +551,7 @@ delta_lsi <- function(
 
   if (tier == "D_insufficient") {
     msg <- sprintf(
-      paste0("[delta_lsi] R_eff = %d (R_naive=%d, R_guarded=%d, paired=%s). ",
+      paste0("[delta_lsi] R_eff = %d (R_leaky=%d, R_guarded=%d, paired=%s). ",
              "Need paired R_eff >= 5 for sign-flip inference; reporting point estimate only."),
       R_eff, R_naive, R_guarded, paired
     )
@@ -649,7 +668,8 @@ delta_lsi <- function(
   )
   if (return_details) {
     info_list$delta_r     <- delta_r
-    info_list$fit_naive   <- fit_naive
+    info_list$fit_leaky   <- fit_leaky
+    info_list$fit_naive   <- fit_leaky
     info_list$fit_guarded <- fit_guarded
   }
 
@@ -703,7 +723,7 @@ setMethod("show", "LeakDeltaLSI", function(object) {
 
 #' Summarize a LeakDeltaLSI object
 #'
-#' Prints a human-readable summary of the ΔLSI analysis comparing naive vs
+#' Prints a human-readable summary of the ΔLSI analysis comparing leaky vs
 #' guarded evaluation pipelines.
 #'
 #' @param object A \code{LeakDeltaLSI} object from \code{\link{delta_lsi}}.
@@ -734,16 +754,16 @@ summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
     ))
   }
   cat(sprintf("Inference tier:    %s\n", object@tier))
-  cat(sprintf("R_eff:             %d  (R_naive=%s, R_guarded=%s, paired=%s)\n",
+  cat(sprintf("R_eff:             %d  (R_leaky=%s, R_guarded=%s, paired=%s)\n",
               object@R_eff,
               object@info[["R_naive"]]   %||% "?",
               object@info[["R_guarded"]] %||% "?",
               object@info[["paired"]]    %||% "?"))
 
-  cat("\nNaive pipeline:    ", fmt(object@info[["metric_naive"]]   %||% NA_real_), "\n", sep = "")
+  cat("\nLeaky pipeline:    ", fmt(object@info[["metric_naive"]]   %||% NA_real_), "\n", sep = "")
   cat("Guarded pipeline:  ", fmt(object@info[["metric_guarded"]] %||% NA_real_), "\n", sep = "")
 
-  direction <- if (isTRUE(hib)) "naive - guarded" else "-(naive - guarded)"
+  direction <- if (isTRUE(hib)) "leaky - guarded" else "-(leaky - guarded)"
   cat(sprintf("\nPoint estimates (%s; positive = leakage inflation):\n", direction))
   cat(sprintf("  delta_metric:  %s  (raw metric difference)\n", fmt(object@delta_metric)))
   ci_dm <- object@delta_metric_ci

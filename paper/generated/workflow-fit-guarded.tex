@@ -1,0 +1,26 @@
+\begin{CodeOutput}
+===========================
+ bioLeak Model Fit Summary
+===========================
+
+Task: binomial
+Outcome: outcome
+Positive class: case
+Learners: logistic_reg/glm
+Total folds: 5
+Fold status: 5 success, 0 skipped, 0 failed
+Refit performed: No
+Hash: h9bcac8d4
+
+Cross-validated metrics (mean +/- SD):
+           learner auc_mean auc_sd auc_ci_lo auc_ci_hi
+1 logistic_reg/glm    0.584  0.118     0.364     0.804
+
+Audit overview:
+ fold n_train n_test          learner features_final
+    1      96     24 logistic_reg/glm              4
+    2      96     24 logistic_reg/glm              4
+    3      96     24 logistic_reg/glm              4
+    4      96     24 logistic_reg/glm              4
+    5      96     24 logistic_reg/glm              4
+\end{CodeOutput}

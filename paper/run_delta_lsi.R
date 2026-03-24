@@ -164,7 +164,7 @@ cat(sprintf("Leaky AUC: %.3f\n", mean(fit_leaky@metrics$auc, na.rm = TRUE)))
 ## --- Compute delta_lsi ---
 cat("\nComputing delta_lsi()...\n")
 dlsi <- delta_lsi(
-  fit_naive = fit_leaky,
+  fit_leaky = fit_leaky,
   fit_guarded = fit_guarded,
   metric = "auc",
   M_boot = 2000,
@@ -289,7 +289,7 @@ run_dlsi_sim <- function(seed, inject_leakage) {
   )
 
   dlsi <- tryCatch(
-    delta_lsi(fit_naive = fit_n, fit_guarded = fit_g,
+    delta_lsi(fit_leaky = fit_n, fit_guarded = fit_g,
               metric = "auc", M_boot = 1000, M_flip = 5000, seed = seed),
     error = function(e) NULL
   )

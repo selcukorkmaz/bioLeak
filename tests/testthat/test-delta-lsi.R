@@ -187,9 +187,23 @@ test_that("return_details = TRUE stores delta_r and fits in info", {
   res   <- delta_lsi(fit_n, fit_g, metric = "auc",
                      return_details = TRUE, seed = 6L)
   expect_true("delta_r"     %in% names(res@info))
+  expect_true("fit_leaky"   %in% names(res@info))
   expect_true("fit_naive"   %in% names(res@info))
   expect_true("fit_guarded" %in% names(res@info))
   expect_length(res@info$delta_r, 5L)
+})
+
+test_that("deprecated fit_naive argument maps to fit_leaky", {
+  set.seed(6)
+  fit_n <- .make_dlsi_fit(rep(0.75, 15L), n_obs = 45L, n_repeats = 5L)
+  fit_g <- .make_dlsi_fit(rep(0.55, 15L), n_obs = 45L, n_repeats = 5L)
+
+  expect_warning(
+    res <- delta_lsi(fit_naive = fit_n, fit_guarded = fit_g, metric = "auc",
+                     seed = 6L),
+    regexp = "fit_naive is deprecated; use fit_leaky instead"
+  )
+  expect_s4_class(res, "LeakDeltaLSI")
 })
 
 # ── BCa CI covers zero when naive = guarded ───────────────────────────────────

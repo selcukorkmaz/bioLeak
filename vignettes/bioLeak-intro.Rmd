@@ -1884,7 +1884,7 @@ cat("Guarded AUC:", round(mean(fit_dlsi_guarded@metrics$auc, na.rm = TRUE), 3), 
 
 ```{r delta-lsi-run}
 result_dlsi <- delta_lsi(
-  fit_naive   = fit_dlsi_naive,
+  fit_leaky   = fit_dlsi_naive,
   fit_guarded = fit_dlsi_guarded,
   metric      = "auc",
   M_boot      = 300L,
@@ -2299,10 +2299,10 @@ small test partition happened to produce extreme metric values.
 
 A recommended two-step workflow:
 
-1. Run `audit_leakage(fit_naive)` to detect leakage and diagnose which
+1. Run `audit_leakage(fit_leaky)` to detect leakage and diagnose which
    mechanism is responsible.
 2. Build a guarded pipeline that addresses those mechanisms, then run
-   `delta_lsi(fit_naive, fit_guarded)` to quantify how much inflation the
+   `delta_lsi(fit_leaky, fit_guarded)` to quantify how much inflation the
    leakage introduced and whether guarding eliminated it.
 
 ```{r delta-lsi-audit-connect}

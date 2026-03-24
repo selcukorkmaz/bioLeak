@@ -5,7 +5,7 @@
 \title{Delta Leakage Sensitivity Index (ΔLSI)}
 \usage{
 delta_lsi(
-  fit_naive,
+  fit_leaky,
   fit_guarded,
   metric = "auc",
   exchangeability = c("iid", "by_group", "within_batch", "blocked_time"),
@@ -20,7 +20,7 @@ delta_lsi(
 )
 }
 \arguments{
-\item{fit_naive}{A \code{\linkS4class{LeakFit}} object from the naive (unprotected)
+\item{fit_leaky}{A \code{\linkS4class{LeakFit}} object from the leaky (unprotected)
 evaluation pipeline.}
 
 \item{fit_guarded}{A \code{\linkS4class{LeakFit}} object from the guarded
@@ -98,7 +98,7 @@ applied to \eqn{\{\Delta_r\}}, which is robust to occasional outlier
 repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\{\Delta_r\}}
 for easy interpretation in the original metric's units.
 
-Pairing requires that \code{fit_naive} and \code{fit_guarded} share
+Pairing requires that \code{fit_leaky} and \code{fit_guarded} share
 \emph{identical fold structures} (same test-set membership per fold) in
 addition to the same number of repeats.  When repeat counts match but fold
 structures differ, a warning is issued and the fits are treated as unpaired.

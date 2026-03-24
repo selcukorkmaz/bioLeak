@@ -1,0 +1,49 @@
+\begin{CodeOutput}
+==============================
+ bioLeak Leakage Audit Summary
+==============================
+
+Task: binomial | Outcome: outcome | Splitting mode: subject_grouped | Positive class: case
+Hash: h9bcac8d4 | Folds: 5 | Repeats: 1
+
+Label-Permutation Association Test:
+  Method: refit per permutation (auto)
+  Observed metric: 0.588
+  Permuted mean +/- SD: 0.553 +/- 0.054
+  Gap: 0.034 (larger gap = stronger non-random signal)
+  This test does NOT diagnose information leakage. Use the Batch Association,
+  Target Leakage Scan, and Duplicate Detection sections to check for leakage.
+
+Batch / Study Association:
+  batch (repeat 1): Chi^2 = 6.000 (df = 20.000), p = 0.999
+
+Target Leakage Scan:
+  Features checked: 3 | Flagged (score >= 0.900): 0
+  No strong proxy features detected.
+
+Multivariate Target Scan:
+  Metric: auc | Score: 0.363 | p = 0.911
+  Features: 3 | Components: 3 | Interactions: 3 | Permutations: 100
+
+Near-Duplicate Samples:
+  Scope: train/test only
+  19 pairs detected above cosine >= 0.995
+  Example pairs:
+   mechanism_class   i   j       sim cross_fold   cos_sim
+ duplicate_overlap  65  81 0.9999316       TRUE 0.9999316
+ duplicate_overlap  53  83 0.9999062       TRUE 0.9999062
+ duplicate_overlap  40  96 0.9994761       TRUE 0.9994761
+ duplicate_overlap  10  49 0.9992337       TRUE 0.9992337
+ duplicate_overlap 100 120 0.9990613       TRUE 0.9990613
+
+Mechanism Risk Assessment:
+       mechanism_class flagged        evidence  statistic   p_value
+     non_random_signal   FALSE permutation_gap 0.03434700 0.2745100
+ confounding_alignment   FALSE     batch_assoc 0.11180340 0.9988975
+  proxy_target_leakage   FALSE    target_assoc 0.08716235        NA
+     duplicate_overlap    TRUE      duplicates 0.99993159        NA
+    temporal_lookahead   FALSE      duplicates         NA        NA
+
+Interpretation:
+  OK: Modest non-random signal.
+\end{CodeOutput}
