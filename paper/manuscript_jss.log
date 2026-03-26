@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.7.17)  24 MAR 2026 13:36
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.7.17)  26 MAR 2026 11:07
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -627,39 +627,52 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [17]
-Overfull \hbox (1.73271pt too wide) in paragraph at lines 779--793
-[]\T1/lmr/m/n/10.95 The pa-per repos-i-tory con-tains a ded-i-cated sim-u-la-ti
-on script, \T1/lmtt/m/n/10.95 paper/run_simulation.R\T1/lmr/m/n/10.95 , whose
+Overfull \hbox (25.12273pt too wide) in paragraph at lines 779--780
+[]\T1/lmr/m/n/10.95 The manuscript sim-u-la-tions were gen-er-ated by a ded-i-c
+ated pa-per script, \T1/lmtt/m/n/10.95 paper/run_simulation.R\T1/lmr/m/n/10.95 
+,
  []
 
-LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 7
-94.
-(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd
-File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-)
+
+Overfull \hbox (15.51329pt too wide) in paragraph at lines 779--780
+\T1/lmr/m/n/10.95 whose set-tings dif-fer in sev-eral re-spects from the con-ve
+-nience helper \T1/lmtt/m/n/10.95 simulate_leakage_suite()\T1/lmr/m/n/10.95 .
+ []
+
+
+Overfull \hbox (32.75719pt too wide) in paragraph at lines 781--782
+[]\T1/lmr/m/n/10.95 The main sim-u-la-tion fol-lows a full fac-to-rial de-sign 
+with five leak-age set-tings (\T1/lmtt/m/n/10.95 none\T1/lmr/m/n/10.95 , \T1/lm
+tt/m/n/10.95 subject_overlap\T1/lmr/m/n/10.95 ,
+ []
+
+
+Overfull \hbox (3.34729pt too wide) in paragraph at lines 781--782
+\T1/lmtt/m/n/10.95 batch_confounded\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 peek_
+norm\T1/lmr/m/n/10.95 , and \T1/lmtt/m/n/10.95 lookahead\T1/lmr/m/n/10.95 ), fo
+ur sam-ple sizes ($\OML/lmm/m/it/10.95 n \OMS/lmsy/m/n/10.95 2 f\OT1/lmr/m/n/10
+.95 100\OML/lmm/m/it/10.95 ; \OT1/lmr/m/n/10.95 250\OML/lmm/m/it/10.95 ; \OT1/l
+mr/m/n/10.95 500\OML/lmm/m/it/10.95 ; \OT1/lmr/m/n/10.95 1000\OMS/lmsy/m/n/10.9
+5 g$\T1/lmr/m/n/10.95 ),
+ []
+
+
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 18 []
  []
 
-[18{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
-Overfull \hbox (2.4013pt too wide) in paragraph at lines 820--825
-\T1/lmr/m/n/10.95 the learner, me-dian im-pu-ta-tion, z-score nor-mal-iza-tion,
- no fea-ture se-lec-tion, and a permutation-
- []
-
-
-Overfull \hbox (77.12492pt too wide) in paragraph at lines 826--835
-[]\T1/lmr/m/n/10.95 Two sup-ple-men-tary re-sult ob-jects re-fine this de-sign.
- The file \T1/lmtt/m/n/10.95 paper/sim_results/supplementary_modes.rds
- []
-
-
+[18]
+LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 7
+87.
+ (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd
+File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
+)
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 19
  []
 
-[19]
-Overfull \hbox (10.8054pt too wide) in paragraph at lines 900--910
+[19{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
+Overfull \hbox (10.8054pt too wide) in paragraph at lines 867--877
 []\T1/lmr/m/n/10.95 These val-ues should be in-ter-preted care-fully. Be-cause 
 the permutation-gap test with \T1/lmtt/m/n/10.95 perm_refit
  []
@@ -670,26 +683,32 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [20]
-<fig_sim_main.pdf, id=445, 722.7pt x 650.43pt>
+<fig_sim_main.pdf, id=447, 722.7pt x 650.43pt>
 File: fig_sim_main.pdf Graphic file (type pdf)
 <use fig_sim_main.pdf>
-Package pdftex.def Info: fig_sim_main.pdf  used on input line 957.
+Package pdftex.def Info: fig_sim_main.pdf  used on input line 924.
 (pdftex.def)             Requested size: 442.65375pt x 398.38937pt.
 
-Overfull \hbox (65.27206pt too wide) in paragraph at lines 968--983
+Overfull \hbox (65.27206pt too wide) in paragraph at lines 935--950
 []\T1/lmr/m/n/10.95 Table [][]4[][] sum-ma-rizes the sup-ple-men-tary split-mod
 e ob-ject \T1/lmtt/m/n/10.95 paper/sim_results/supplementary_modes.rds\T1/lmr/m
 /n/10.95 .
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 990--990
+Underfull \hbox (badness 10000) in paragraph at lines 957--957
 []\T1/lmr/m/n/10.95 Table 4: []Supplementary split-mode anal-y-sis based on
  []
 
 
-Overfull \hbox (49.76106pt too wide) in paragraph at lines 992--1005
+Overfull \hbox (49.76106pt too wide) in paragraph at lines 959--972
  [][] 
+ []
+
+
+Overfull \hbox (14.72072pt too wide) in paragraph at lines 985--1004
+[]\T1/lmr/m/n/10.95 The sup-ple-men-tary target-scan ob-ject, \T1/lmtt/m/n/10.9
+5 paper/sim_results/supplementary_target_scan.rds\T1/lmr/m/n/10.95 ,
  []
 
 
@@ -703,23 +722,18 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [22 <./fig_sim_main.pdf>]
-Overfull \hbox (14.72072pt too wide) in paragraph at lines 1018--1037
-[]\T1/lmr/m/n/10.95 The sup-ple-men-tary target-scan ob-ject, \T1/lmtt/m/n/10.9
-5 paper/sim_results/supplementary_target_scan.rds\T1/lmr/m/n/10.95 ,
- []
-
-<fig_target_scan.pdf, id=467, 650.43pt x 325.215pt>
+<fig_target_scan.pdf, id=469, 650.43pt x 325.215pt>
 File: fig_target_scan.pdf Graphic file (type pdf)
 <use fig_target_scan.pdf>
-Package pdftex.def Info: fig_target_scan.pdf  used on input line 1040.
+Package pdftex.def Info: fig_target_scan.pdf  used on input line 1007.
 (pdftex.def)             Requested size: 442.65375pt x 221.33183pt.
 
-Underfull \hbox (badness 10000) in paragraph at lines 1043--1043
+Underfull \hbox (badness 10000) in paragraph at lines 1010--1010
 []\T1/lmr/m/n/10.95 Figure 3: []Supplementary target-scan sum-maries from
  []
 
 
-Underfull \hbox (badness 6842) in paragraph at lines 1043--1043
+Underfull \hbox (badness 6842) in paragraph at lines 1010--1010
 \T1/lmtt/m/n/10.95 paper/sim_results/supplementary_target_scan.rds\T1/lmr/m/n/1
 0.95 . (a) Uni-vari-ate leak-feature
  []
@@ -730,12 +744,12 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [23 <./fig_target_scan.pdf>]
-Underfull \hbox (badness 1072) in paragraph at lines 1112--1112
+Underfull \hbox (badness 1072) in paragraph at lines 1079--1079
 []\T1/lmr/m/n/10.95 Row-wise 5-fold
  []
 
 
-Overfull \hbox (104.92412pt too wide) in paragraph at lines 1106--1115
+Overfull \hbox (104.92412pt too wide) in paragraph at lines 1073--1082
  [][] 
  []
 
@@ -745,10 +759,10 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [24]
-<fig_casestudy.pdf, id=499, 794.97pt x 289.08pt>
+<fig_casestudy.pdf, id=501, 794.97pt x 289.08pt>
 File: fig_casestudy.pdf Graphic file (type pdf)
 <use fig_casestudy.pdf>
-Package pdftex.def Info: fig_casestudy.pdf  used on input line 1153.
+Package pdftex.def Info: fig_casestudy.pdf  used on input line 1120.
 (pdftex.def)             Requested size: 442.65375pt x 160.97061pt.
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
@@ -756,14 +770,11 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [25 <./fig_casestudy.pdf>]
-Overfull \hbox (38.11978pt too wide) in paragraph at lines 1205--1216
+Overfull \hbox (38.11978pt too wide) in paragraph at lines 1172--1183
 []\T1/lmr/m/n/10.95 Guarded pre-pro-cess-ing is im-ple-mented through an in-ter
 -nal \T1/lmtt/m/n/10.95 GuardFit \T1/lmr/m/n/10.95 ob-ject cre-ated by \T1/lmtt
 /m/n/10.95 .guard_fit()\T1/lmr/m/n/10.95 .
  []
-
-
-Underfull \vbox (badness 8113) has occurred while \output is active []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
@@ -771,34 +782,34 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [26]
-Overfull \hbox (39.95459pt too wide) in paragraph at lines 1242--1255
+Overfull \hbox (39.95459pt too wide) in paragraph at lines 1209--1222
 \T1/lmr/m/n/10.95 and the sup-ple-men-tary anal-y-ses are stored in \T1/lmtt/m/
 n/10.95 paper/sim_results/supplementary_target_scan.rds
  []
 
 
-Overfull \hbox (19.3028pt too wide) in paragraph at lines 1242--1255
+Overfull \hbox (19.3028pt too wide) in paragraph at lines 1209--1222
 \T1/lmr/m/n/10.95 and \T1/lmtt/m/n/10.95 paper/sim_results/supplementary_modes.
 rds\T1/lmr/m/n/10.95 . The file \T1/lmtt/m/n/10.95 paper/placeholder_values.rds
 
  []
 
 
-Overfull \hbox (49.11127pt too wide) in paragraph at lines 1242--1255
+Overfull \hbox (49.11127pt too wide) in paragraph at lines 1209--1222
 \T1/lmr/m/n/10.95 con-tains scalar sum-maries used for ta-bles and fig-ure an-n
 o-ta-tions. The scripts \T1/lmtt/m/n/10.95 paper/run_simulation.R\T1/lmr/m/n/10
 .95 ,
  []
 
 
-Overfull \hbox (7.84491pt too wide) in paragraph at lines 1242--1255
+Overfull \hbox (7.84491pt too wide) in paragraph at lines 1209--1222
 \T1/lmtt/m/n/10.95 paper/run_supplementary.R\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10
 .95 paper/run_casestudy.R\T1/lmr/m/n/10.95 , and \T1/lmtt/m/n/10.95 paper/compi
 le_results.R \T1/lmr/m/n/10.95 doc-
  []
 
 
-Overfull \hbox (4.36885pt too wide) in paragraph at lines 1258--1267
+Overfull \hbox (4.36885pt too wide) in paragraph at lines 1225--1234
 \T1/lmtt/m/n/10.95 workflows\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 yardstick\T1
 /lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 tune\T1/lmr/m/n/10.95 , and \T1/lmtt/m/n/10
 .95 dials \T1/lmr/m/n/10.95 sup-port tidy-mod-els in-ter-op-er-abil-ity. \T1/lm
@@ -807,7 +818,7 @@ tt/m/n/10.95 glmnet\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 ranger\T1/lmr/m/n/10.
  []
 
 
-Overfull \hbox (4.65228pt too wide) in paragraph at lines 1283--1290
+Overfull \hbox (4.65228pt too wide) in paragraph at lines 1250--1257
 []\T1/lmtt/m/n/10.95 bioLeak \T1/lmr/m/n/10.95 ad-dresses a prac-ti-cal gap in 
 biomed-i-cal machine-learning work-flows by pair-ing leakage-
  []
@@ -826,14 +837,14 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [28]
-Overfull \hbox (72.80324pt too wide) in paragraph at lines 1364--1375
+Overfull \hbox (72.80324pt too wide) in paragraph at lines 1331--1342
 \T1/lmr/m/n/10.95 pa-per ma-te-ri-als used in this manuscript, in-clud-ing \T1/
 lmtt/m/n/10.95 paper/run_simulation.R\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 pap
 er/run_supplementary.R\T1/lmr/m/n/10.95 ,
  []
 
 
-Overfull \hbox (88.4501pt too wide) in paragraph at lines 1364--1375
+Overfull \hbox (88.4501pt too wide) in paragraph at lines 1331--1342
 \T1/lmtt/m/n/10.95 paper/run_casestudy.R\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 
 paper/run_delta_lsi.R\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 paper/compile_resul
 ts.R\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 paper/generate_figures.R\T1/lmr/m/n/
@@ -841,8 +852,8 @@ ts.R\T1/lmr/m/n/10.95 , \T1/lmtt/m/n/10.95 paper/generate_figures.R\T1/lmr/m/n/
  []
 
 
-Package natbib Warning: Citation `R2024' on page 29 undefined on input line 137
-9.
+Package natbib Warning: Citation `R2024' on page 29 undefined on input line 134
+6.
 
 (./manuscript_jss.bbl
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
@@ -865,7 +876,7 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [32]
-Overfull \hbox (10.45123pt too wide) in paragraph at lines 1408--1413
+Overfull \hbox (10.45123pt too wide) in paragraph at lines 1375--1380
 []\T1/lmr/m/n/10.95 The fol-low-ing is the full \T1/lmtt/m/n/10.95 summary() \T
 1/lmr/m/n/10.95 out-put of the \T1/lmtt/m/n/10.95 LeakDeltaLSI \T1/lmr/m/n/10.9
 5 ob-ject re-turned by \T1/lmtt/m/n/10.95 delta_lsi()
@@ -925,10 +936,10 @@ r/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></usr/local/tex
 live/2024/texmf-dist/fonts/type1/public/lm/lmtk10.pfb></usr/local/texlive/2024/
 texmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2024/texmf-dist
 /fonts/type1/public/lm/lmtto10.pfb>
-Output written on manuscript_jss.pdf (34 pages, 571955 bytes).
+Output written on manuscript_jss.pdf (34 pages, 572281 bytes).
 PDF statistics:
- 775 PDF objects out of 1000 (max. 8388607)
- 682 compressed objects within 7 object streams
+ 777 PDF objects out of 1000 (max. 8388607)
+ 684 compressed objects within 7 object streams
  169 named destinations out of 1000 (max. 500000)
  341 words of extra memory for PDF output out of 10000 (max. 10000000)
 
