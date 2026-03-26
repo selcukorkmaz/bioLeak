@@ -378,7 +378,7 @@ summary.LeakFit <- function(object, digits = 3, ...) {
     cat("No audit information stored.\n\n")
   }
 
-  invisible(object)
+  invisible(object@metric_summary)
 }
 
 #' Summarize a nested tuning result

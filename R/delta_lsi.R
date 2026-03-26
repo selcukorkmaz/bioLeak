@@ -543,21 +543,6 @@ delta_lsi <- function(
   }
   R_eff <- if (paired) as.integer(R_naive) else 0L
 
-  # Inference tier
-  tier <- if (R_eff >= 20L) "A_full_inference" else
-          if (R_eff >= 10L) "B_signflip_ci"    else
-          if (R_eff >=  5L) "C_signflip"       else
-                            "D_insufficient"
-
-  if (tier == "D_insufficient") {
-    msg <- sprintf(
-      paste0("[delta_lsi] R_eff = %d (R_leaky=%d, R_guarded=%d, paired=%s). ",
-             "Need paired R_eff >= 5 for sign-flip inference; reporting point estimate only."),
-      R_eff, R_naive, R_guarded, paired
-    )
-    if (isTRUE(strict)) stop(msg) else warning(msg)
-  }
-
   # Per-repeat Δ values — sign_factor applied so positive = leakage inflation.
   # Align by repeat_id (both are sorted by .agg_repeats; guard against rare
   # case where different repeats yield all-NA metrics in each fit).
@@ -571,6 +556,30 @@ delta_lsi <- function(
       sign_factor * (rn$metric - rg$metric)
     }
   } else NULL
+
+  # Update R_eff if intersection reduced pairing
+  if (!is.null(delta_r) && length(delta_r) < R_eff) {
+    warning(sprintf(
+      "[delta_lsi] %d of %d repeats dropped (all-NA metrics); R_eff reduced from %d to %d.",
+      R_eff - length(delta_r), R_eff, R_eff, length(delta_r)
+    ))
+    R_eff <- length(delta_r)
+  }
+
+  # Inference tier (computed after R_eff adjustment)
+  tier <- if (R_eff >= 20L) "A_full_inference" else
+          if (R_eff >= 10L) "B_signflip_ci"    else
+          if (R_eff >=  5L) "C_signflip"       else
+                            "D_insufficient"
+
+  if (tier == "D_insufficient") {
+    msg <- sprintf(
+      paste0("[delta_lsi] R_eff = %d (R_leaky=%d, R_guarded=%d, paired=%s). ",
+             "Need paired R_eff >= 5 for sign-flip inference; reporting point estimate only."),
+      R_eff, R_naive, R_guarded, paired
+    )
+    if (isTRUE(strict)) stop(msg) else warning(msg)
+  }
 
   # Point estimates
   delta_lsi_est    <- if (!is.null(delta_r)) {

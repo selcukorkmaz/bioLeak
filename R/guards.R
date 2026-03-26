@@ -556,7 +556,7 @@
     ord <- order(abs(tstat), decreasing = TRUE)
     selected <- ord[seq_len(min(k, length(ord)))]
     X <- X[, selected, drop = FALSE]
-    state$fs <- list(method = "ttest", sel = selected)
+    state$fs <- list(method = "ttest", sel = selected, sel_names = colnames(X))
 
   } else if (fs_method == "lasso") {
     if (!requireNamespace("glmnet", quietly = TRUE))
@@ -593,7 +593,7 @@
       selected <- nz
     }
     X <- X[, selected, drop = FALSE]
-    state$fs <- list(method = "lasso", sel = selected)
+    state$fs <- list(method = "lasso", sel = selected, sel_names = colnames(X))
 
   } else if (fs_method == "pca") {
     p <- fs_cfg$pca_comp %||% min(50, ncol(X))
@@ -811,10 +811,18 @@
 
     # Feature selection mapping
     if (state$fs$method %in% c("ttest", "lasso")) {
-      sel <- state$fs$sel
-      # sel indexes within filtered set at train-time; ensure bounds
-      sel <- sel[sel >= 1 & sel <= ncol(Xnew)]
-      Xnew <- Xnew[, sel, drop = FALSE]
+      sel_names <- state$fs$sel_names
+      if (!is.null(sel_names)) {
+        # Name-based selection: robust to upstream column removal (e.g. lasso
+        # constant-column guard) that would invalidate positional indices.
+        avail <- intersect(sel_names, colnames(Xnew))
+        Xnew <- Xnew[, avail, drop = FALSE]
+      } else {
+        # Backward compatibility: positional fallback
+        sel <- state$fs$sel
+        sel <- sel[sel >= 1 & sel <= ncol(Xnew)]
+        Xnew <- Xnew[, sel, drop = FALSE]
+      }
     } else if (state$fs$method == "pca") {
       # Project using train PCA rotation
       R <- state$fs$rotation

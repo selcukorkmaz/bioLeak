@@ -560,7 +560,8 @@ tune_resample <- function(x, outcome, splits,
                           cfg$sd / sqrt(cfg$n),
                           0)
 
-    param_cols <- setdiff(names(metrics_df), c(".metric", ".estimator", ".estimate", "n", "std_err", ".config"))
+    param_cols <- setdiff(names(metrics_df), c(".metric", ".estimator", ".estimate", "n", "std_err", ".config",
+                                               "id", "id2", ".notes"))
     params_by_cfg <- unique(metrics_df[, c(".config", param_cols), drop = FALSE])
     cfg <- merge(cfg, params_by_cfg, by = ".config", all.x = TRUE, sort = FALSE)
 

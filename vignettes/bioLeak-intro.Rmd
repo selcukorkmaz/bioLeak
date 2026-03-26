@@ -1660,7 +1660,7 @@ print(ci_std)
 # Nadeau-Bengio corrected CI
 # For K-fold CV: n_train ≈ (K-1)/K × n, n_test ≈ n/K
 K_folds  <- length(unique(fit_safe@metrics$fold))
-n_total  <- nrow(df)
+n_total  <- nrow(fit_safe@splits@info$coldata)
 
 ci_nb <- cv_ci(
   fit_safe@metrics,
