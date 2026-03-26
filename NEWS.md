@@ -1,4 +1,4 @@
-# bioLeak 0.3.1 (development)
+# bioLeak 0.3.5 (development)
 
 ## Breaking changes
 
@@ -27,6 +27,33 @@
 
 ## Bug fixes and improvements
 
+* `fit_resample()`: compact + combined mode now correctly excludes
+  constraint-axis violations from training sets.  Previously the compact
+  fallback used `setdiff(all, test)`, ignoring multi-axis constraints declared
+  via `make_split_plan(constraints = ...)`.  The same fix is applied in the
+  `as_rsample()` conversion path for consistency.
+* Guarded preprocessing: lasso and t-test feature selection now uses name-based
+  column selection in the transform step, preventing index misalignment when
+  constant columns are removed during fitting.
+* `delta_lsi()`: `R_eff` and the inference tier are now recomputed after
+  repeat-level intersection, so that dropped all-NA repeats correctly reduce the
+  effective sample size and select the appropriate tier.
+* `fit_resample()`: fold error messages are now correctly captured when running
+  in parallel via `future.apply`.  Previously `<<-` mutations inside worker
+  processes were silently lost; errors are now attached as result attributes and
+  extracted after the parallel map.
+* `tune_resample()`: fold-ID columns (`id`, `id2`, `.notes`) no longer leak
+  into hyperparameter aggregation in the internal `select_config()` helper.
+* `summary.LeakFit()` now returns `object@metric_summary` invisibly, matching
+  the documented return value (previously returned the object itself).
+* Fixed vignette (`bioLeak-intro`) referencing a shadowed data frame for sample
+  count; now reads from `fit_safe@splits@info$coldata`.
+* Fixed `audit_leakage()` roxygen documenting a `duplicates` column named
+  `in_train_test`; the actual column name is `cross_fold`.
+* `make_split_plan()`: time-series mode now warns and skips folds with fewer
+  than 3 test samples instead of producing degenerate folds.
+* `fit_resample()`: added bounds checking for `repeat_id` in compact fold
+  resolution to produce a clear error instead of a cryptic index failure.
 * `show()` and `summary()` for `LeakDeltaLSI` now label the sign-flip p-value
   as testing `mean(Δr)` (delta_metric), not delta_lsi, making the
   estimator–inference pairing explicit.

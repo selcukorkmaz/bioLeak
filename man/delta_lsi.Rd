@@ -16,12 +16,13 @@ delta_lsi(
   M_flip = 10000L,
   strict = FALSE,
   return_details = FALSE,
-  seed = 42L
+  seed = 42L,
+  ...
 )
 }
 \arguments{
-\item{fit_leaky}{A \code{\linkS4class{LeakFit}} object from the leaky (unprotected)
-evaluation pipeline.}
+\item{fit_leaky}{A \code{\linkS4class{LeakFit}} object from the leaky
+(unprotected) evaluation pipeline.}
 
 \item{fit_guarded}{A \code{\linkS4class{LeakFit}} object from the guarded
 (leakage-protected) evaluation pipeline.}

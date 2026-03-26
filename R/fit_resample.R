@@ -1023,6 +1023,10 @@ fit_resample <- function(x, outcome, splits,
     }
     r <- fold$repeat_id
     if (is.null(r) || !is.finite(r)) r <- 1L
+    r <- as.integer(r)
+    if (r < 1L || r > length(fold_assignments)) {
+      stop(sprintf("repeat_id %d out of range [1, %d].", r, length(fold_assignments)))
+    }
     assign_vec <- fold_assignments[[r]]
     if (is.null(assign_vec)) {
       stop(sprintf("Missing fold assignments for repeat %s.", r))

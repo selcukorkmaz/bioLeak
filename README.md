@@ -37,7 +37,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 | Function | Description |
 |---|---|
-| `make_split_plan()` | Leakage-aware splits: subject-grouped, batch-blocked, study leave-out, time-series, and N-axis combined modes with compact storage option |
+| `make_split_plan()` | Leakage-aware splits: subject-grouped, batch-blocked, study leave-out, time-series, and N-axis combined modes with compact storage option and constraint-aware train/test exclusion |
 | `check_split_overlap()` | Explicit overlap-invariant validation across declared grouping axes |
 | `as_rsample()` | Convert `LeakSplits` to an `rsample` rset for tidymodels interoperability |
 
@@ -45,8 +45,8 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 | Function | Description |
 |---|---|
-| `fit_resample()` | Cross-validated fitting with train-only imputation, normalization, filtering, and feature selection; supports binomial, multiclass, regression, and survival tasks |
-| `tune_resample()` | Nested hyperparameter tuning via tidymodels `tune`/`dials` with leakage-aware outer splits and hyperparameter aggregation across folds; survival tasks are not yet supported |
+| `fit_resample()` | Cross-validated fitting with train-only imputation, normalization, filtering, and feature selection; supports binomial, multiclass, regression, and survival tasks; parallel execution via `future.apply` |
+| `tune_resample()` | Nested hyperparameter tuning via tidymodels `tune`/`dials` with leakage-aware outer splits, hyperparameter aggregation across folds, and optional threshold tuning; survival tasks are not yet supported |
 | `impute_guarded()` | Standalone train-only imputation (median, knn, missForest, none) |
 | `guard_to_recipe()` | Convert guarded preprocessing specifications to `recipes` pipelines |
 
@@ -64,7 +64,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 | Function | Description |
 |---|---|
-| `delta_lsi()` | Leakage sensitivity index with BCa confidence intervals and sign-flip inference, including blocked exchangeability for time-series |
+| `delta_lsi()` | Leakage sensitivity index (ΔLSI) with Huber M-estimation, BCa confidence intervals, sign-flip inference, and blocked exchangeability for time-series designs |
 | `cv_ci()` | Cross-validation confidence intervals with Nadeau-Bengio correction |
 
 ### Simulation and benchmarking

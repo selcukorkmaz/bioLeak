@@ -464,6 +464,19 @@
       purge = split_purge,
       embargo = split_embargo
     )
+  } else if (identical(splits@mode, "combined")) {
+    # Combined mode: exclude samples sharing constraint-axis levels with test
+    remaining <- setdiff(seq_len(n), test)
+    cst <- splits@info$constraints
+    cd <- data %||% splits@info$coldata
+    if (!is.null(cst) && length(cst) > 1L && !is.null(cd)) {
+      for (ax in cst[-1]) {
+        ax_vec <- cd[[ax$col]]
+        test_levels <- unique(ax_vec[test])
+        remaining <- remaining[!ax_vec[remaining] %in% test_levels]
+      }
+    }
+    train <- remaining
   } else {
     train <- setdiff(seq_len(n), test)
   }

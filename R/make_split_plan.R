@@ -599,7 +599,11 @@ make_split_plan <- function(x, outcome = NULL,
         embargo = embargo
       )
       if (length(train) < 1L) next
-      if (length(test) < 3L) next
+      if (length(test) < 3L) {
+        warning(sprintf("time_series fold %d skipped: only %d test sample(s) (minimum 3).", k, length(test)),
+                call. = FALSE)
+        next
+      }
       if (isTRUE(compact)) {
         fold_assign[test] <- k
         indices[[length(indices) + 1L]] <- list(fold = as.integer(k), repeat_id = as.integer(1))

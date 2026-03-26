@@ -1438,6 +1438,7 @@ classifies leakage evidence into four mechanism classes:
 | `confounding_alignment` | batch association | p ≤ 0.05 and Cramér's V ≥ 0.1 |
 | `proxy_target_leakage` | target scan | any feature flagged (FDR or raw) |
 | `duplicate_overlap` | duplicates | any cross-fold duplicates present |
+| `temporal_lookahead` | duplicates | cross-fold duplicates in time-series splits |
 
 The summary is stored in `audit@info$mechanism_summary` and can be accessed
 directly for programmatic triage:
@@ -1856,12 +1857,13 @@ splits_dlsi <- make_split_plan(
 ```
 
 ```{r delta-lsi-fits}
+# Reuse the parsnip spec (base R glm) defined earlier
 # Naive fit: uses leaky feature (leak encodes test-subject outcome label)
 fit_dlsi_naive <- fit_resample(
   df_dlsi_naive,
   outcome = "outcome",
   splits  = splits_dlsi,
-  learner = "glm",
+  learner = spec,
   metrics = "auc",
   seed    = 1L
 )
@@ -1871,7 +1873,7 @@ fit_dlsi_guarded <- fit_resample(
   df_dlsi_guarded,
   outcome = "outcome",
   splits  = splits_dlsi,
-  learner = "glm",
+  learner = spec,
   metrics = "auc",
   seed    = 1L
 )
@@ -2180,7 +2182,7 @@ fit_naive_rand <- fit_resample(
   df_dlsi_naive,
   outcome = "outcome",
   splits  = splits_rand,
-  learner = "glm",
+  learner = spec,
   metrics = "auc",
   seed    = 1L
 )
@@ -2257,7 +2259,7 @@ directly for programmatic downstream use:
 | `@folds_guarded` | data.frame | Per-fold data for the guarded pipeline: columns `fold`, `metric`, `repeat_id`, `n` — same structure as `@folds_naive` |
 | `@repeats_naive` | data.frame | Per-repeat aggregates for the naive pipeline: columns `repeat_id`, `metric` (size-weighted mean across folds), `n_folds`, `total_n` |
 | `@repeats_guarded` | data.frame | Per-repeat aggregates for the guarded pipeline: same structure as `@repeats_naive` |
-| `@info` | list | Metadata: `paired` (logical), `R_naive`, `R_guarded` (number of repeats in each fit), `higher_is_better` (logical, after auto-detection), `metric_naive` and `metric_guarded` (Huber-robust overall mean for each pipeline), and optionally `delta_r` (per-repeat $\Delta_r$ vector) and the original fit objects when `return_details = TRUE` |
+| `@info` | list | Metadata: `paired` (logical), `R_naive`, `R_guarded` (number of repeats in each fit), `higher_is_better` (logical, after auto-detection), `metric_naive` and `metric_guarded` (Huber-robust overall mean for each pipeline), `block_size_used` and `n_blocks` (for `exchangeability = "blocked_time"`; `NA` otherwise), and optionally `delta_r` (per-repeat $\Delta_r$ vector) and the original fit objects when `return_details = TRUE` |
 
 ```{r delta-lsi-slots}
 # Per-repeat summaries for custom plotting
@@ -2405,7 +2407,8 @@ bioLeak uses S4 classes and list-like results to capture provenance and diagnost
 - `LeakAudit`: returned by `audit_leakage()`, summarized with `summary()`.
   Now includes `audit@info$mechanism_summary` — a data.frame classifying
   leakage evidence into mechanism classes (`non_random_signal`,
-  `confounding_alignment`, `proxy_target_leakage`, `duplicate_overlap`).
+  `confounding_alignment`, `proxy_target_leakage`, `duplicate_overlap`,
+  `temporal_lookahead`).
 - `LeakAuditList`: returned by `audit_leakage_by_learner()`, printed directly
 - `GuardFit`: returned by `.guard_fit()`, printed and summarized.
   Use `guard_to_recipe()` to convert guard preprocessing specs to a
@@ -2416,9 +2419,10 @@ bioLeak uses S4 classes and list-like results to capture provenance and diagnost
   `final_workflow` when `refit = TRUE`
 - `LeakSimResults`: returned by `simulate_leakage_suite()` (per-seed results)
 - `LeakDeltaLSI`: returned by `delta_lsi()` (paired pipeline comparison).
-  Key slots: `@tier`, `@R_eff`, `@delta_metric`, `@delta_lsi`,
-  `@delta_lsi_ci`, `@p_value`, `@inference_ok`, `@folds_naive`,
-  `@folds_guarded`, `@repeats_naive`, `@repeats_guarded`, `@info`.
+  Key slots: `@metric`, `@exchangeability`, `@tier`, `@R_eff`,
+  `@delta_metric`, `@delta_metric_ci`, `@delta_lsi`, `@delta_lsi_ci`,
+  `@p_value`, `@inference_ok`, `@folds_naive`, `@folds_guarded`,
+  `@repeats_naive`, `@repeats_guarded`, `@info`.
   Summarise with `summary()`.
 
 Set `options(bioLeak.strict = TRUE)` to activate strict leakage mode, which

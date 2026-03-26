@@ -885,8 +885,8 @@
 #'       target leakage.}
 #'     \item{\code{duplicates}}{Data.frame of near-duplicate sample pairs with
 #'       columns: \code{i}, \code{j} (row indices in \code{X_ref}), \code{sim}
-#'       (similarity value), and \code{in_train_test} (whether the pair appears
-#'       in train vs test). Duplicates in train and test can inflate performance.}
+#'       (similarity value), and \code{cross_fold} (whether the pair spans
+#'       train vs test). Duplicates across folds can inflate performance.}
 #'     \item{\code{trail}}{List capturing audit parameters and intermediate
 #'       results for reproducibility, including \code{metric}, \code{B},
 #'       \code{seed}, \code{perm_stratify}, \code{perm_refit}, and timing info.}
