@@ -46,7 +46,11 @@
       "Bash(bash /tmp/check_manuscript.sh)",
       "Bash(FILE=\"/c/Users/Selçuk/Documents/GitHub/bioLeak/paper/manuscript_jss.tex\" echo \"=== Final Verification ===\" echo \"\" echo \"Key sections present:\" grep -i \"section.*Introduction\" \"$FILE\")",
       "Bash(Rscript -e 'args\\(PRROC::pr.curve\\)')",
-      "Bash(Rscript -e \"devtools::test\\(\\)\")"
+      "Bash(Rscript -e \"devtools::test\\(\\)\")",
+      "Bash(Rscript -e \"warnings\\(\\)\")",
+      "Bash(Rscript -e \"devtools::document\\(\\)\")",
+      "Bash(cut -d'{' -f2)",
+      "Bash(__NEW_LINE_d483c379aec7c07f__ echo:*)"
     ]
   }
 }
