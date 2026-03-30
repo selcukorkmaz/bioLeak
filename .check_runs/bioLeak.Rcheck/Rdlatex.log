@@ -1,0 +1,1191 @@
+Hmm ... looks like a package
+Converting parsed Rd's to LaTeX ...
+Creating pdf output from LaTeX ...
+
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(./Rd2.tex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/bk10.clo))
+(/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/alltt.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/mathrsfs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/times.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/zi4.sty
+`inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/keyval.tex)))))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/color.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty (/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+)))) (/usr/local/texlive/2024/texmf-dist/tex/latex/base/makeidx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+Writing index file Rd2.idx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)
+No file Rd2.aux.
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/t1zi4.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1phv.fd)
+No file Rd2.toc.
+[1{/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/l
+ocal/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/usr/local/texlive/20
+24/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}]
+Overfull \hbox (17.11757pt too wide) in paragraph at lines 64--66
+[]\T1/ptm/m/n/10 Logical; if TRUE, at-tempts to cap-ture the cur-rent git short
+ SHA via []\T1/zi4/m/n/10 system2("git",
+
+Overfull \hbox (9.97678pt too wide) in paragraph at lines 108--111
+[]\T1/ptm/m/n/10 Converts char-ac-ter/logical columns to fac-tors and aligns fa
+c-tor lev-els with a training-time []\T1/zi4/m/n/10 levels_map[]\T1/ptm/m/n/10 
+.
+[2] (/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/ts1ptm.fd) [3]
+Overfull \hbox (38.47618pt too wide) in paragraph at lines 231--235
+[]\T1/ptm/m/n/10 Builds a clo-sure that gen-er-ates per-muted out-come vec-tors
+ per fold while re-spect-ing group-ing/batch/study/time
+[4] [5] [6] [7]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 432--432
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_lo
+ss", "rmse", "cindex"),[] 
+[8]
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 477--481
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, 
+`"macro_f1"`, `"log_loss"`,
+
+Overfull \hbox (28.38696pt too wide) in paragraph at lines 504--510
+\T1/ptm/m/n/10 Op-tional el-e-ments: `out-come` (de-faults to `fit@outcome`), `
+pre-pro-cess`, `learner_args`,
+
+Overfull \hbox (3.5367pt too wide) in paragraph at lines 511--515
+\T1/ptm/m/n/10 `"time_series"`. De-faults to the split meta-data when avail-abl
+e (in-clud-ing rsample-
+[9]
+Overfull \hbox (47.47655pt too wide) in paragraph at lines 587--591
+[]\T1/ptm/m/n/10 Character scalar. Multiple-testing cor-rec-tion method ap-plie
+d to fi-nite `tar-get_assoc$p_value`
+
+Overfull \hbox (13.05786pt too wide) in paragraph at lines 592--594
+[]\T1/ptm/m/n/10 Numeric scalar in (0,1). Sig-nif-i-cance level used for `flag_
+fdr` when `tar-get_p_adjust
+[10]
+Overfull \hbox (4.01634pt too wide) in paragraph at lines 644--658
+\T1/ptm/m/n/10 (`stat`, `df`, `pval`, `cramer_v`). `tar-get_assoc` re-ports fea
+ture-wise out-come as-so-ci-a-tions on `X_ref`;
+
+Overfull \hbox (15.01695pt too wide) in paragraph at lines 659--667
+[]\T1/ptm/m/n/10 Duplicate de-tec-tion com-pares rows of `X_ref` us-ing the cho
+-sen `sim_method` (co-sine on L2-normalized
+[11]
+Overfull \hbox (27.63805pt too wide) in paragraph at lines 690--697
+[]\T1/ptm/m/n/10 Data.frame of per-feature out-come as-so-ci-a-tions with colum
+ns: []\T1/zi4/m/n/10 feature[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 type []\T1/ptm/
+m/n/10 ([]\T1/zi4/m/n/10 "numeric"
+
+Overfull \hbox (13.289pt too wide) in paragraph at lines 690--697
+[]\T1/zi4/m/n/10 value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 score []\T1/ptm/m/n/1
+0 (scaled ef-fect size), []\T1/zi4/m/n/10 p_value[]\T1/ptm/m/n/10 , []\T1/zi4/m
+/n/10 n[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 flag []\T1/ptm/m/n/10 (TRUE if [
+]\T1/zi4/m/n/10 score >= target_threshold[]\T1/ptm/m/n/10 ).
+
+Overfull \hbox (4.86696pt too wide) in paragraph at lines 701--704
+[]\T1/ptm/m/n/10 List cap-tur-ing au-dit pa-ram-e-ters and in-ter-me-di-ate re-
+sults for re-pro-ducibil-ity, in-clud-ing []\T1/zi4/m/n/10 metric[]\T1/ptm/m/n/
+10 ,
+
+Overfull \hbox (27.46732pt too wide) in paragraph at lines 704--706
+[]\T1/ptm/m/n/10 List with ad-di-tional meta-data in-clud-ing mul-ti-vari-ate s
+can re-sults when []\T1/zi4/m/n/10 target_scan_multivariate
+[12]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 765--765
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_lo
+ss", "rmse", "cindex"),[] 
+
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 780--783
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, 
+`"macro_f1"`, `"log_loss"`,
+[13]
+Overfull \hbox (14.06697pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 tions), `perm_stratify` (log-i-cal or `"auto"`), `perm_refit` (l
+og-i-cal), `perm_refit_spec`
+
+Overfull \hbox (21.09729pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 te-ger), `re-turn_perm` (log-i-cal), `batch_cols` (char-ac-ter v
+ec-tor), `col-data` (data.frame),
+
+Overfull \hbox (4.09712pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 `X_ref` (ma-trix/data.frame), `tar-get_scan` (log-i-cal), `tar-g
+et_threshold` (nu-meric),
+
+Overfull \hbox (20.55829pt too wide) in paragraph at lines 814--823
+\T1/ptm/m/n/10 Use []\T1/zi4/m/n/10 names() []\T1/ptm/m/n/10 to re-trieve learn
+er IDs, and ac-cess in-di-vid-ual au-dits with []\T1/zi4/m/n/10 [[learner_id]] 
+[]\T1/ptm/m/n/10 or []\T1/zi4/m/n/10 $learner_id[]\T1/ptm/m/n/10 .
+[14]
+Overfull \hbox (30.11668pt too wide) in paragraph at lines 893--899
+[]\T1/ptm/m/n/10 A [LeakAu-dit] ob-ject from [au-dit_leakage()] or a [Leak-Fit]
+ ob-ject from [fit_resample()].
+
+Overfull \hbox (49.36647pt too wide) in paragraph at lines 900--904
+[]\T1/ptm/m/n/10 Character scalar. File name for the HTML re-port. De-faults to
+ `"bi-oLeak_audit_report.html"`.
+
+Overfull \hbox (21.18684pt too wide) in paragraph at lines 918--925
+\T1/ptm/m/n/10 `perm_stratify` (log-i-cal), `batch_cols` (char-ac-ter vec-tor),
+ `X_ref` (ma-trix/data.frame),
+[15] [16]
+Overfull \hbox (31.42029pt too wide) in paragraph at lines 1010--1010
+ []  \T1/zi4/m/n/10 leakages = c("none", "subject_overlap", "batch_confounded",
+ "peek_norm", "lookahead"),[] 
+
+Overfull \hbox (19.07729pt too wide) in paragraph at lines 1023--1025
+[]\T1/ptm/m/n/10 Character vec-tor se-lect-ing pre-de-fined modal-ity pro-files
+. Sup-ported val-ues: `"omics"`,
+
+Overfull \hbox (1.7162pt too wide) in paragraph at lines 1046--1050
+[]\T1/ptm/m/n/10 A data.frame with one row per sim-u-la-tion seed/scenario and 
+columns: `modal-ity`, `leak-age`, `mode`,
+[17] [18]
+Overfull \hbox (67.50697pt too wide) in paragraph at lines 1136--1138
+[]\T1/ptm/m/n/10 A data.frame of sam-ple meta-data. When []\T1/zi4/m/n/10 NULL 
+[]\T1/ptm/m/n/10 (de-fault), the func-tion uses []\T1/zi4/m/n/10 splits@info$co
+ldata
+
+Overfull \hbox (10.81876pt too wide) in paragraph at lines 1139--1143
+\T1/ptm/m/n/10 the func-tion in-fers columns from the split mode (e.g., []\T1/z
+i4/m/n/10 group []\T1/ptm/m/n/10 for []\T1/zi4/m/n/10 subject_grouped[]\T1/ptm/
+m/n/10 ,
+[19]
+Overfull \hbox (18.96742pt too wide) in paragraph at lines 1182--1184
+[]\T1/ptm/m/n/10 Character vec-tor of columns in `col-data` to eval-u-ate. De-f
+aults to com-mon batch/study
+[20]
+Overfull \hbox (12.02832pt too wide) in paragraph at lines 1264--1266
+[]\T1/ptm/m/n/10 Data.frame with columns []\T1/zi4/m/n/10 fold[]\T1/ptm/m/n/10 
+, []\T1/zi4/m/n/10 learner[]\T1/ptm/m/n/10 , and one or more nu-meric met-ric c
+olumns. 
+
+Overfull \hbox (46.10905pt too wide) in paragraph at lines 1271--1273
+[]\T1/ptm/m/n/10 Average num-ber of train-ing sam-ples per fold. Used only when
+ []\T1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (28.8891pt too wide) in paragraph at lines 1274--1276
+[]\T1/ptm/m/n/10 Average num-ber of test sam-ples per fold. Used only when []\T
+1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (34.99854pt too wide) in paragraph at lines 1280--1283
+[]\T1/ptm/m/n/10 A data.frame with []\T1/zi4/m/n/10 learner []\T1/ptm/m/n/10 an
+d, for each met-ric, columns []\T1/zi4/m/n/10 <metric>_mean[]\T1/ptm/m/n/10 , [
+]\T1/zi4/m/n/10 <metric>_sd[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 <metric>_ci_lo[]
+\T1/ptm/m/n/10 ,
+[21]
+Overfull \hbox (20.56839pt too wide) in paragraph at lines 1324--1333
+\T1/ptm/m/n/10 gether, pre-serv-ing se-rial au-to-cor-re-la-tion un-der the nul
+l; see []\T1/zi4/m/n/10 block_size[]\T1/ptm/m/n/10 . []\T1/zi4/m/n/10 "by_group
+"
+
+Overfull \hbox (43.35881pt too wide) in paragraph at lines 1346--1354
+[]\T1/ptm/m/n/10 Integer or []\T1/zi4/m/n/10 NULL[]\T1/ptm/m/n/10 . Block lengt
+h for the block sign-flip test, used only when []\T1/zi4/m/n/10 exchangeability
+
+[22]
+Overfull \hbox (24.09653pt too wide) in paragraph at lines 1433--1435
+[]\T1/ptm/m/n/10 Performs cross-validated model train-ing and eval-u-a-tion us-
+ing leakage-protected pre-pro-cess-ing (.guard_fit)
+[23]
+Overfull \hbox (26.38962pt too wide) in paragraph at lines 1444--1444
+ []    \T1/zi4/m/n/10 "zscore"), filter = list(var_thresh = 0, iqr_thresh = 0),
+ fs = list(method = "none")),[] 
+
+Overfull \hbox (0.72862pt too wide) in paragraph at lines 1484--1492
+\T1/ptm/m/n/10 tion should ac-cept []\T1/zi4/m/n/10 object[]\T1/ptm/m/n/10 , []
+\T1/zi4/m/n/10 newdata[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 task[]\T1/ptm/m/n
+/10 . For bi-no-mial/regression/survival
+[24]
+Overfull \hbox (8.25684pt too wide) in paragraph at lines 1493--1497
+[]\T1/ptm/m/n/10 named list of met-ric func-tions, vec-tor of met-ric names, or
+ a `yard-stick::metric_set`.
+
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 1515--1520
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) o
+ver-rid-ing group/batch/study/time
+
+Overfull \hbox (18.7869pt too wide) in paragraph at lines 1521--1524
+\T1/ptm/m/n/10 in-side the fit to en-able refit-based per-mu-ta-tion tests with
+-out man-ual `perm_refit_spec`
+[25]
+Overfull \hbox (31.32895pt too wide) in paragraph at lines 1570--1573
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the task type ([]\T1/zi4/m/n/10
+ "binomial"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "multiclass"[]\T1/ptm/m/n/10 , [
+]\T1/zi4/m/n/10 "gaussian"[]\T1/ptm/m/n/10 , or []\T1/zi4/m/n/10 "survival"[]\T
+1/ptm/m/n/10 ). 
+
+Overfull \hbox (8.10919pt too wide) in paragraph at lines 1575--1580
+[]\T1/ptm/m/n/10 List of ad-di-tional meta-data in-clud-ing []\T1/zi4/m/n/10 ha
+sh[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 metrics_used[]\T1/ptm/m/n/10 , []\T1/zi4/
+m/n/10 class_weights[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 positive_class[]\T1/ptm
+/m/n/10 ,
+
+Overfull \hbox (40.94011pt too wide) in paragraph at lines 1575--1580
+[]\T1/zi4/m/n/10 sample_ids[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 fold_status[]\T1
+/ptm/m/n/10 , []\T1/zi4/m/n/10 refit[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 final_m
+odel []\T1/ptm/m/n/10 (re-fit-ted model if []\T1/zi4/m/n/10 refit = TRUE[]\T1/p
+tm/m/n/10 ), []\T1/zi4/m/n/10 final_preprocess[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (5.24408pt too wide) in paragraph at lines 1612--1612
+ []      \T1/zi4/m/n/9 as.numeric(stats::predict(object, newdata = as.data.fram
+e(newdata), type = "response"))[] 
+[26] [27]
+Overfull \hbox (3.95862pt too wide) in paragraph at lines 1727--1729
+[]\T1/ptm/m/n/10 A list (S3 class []\T1/zi4/m/n/10 "LeakImpute"[]\T1/ptm/m/n/10
+ ) with el-e-ments []\T1/zi4/m/n/10 train[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 te
+st[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 model[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 
+method[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 summary[]\T1/ptm/m/n/10 , and []\T1/z
+i4/m/n/10 outliers[]\T1/ptm/m/n/10 . 
+[28] (/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/ts1zi4.fd)
+[29{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-ts1.enc}]
+
+Overfull \hbox (36.42029pt too wide) in paragraph at lines 1883--1883
+ []  \T1/zi4/m/n/10 mode = c("subject_grouped", "batch_blocked", "study_loocv",
+ "time_series", "combined"),[] 
+[30]
+Overfull \hbox (20.11781pt too wide) in paragraph at lines 1914--1915
+[]\T1/ptm/m/n/10 one of "sub-ject_grouped","batch_blocked","study_loocv","time_
+series","combined". 
+[31]
+Overfull \hbox (1.86774pt too wide) in paragraph at lines 1950--1953
+\T1/ptm/m/n/10 strat-i-fi-ca-tion is ap-plied at the group level (by ma-jor-ity
+ class per group) if []\T1/zi4/m/n/10 outcome
+
+Overfull \hbox (1.21819pt too wide) in paragraph at lines 1976--1978
+[]\T1/ptm/m/n/10 logical; dep-re-cated and ig-nored. `sub-ject_grouped` al-ways
+ re-quires a non-NULL
+
+Overfull \hbox (49.92862pt too wide) in paragraph at lines 1985--1988
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the split-ting mode ([]\T1/zi4/
+m/n/10 "subject_grouped"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "batch_blocked"[]\T
+1/ptm/m/n/10 , []\T1/zi4/m/n/10 "study_loocv"[]\T1/ptm/m/n/10 ,
+[32] [33] [34] [35] [36] [37] [38] [39] [40] [41]
+Overfull \hbox (26.42029pt too wide) in paragraph at lines 2561--2561
+ []  \T1/zi4/m/n/10 leakage = c("none", "subject_overlap", "batch_confounded", 
+"peek_norm", "lookahead"),[] 
+
+Overfull \hbox (19.57857pt too wide) in paragraph at lines 2600--2607
+[]\T1/ptm/m/n/10 Character scalar. Leak-age mech-a-nism to in-ject; one of []\T
+1/zi4/m/n/10 "none"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "subject_overlap"[]\T1/p
+tm/m/n/10 ,
+
+Overfull \hbox (51.24904pt too wide) in paragraph at lines 2600--2607
+\T1/ptm/m/n/10 ex-tra pre-dic-tor: []\T1/zi4/m/n/10 "subject_overlap" []\T1/ptm
+/m/n/10 adds per-subject mean out-come, []\T1/zi4/m/n/10 "batch_confounded"
+[42] [43]
+Overfull \hbox (1.03755pt too wide) in paragraph at lines 2690--2693
+[]\T1/ptm/b/n/10 lookahead leak-age\T1/ptm/m/n/10 : this func-tion shifts the b
+i-nary out-come ([]\T1/zi4/m/n/10 c(y[-1], y[n])[]\T1/ptm/m/n/10 ); the manuscr
+ipt
+[44] [45] (/usr/local/texlive/2024/texmf-dist/tex/latex/base/t1cmtt.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ts1cmtt.fd)
+Overfull \hbox (14.8067pt too wide) in paragraph at lines 2868--2871
+[]\T1/ptm/m/n/10 A [Leak-Fit] ob-ject re-turned by [fit_resample()]. It should 
+con-tain `met-ric_summary`
+[46{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.en
+c}] [47] [48]
+Overfull \hbox (6.75821pt too wide) in paragraph at lines 3019--3023
+\T1/ptm/m/n/10 Ig-nored when `learner` is al-ready a work-flow. Recipe/workflow
+ leak-age guardrails
+
+Overfull \hbox (20.02779pt too wide) in paragraph at lines 3027--3033
+[]\T1/ptm/m/n/10 Character vec-tor of met-ric names (`auc`, `pr_auc`, `ac-cu-ra
+cy`, `macro_f1`, `log_loss`,
+[49]
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 3065--3070
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) o
+ver-rid-ing group/batch/study/time
+
+Overfull \hbox (1.18794pt too wide) in paragraph at lines 3089--3092
+[]\T1/ptm/m/n/10 Mean/SD met-rics across outer folds with columns []\T1/zi4/m/n
+/10 learner[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 <metric>_mean
+[50]
+No file Rd2.ind.
+[51]
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.aux)
+
+Package rerunfilecheck Warning: File `Rd2.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+ )
+(see the transcript file for additional information)
+pdfTeX warning (dest): name{Rfn.browseURL} has been referenced but does not exi
+st, replaced by a fixed one
+
+</usr/local/texlive/2024/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-
+zi4r.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmm
+i10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi
+7.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
+</usr/local/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sftt0900.pfb></
+usr/local/texlive/2024/texmf-dist/fonts/type1/urw/helvetic/uhvr8a.pfb></usr/loc
+al/texlive/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive
+/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texm
+f-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fon
+ts/type1/urw/times/utmri8a.pfb>
+Output written on Rd2.pdf (51 pages, 257742 bytes).
+Transcript written on Rd2.log.
+This is makeindex, version 2.17 [TeX Live 2024] (kpathsea + Thai support).
+Scanning input file Rd2.idx....done (63 entries accepted, 0 rejected).
+Sorting entries....done (362 comparisons).
+Generating output file Rd2.ind....done (107 lines written, 0 warnings).
+Output written in Rd2.ind.
+Transcript written in Rd2.ilg.
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(./Rd2.tex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/bk10.clo))
+(/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/alltt.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/mathrsfs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/times.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/zi4.sty
+`inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/keyval.tex)))))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/color.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty (/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+)))) (/usr/local/texlive/2024/texmf-dist/tex/latex/base/makeidx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+Writing index file Rd2.idx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.out)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/t1zi4.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1phv.fd)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.toc [1{/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/
+pdftex.map}{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/us
+r/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}])
+Overfull \hbox (17.11757pt too wide) in paragraph at lines 64--66
+[]\T1/ptm/m/n/10 Logical; if TRUE, at-tempts to cap-ture the cur-rent git short
+ SHA via []\T1/zi4/m/n/10 system2("git",
+[2]
+Overfull \hbox (9.97678pt too wide) in paragraph at lines 108--111
+[]\T1/ptm/m/n/10 Converts char-ac-ter/logical columns to fac-tors and aligns fa
+c-tor lev-els with a training-time []\T1/zi4/m/n/10 levels_map[]\T1/ptm/m/n/10 
+.
+[3] (/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/ts1ptm.fd) [4]
+Overfull \hbox (38.47618pt too wide) in paragraph at lines 231--235
+[]\T1/ptm/m/n/10 Builds a clo-sure that gen-er-ates per-muted out-come vec-tors
+ per fold while re-spect-ing group-ing/batch/study/time
+[5] [6] [7] [8]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 432--432
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_lo
+ss", "rmse", "cindex"),[] 
+[9]
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 477--481
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, 
+`"macro_f1"`, `"log_loss"`,
+
+Overfull \hbox (28.38696pt too wide) in paragraph at lines 504--510
+\T1/ptm/m/n/10 Op-tional el-e-ments: `out-come` (de-faults to `fit@outcome`), `
+pre-pro-cess`, `learner_args`,
+
+Overfull \hbox (3.5367pt too wide) in paragraph at lines 511--515
+\T1/ptm/m/n/10 `"time_series"`. De-faults to the split meta-data when avail-abl
+e (in-clud-ing rsample-
+[10]
+Overfull \hbox (47.47655pt too wide) in paragraph at lines 587--591
+[]\T1/ptm/m/n/10 Character scalar. Multiple-testing cor-rec-tion method ap-plie
+d to fi-nite `tar-get_assoc$p_value`
+
+Overfull \hbox (13.05786pt too wide) in paragraph at lines 592--594
+[]\T1/ptm/m/n/10 Numeric scalar in (0,1). Sig-nif-i-cance level used for `flag_
+fdr` when `tar-get_p_adjust
+[11]
+Overfull \hbox (4.01634pt too wide) in paragraph at lines 644--658
+\T1/ptm/m/n/10 (`stat`, `df`, `pval`, `cramer_v`). `tar-get_assoc` re-ports fea
+ture-wise out-come as-so-ci-a-tions on `X_ref`;
+
+Overfull \hbox (15.01695pt too wide) in paragraph at lines 659--667
+[]\T1/ptm/m/n/10 Duplicate de-tec-tion com-pares rows of `X_ref` us-ing the cho
+-sen `sim_method` (co-sine on L2-normalized
+[12]
+Overfull \hbox (27.63805pt too wide) in paragraph at lines 690--697
+[]\T1/ptm/m/n/10 Data.frame of per-feature out-come as-so-ci-a-tions with colum
+ns: []\T1/zi4/m/n/10 feature[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 type []\T1/ptm/
+m/n/10 ([]\T1/zi4/m/n/10 "numeric"
+
+Overfull \hbox (13.289pt too wide) in paragraph at lines 690--697
+[]\T1/zi4/m/n/10 value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 score []\T1/ptm/m/n/1
+0 (scaled ef-fect size), []\T1/zi4/m/n/10 p_value[]\T1/ptm/m/n/10 , []\T1/zi4/m
+/n/10 n[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 flag []\T1/ptm/m/n/10 (TRUE if [
+]\T1/zi4/m/n/10 score >= target_threshold[]\T1/ptm/m/n/10 ).
+
+Overfull \hbox (4.86696pt too wide) in paragraph at lines 701--704
+[]\T1/ptm/m/n/10 List cap-tur-ing au-dit pa-ram-e-ters and in-ter-me-di-ate re-
+sults for re-pro-ducibil-ity, in-clud-ing []\T1/zi4/m/n/10 metric[]\T1/ptm/m/n/
+10 ,
+
+Overfull \hbox (27.46732pt too wide) in paragraph at lines 704--706
+[]\T1/ptm/m/n/10 List with ad-di-tional meta-data in-clud-ing mul-ti-vari-ate s
+can re-sults when []\T1/zi4/m/n/10 target_scan_multivariate
+[13]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 765--765
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_lo
+ss", "rmse", "cindex"),[] 
+
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 780--783
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, 
+`"macro_f1"`, `"log_loss"`,
+[14]
+Overfull \hbox (14.06697pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 tions), `perm_stratify` (log-i-cal or `"auto"`), `perm_refit` (l
+og-i-cal), `perm_refit_spec`
+
+Overfull \hbox (21.09729pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 te-ger), `re-turn_perm` (log-i-cal), `batch_cols` (char-ac-ter v
+ec-tor), `col-data` (data.frame),
+
+Overfull \hbox (4.09712pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 `X_ref` (ma-trix/data.frame), `tar-get_scan` (log-i-cal), `tar-g
+et_threshold` (nu-meric),
+
+Overfull \hbox (20.55829pt too wide) in paragraph at lines 814--823
+\T1/ptm/m/n/10 Use []\T1/zi4/m/n/10 names() []\T1/ptm/m/n/10 to re-trieve learn
+er IDs, and ac-cess in-di-vid-ual au-dits with []\T1/zi4/m/n/10 [[learner_id]] 
+[]\T1/ptm/m/n/10 or []\T1/zi4/m/n/10 $learner_id[]\T1/ptm/m/n/10 .
+[15]
+Overfull \hbox (30.11668pt too wide) in paragraph at lines 893--899
+[]\T1/ptm/m/n/10 A [LeakAu-dit] ob-ject from [au-dit_leakage()] or a [Leak-Fit]
+ ob-ject from [fit_resample()].
+
+Overfull \hbox (49.36647pt too wide) in paragraph at lines 900--904
+[]\T1/ptm/m/n/10 Character scalar. File name for the HTML re-port. De-faults to
+ `"bi-oLeak_audit_report.html"`.
+
+Overfull \hbox (21.18684pt too wide) in paragraph at lines 918--925
+\T1/ptm/m/n/10 `perm_stratify` (log-i-cal), `batch_cols` (char-ac-ter vec-tor),
+ `X_ref` (ma-trix/data.frame),
+[16] [17]
+Overfull \hbox (31.42029pt too wide) in paragraph at lines 1010--1010
+ []  \T1/zi4/m/n/10 leakages = c("none", "subject_overlap", "batch_confounded",
+ "peek_norm", "lookahead"),[] 
+
+Overfull \hbox (19.07729pt too wide) in paragraph at lines 1023--1025
+[]\T1/ptm/m/n/10 Character vec-tor se-lect-ing pre-de-fined modal-ity pro-files
+. Sup-ported val-ues: `"omics"`,
+
+Overfull \hbox (1.7162pt too wide) in paragraph at lines 1046--1050
+[]\T1/ptm/m/n/10 A data.frame with one row per sim-u-la-tion seed/scenario and 
+columns: `modal-ity`, `leak-age`, `mode`,
+[18] [19]
+Overfull \hbox (67.50697pt too wide) in paragraph at lines 1136--1138
+[]\T1/ptm/m/n/10 A data.frame of sam-ple meta-data. When []\T1/zi4/m/n/10 NULL 
+[]\T1/ptm/m/n/10 (de-fault), the func-tion uses []\T1/zi4/m/n/10 splits@info$co
+ldata
+
+Overfull \hbox (10.81876pt too wide) in paragraph at lines 1139--1143
+\T1/ptm/m/n/10 the func-tion in-fers columns from the split mode (e.g., []\T1/z
+i4/m/n/10 group []\T1/ptm/m/n/10 for []\T1/zi4/m/n/10 subject_grouped[]\T1/ptm/
+m/n/10 ,
+[20]
+Overfull \hbox (18.96742pt too wide) in paragraph at lines 1182--1184
+[]\T1/ptm/m/n/10 Character vec-tor of columns in `col-data` to eval-u-ate. De-f
+aults to com-mon batch/study
+[21]
+Overfull \hbox (12.02832pt too wide) in paragraph at lines 1264--1266
+[]\T1/ptm/m/n/10 Data.frame with columns []\T1/zi4/m/n/10 fold[]\T1/ptm/m/n/10 
+, []\T1/zi4/m/n/10 learner[]\T1/ptm/m/n/10 , and one or more nu-meric met-ric c
+olumns. 
+
+Overfull \hbox (46.10905pt too wide) in paragraph at lines 1271--1273
+[]\T1/ptm/m/n/10 Average num-ber of train-ing sam-ples per fold. Used only when
+ []\T1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (28.8891pt too wide) in paragraph at lines 1274--1276
+[]\T1/ptm/m/n/10 Average num-ber of test sam-ples per fold. Used only when []\T
+1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (34.99854pt too wide) in paragraph at lines 1280--1283
+[]\T1/ptm/m/n/10 A data.frame with []\T1/zi4/m/n/10 learner []\T1/ptm/m/n/10 an
+d, for each met-ric, columns []\T1/zi4/m/n/10 <metric>_mean[]\T1/ptm/m/n/10 , [
+]\T1/zi4/m/n/10 <metric>_sd[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 <metric>_ci_lo[]
+\T1/ptm/m/n/10 ,
+[22]
+Overfull \hbox (20.56839pt too wide) in paragraph at lines 1324--1333
+\T1/ptm/m/n/10 gether, pre-serv-ing se-rial au-to-cor-re-la-tion un-der the nul
+l; see []\T1/zi4/m/n/10 block_size[]\T1/ptm/m/n/10 . []\T1/zi4/m/n/10 "by_group
+"
+
+Overfull \hbox (43.35881pt too wide) in paragraph at lines 1346--1354
+[]\T1/ptm/m/n/10 Integer or []\T1/zi4/m/n/10 NULL[]\T1/ptm/m/n/10 . Block lengt
+h for the block sign-flip test, used only when []\T1/zi4/m/n/10 exchangeability
+
+[23]
+Overfull \hbox (24.09653pt too wide) in paragraph at lines 1433--1435
+[]\T1/ptm/m/n/10 Performs cross-validated model train-ing and eval-u-a-tion us-
+ing leakage-protected pre-pro-cess-ing (.guard_fit)
+[24]
+Overfull \hbox (26.38962pt too wide) in paragraph at lines 1444--1444
+ []    \T1/zi4/m/n/10 "zscore"), filter = list(var_thresh = 0, iqr_thresh = 0),
+ fs = list(method = "none")),[] 
+
+Overfull \hbox (0.72862pt too wide) in paragraph at lines 1484--1492
+\T1/ptm/m/n/10 tion should ac-cept []\T1/zi4/m/n/10 object[]\T1/ptm/m/n/10 , []
+\T1/zi4/m/n/10 newdata[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 task[]\T1/ptm/m/n
+/10 . For bi-no-mial/regression/survival
+[25]
+Overfull \hbox (8.25684pt too wide) in paragraph at lines 1493--1497
+[]\T1/ptm/m/n/10 named list of met-ric func-tions, vec-tor of met-ric names, or
+ a `yard-stick::metric_set`.
+
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 1515--1520
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) o
+ver-rid-ing group/batch/study/time
+
+Overfull \hbox (18.7869pt too wide) in paragraph at lines 1521--1524
+\T1/ptm/m/n/10 in-side the fit to en-able refit-based per-mu-ta-tion tests with
+-out man-ual `perm_refit_spec`
+[26]
+Overfull \hbox (31.32895pt too wide) in paragraph at lines 1570--1573
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the task type ([]\T1/zi4/m/n/10
+ "binomial"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "multiclass"[]\T1/ptm/m/n/10 , [
+]\T1/zi4/m/n/10 "gaussian"[]\T1/ptm/m/n/10 , or []\T1/zi4/m/n/10 "survival"[]\T
+1/ptm/m/n/10 ). 
+
+Overfull \hbox (8.10919pt too wide) in paragraph at lines 1575--1580
+[]\T1/ptm/m/n/10 List of ad-di-tional meta-data in-clud-ing []\T1/zi4/m/n/10 ha
+sh[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 metrics_used[]\T1/ptm/m/n/10 , []\T1/zi4/
+m/n/10 class_weights[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 positive_class[]\T1/ptm
+/m/n/10 ,
+
+Overfull \hbox (40.94011pt too wide) in paragraph at lines 1575--1580
+[]\T1/zi4/m/n/10 sample_ids[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 fold_status[]\T1
+/ptm/m/n/10 , []\T1/zi4/m/n/10 refit[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 final_m
+odel []\T1/ptm/m/n/10 (re-fit-ted model if []\T1/zi4/m/n/10 refit = TRUE[]\T1/p
+tm/m/n/10 ), []\T1/zi4/m/n/10 final_preprocess[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (5.24408pt too wide) in paragraph at lines 1612--1612
+ []      \T1/zi4/m/n/9 as.numeric(stats::predict(object, newdata = as.data.fram
+e(newdata), type = "response"))[] 
+[27] [28]
+Overfull \hbox (3.95862pt too wide) in paragraph at lines 1727--1729
+[]\T1/ptm/m/n/10 A list (S3 class []\T1/zi4/m/n/10 "LeakImpute"[]\T1/ptm/m/n/10
+ ) with el-e-ments []\T1/zi4/m/n/10 train[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 te
+st[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 model[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 
+method[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 summary[]\T1/ptm/m/n/10 , and []\T1/z
+i4/m/n/10 outliers[]\T1/ptm/m/n/10 . 
+[29] (/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/ts1zi4.fd)
+[30{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-ts1.enc}]
+
+Overfull \hbox (36.42029pt too wide) in paragraph at lines 1883--1883
+ []  \T1/zi4/m/n/10 mode = c("subject_grouped", "batch_blocked", "study_loocv",
+ "time_series", "combined"),[] 
+[31]
+Overfull \hbox (20.11781pt too wide) in paragraph at lines 1914--1915
+[]\T1/ptm/m/n/10 one of "sub-ject_grouped","batch_blocked","study_loocv","time_
+series","combined". 
+[32]
+Overfull \hbox (1.86774pt too wide) in paragraph at lines 1950--1953
+\T1/ptm/m/n/10 strat-i-fi-ca-tion is ap-plied at the group level (by ma-jor-ity
+ class per group) if []\T1/zi4/m/n/10 outcome
+
+Overfull \hbox (1.21819pt too wide) in paragraph at lines 1976--1978
+[]\T1/ptm/m/n/10 logical; dep-re-cated and ig-nored. `sub-ject_grouped` al-ways
+ re-quires a non-NULL
+
+Overfull \hbox (49.92862pt too wide) in paragraph at lines 1985--1988
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the split-ting mode ([]\T1/zi4/
+m/n/10 "subject_grouped"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "batch_blocked"[]\T
+1/ptm/m/n/10 , []\T1/zi4/m/n/10 "study_loocv"[]\T1/ptm/m/n/10 ,
+[33] [34] [35] [36] [37] [38] [39] [40] [41] [42]
+Overfull \hbox (26.42029pt too wide) in paragraph at lines 2561--2561
+ []  \T1/zi4/m/n/10 leakage = c("none", "subject_overlap", "batch_confounded", 
+"peek_norm", "lookahead"),[] 
+
+Overfull \hbox (19.57857pt too wide) in paragraph at lines 2600--2607
+[]\T1/ptm/m/n/10 Character scalar. Leak-age mech-a-nism to in-ject; one of []\T
+1/zi4/m/n/10 "none"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "subject_overlap"[]\T1/p
+tm/m/n/10 ,
+
+Overfull \hbox (51.24904pt too wide) in paragraph at lines 2600--2607
+\T1/ptm/m/n/10 ex-tra pre-dic-tor: []\T1/zi4/m/n/10 "subject_overlap" []\T1/ptm
+/m/n/10 adds per-subject mean out-come, []\T1/zi4/m/n/10 "batch_confounded"
+[43] [44]
+Overfull \hbox (1.03755pt too wide) in paragraph at lines 2690--2693
+[]\T1/ptm/b/n/10 lookahead leak-age\T1/ptm/m/n/10 : this func-tion shifts the b
+i-nary out-come ([]\T1/zi4/m/n/10 c(y[-1], y[n])[]\T1/ptm/m/n/10 ); the manuscr
+ipt
+[45] [46] (/usr/local/texlive/2024/texmf-dist/tex/latex/base/t1cmtt.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ts1cmtt.fd)
+Overfull \hbox (14.8067pt too wide) in paragraph at lines 2868--2871
+[]\T1/ptm/m/n/10 A [Leak-Fit] ob-ject re-turned by [fit_resample()]. It should 
+con-tain `met-ric_summary`
+[47{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.en
+c}] [48] [49]
+Overfull \hbox (6.75821pt too wide) in paragraph at lines 3019--3023
+\T1/ptm/m/n/10 Ig-nored when `learner` is al-ready a work-flow. Recipe/workflow
+ leak-age guardrails
+
+Overfull \hbox (20.02779pt too wide) in paragraph at lines 3027--3033
+[]\T1/ptm/m/n/10 Character vec-tor of met-ric names (`auc`, `pr_auc`, `ac-cu-ra
+cy`, `macro_f1`, `log_loss`,
+[50]
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 3065--3070
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) o
+ver-rid-ing group/batch/study/time
+
+Overfull \hbox (1.18794pt too wide) in paragraph at lines 3089--3092
+[]\T1/ptm/m/n/10 Mean/SD met-rics across outer folds with columns []\T1/zi4/m/n
+/10 learner[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 <metric>_mean
+[51]
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.ind [52]
+
+LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
+(Font)              using `T1/zi4/m/n' instead on input line 63.
+
+[53])
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+
+Package rerunfilecheck Warning: File `Rd2.out' has changed.
+(rerunfilecheck)                Rerun to get outlines right
+(rerunfilecheck)                or use package `bookmark'.
+
+ )
+(see the transcript file for additional information)
+pdfTeX warning (dest): name{Rfn.browseURL} has been referenced but does not exi
+st, replaced by a fixed one
+
+</usr/local/texlive/2024/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-
+zi4r.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmm
+i10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi
+7.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
+</usr/local/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sftt0900.pfb></
+usr/local/texlive/2024/texmf-dist/fonts/type1/urw/helvetic/uhvr8a.pfb></usr/loc
+al/texlive/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive
+/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texm
+f-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fon
+ts/type1/urw/times/utmri8a.pfb>
+Output written on Rd2.pdf (53 pages, 267313 bytes).
+Transcript written on Rd2.log.
+This is makeindex, version 2.17 [TeX Live 2024] (kpathsea + Thai support).
+Scanning input file Rd2.idx....done (63 entries accepted, 0 rejected).
+Sorting entries....done (362 comparisons).
+Generating output file Rd2.ind....done (107 lines written, 0 warnings).
+Output written in Rd2.ind.
+Transcript written in Rd2.ilg.
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex)
+ restricted \write18 enabled.
+entering extended mode
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-02-20>
+(./Rd2.tex
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2023/05/17 v1.4n Standard LaTeX document class
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/bk10.clo))
+(/Library/Frameworks/R.framework/Resources/share/texmf/tex/latex/Rd.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/longtable.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/alltt.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/url/url.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amsfonts.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/amssymb.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/mathrsfs.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/iftex/iftex.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/times.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/zi4.sty
+`inconsolata-zi4' v1.12, 2019/05/17 Text macros for Inconsolata (msharpe)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/xkvutils.tex
+(/usr/local/texlive/2024/texmf-dist/tex/generic/xkeyval/keyval.tex)))))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/color.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics-def/pdftex.def)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/graphics/mathcolor.ltx))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/kvsetkeys/kvsetkeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdfescape/pdfescape.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/local/texlive/2024/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/gettitlestring/gettitlestring.s
+ty (/usr/local/texlive/2024/texmf-dist/tex/latex/kvoptions/kvoptions.sty)))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/local/texlive/2024/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/local/texlive/2024/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+
+(/usr/local/texlive/2024/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+)))) (/usr/local/texlive/2024/texmf-dist/tex/latex/base/makeidx.sty)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/inputenc.sty)
+Writing index file Rd2.idx
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1ptm.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.aux)
+(/usr/local/texlive/2024/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.out)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.out)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/t1zi4.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsa.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/amsfonts/umsb.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/jknapltx/ursfs.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/t1phv.fd)
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.toc [1{/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/
+pdftex.map}{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/base/8r.enc}{/us
+r/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}])
+Overfull \hbox (17.11757pt too wide) in paragraph at lines 64--66
+[]\T1/ptm/m/n/10 Logical; if TRUE, at-tempts to cap-ture the cur-rent git short
+ SHA via []\T1/zi4/m/n/10 system2("git",
+[2]
+Overfull \hbox (9.97678pt too wide) in paragraph at lines 108--111
+[]\T1/ptm/m/n/10 Converts char-ac-ter/logical columns to fac-tors and aligns fa
+c-tor lev-els with a training-time []\T1/zi4/m/n/10 levels_map[]\T1/ptm/m/n/10 
+.
+[3] (/usr/local/texlive/2024/texmf-dist/tex/latex/psnfss/ts1ptm.fd) [4]
+Overfull \hbox (38.47618pt too wide) in paragraph at lines 231--235
+[]\T1/ptm/m/n/10 Builds a clo-sure that gen-er-ates per-muted out-come vec-tors
+ per fold while re-spect-ing group-ing/batch/study/time
+[5] [6] [7] [8]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 432--432
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_lo
+ss", "rmse", "cindex"),[] 
+[9]
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 477--481
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, 
+`"macro_f1"`, `"log_loss"`,
+
+Overfull \hbox (28.38696pt too wide) in paragraph at lines 504--510
+\T1/ptm/m/n/10 Op-tional el-e-ments: `out-come` (de-faults to `fit@outcome`), `
+pre-pro-cess`, `learner_args`,
+
+Overfull \hbox (3.5367pt too wide) in paragraph at lines 511--515
+\T1/ptm/m/n/10 `"time_series"`. De-faults to the split meta-data when avail-abl
+e (in-clud-ing rsample-
+[10]
+Overfull \hbox (47.47655pt too wide) in paragraph at lines 587--591
+[]\T1/ptm/m/n/10 Character scalar. Multiple-testing cor-rec-tion method ap-plie
+d to fi-nite `tar-get_assoc$p_value`
+
+Overfull \hbox (13.05786pt too wide) in paragraph at lines 592--594
+[]\T1/ptm/m/n/10 Numeric scalar in (0,1). Sig-nif-i-cance level used for `flag_
+fdr` when `tar-get_p_adjust
+[11]
+Overfull \hbox (4.01634pt too wide) in paragraph at lines 644--658
+\T1/ptm/m/n/10 (`stat`, `df`, `pval`, `cramer_v`). `tar-get_assoc` re-ports fea
+ture-wise out-come as-so-ci-a-tions on `X_ref`;
+
+Overfull \hbox (15.01695pt too wide) in paragraph at lines 659--667
+[]\T1/ptm/m/n/10 Duplicate de-tec-tion com-pares rows of `X_ref` us-ing the cho
+-sen `sim_method` (co-sine on L2-normalized
+[12]
+Overfull \hbox (27.63805pt too wide) in paragraph at lines 690--697
+[]\T1/ptm/m/n/10 Data.frame of per-feature out-come as-so-ci-a-tions with colum
+ns: []\T1/zi4/m/n/10 feature[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 type []\T1/ptm/
+m/n/10 ([]\T1/zi4/m/n/10 "numeric"
+
+Overfull \hbox (13.289pt too wide) in paragraph at lines 690--697
+[]\T1/zi4/m/n/10 value[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 score []\T1/ptm/m/n/1
+0 (scaled ef-fect size), []\T1/zi4/m/n/10 p_value[]\T1/ptm/m/n/10 , []\T1/zi4/m
+/n/10 n[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 flag []\T1/ptm/m/n/10 (TRUE if [
+]\T1/zi4/m/n/10 score >= target_threshold[]\T1/ptm/m/n/10 ).
+
+Overfull \hbox (4.86696pt too wide) in paragraph at lines 701--704
+[]\T1/ptm/m/n/10 List cap-tur-ing au-dit pa-ram-e-ters and in-ter-me-di-ate re-
+sults for re-pro-ducibil-ity, in-clud-ing []\T1/zi4/m/n/10 metric[]\T1/ptm/m/n/
+10 ,
+
+Overfull \hbox (27.46732pt too wide) in paragraph at lines 704--706
+[]\T1/ptm/m/n/10 List with ad-di-tional meta-data in-clud-ing mul-ti-vari-ate s
+can re-sults when []\T1/zi4/m/n/10 target_scan_multivariate
+[13]
+Overfull \hbox (8.08014pt too wide) in paragraph at lines 765--765
+ []  \T1/zi4/m/n/10 metric = c("auc", "pr_auc", "accuracy", "macro_f1", "log_lo
+ss", "rmse", "cindex"),[] 
+
+Overfull \hbox (22.58788pt too wide) in paragraph at lines 780--783
+[]\T1/ptm/m/n/10 Character scalar. One of `"auc"`, `"pr_auc"`, `"ac-cu-racy"`, 
+`"macro_f1"`, `"log_loss"`,
+[14]
+Overfull \hbox (14.06697pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 tions), `perm_stratify` (log-i-cal or `"auto"`), `perm_refit` (l
+og-i-cal), `perm_refit_spec`
+
+Overfull \hbox (21.09729pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 te-ger), `re-turn_perm` (log-i-cal), `batch_cols` (char-ac-ter v
+ec-tor), `col-data` (data.frame),
+
+Overfull \hbox (4.09712pt too wide) in paragraph at lines 796--810
+\T1/ptm/m/n/10 `X_ref` (ma-trix/data.frame), `tar-get_scan` (log-i-cal), `tar-g
+et_threshold` (nu-meric),
+
+Overfull \hbox (20.55829pt too wide) in paragraph at lines 814--823
+\T1/ptm/m/n/10 Use []\T1/zi4/m/n/10 names() []\T1/ptm/m/n/10 to re-trieve learn
+er IDs, and ac-cess in-di-vid-ual au-dits with []\T1/zi4/m/n/10 [[learner_id]] 
+[]\T1/ptm/m/n/10 or []\T1/zi4/m/n/10 $learner_id[]\T1/ptm/m/n/10 .
+[15]
+Overfull \hbox (30.11668pt too wide) in paragraph at lines 893--899
+[]\T1/ptm/m/n/10 A [LeakAu-dit] ob-ject from [au-dit_leakage()] or a [Leak-Fit]
+ ob-ject from [fit_resample()].
+
+Overfull \hbox (49.36647pt too wide) in paragraph at lines 900--904
+[]\T1/ptm/m/n/10 Character scalar. File name for the HTML re-port. De-faults to
+ `"bi-oLeak_audit_report.html"`.
+
+Overfull \hbox (21.18684pt too wide) in paragraph at lines 918--925
+\T1/ptm/m/n/10 `perm_stratify` (log-i-cal), `batch_cols` (char-ac-ter vec-tor),
+ `X_ref` (ma-trix/data.frame),
+[16] [17]
+Overfull \hbox (31.42029pt too wide) in paragraph at lines 1010--1010
+ []  \T1/zi4/m/n/10 leakages = c("none", "subject_overlap", "batch_confounded",
+ "peek_norm", "lookahead"),[] 
+
+Overfull \hbox (19.07729pt too wide) in paragraph at lines 1023--1025
+[]\T1/ptm/m/n/10 Character vec-tor se-lect-ing pre-de-fined modal-ity pro-files
+. Sup-ported val-ues: `"omics"`,
+
+Overfull \hbox (1.7162pt too wide) in paragraph at lines 1046--1050
+[]\T1/ptm/m/n/10 A data.frame with one row per sim-u-la-tion seed/scenario and 
+columns: `modal-ity`, `leak-age`, `mode`,
+[18] [19]
+Overfull \hbox (67.50697pt too wide) in paragraph at lines 1136--1138
+[]\T1/ptm/m/n/10 A data.frame of sam-ple meta-data. When []\T1/zi4/m/n/10 NULL 
+[]\T1/ptm/m/n/10 (de-fault), the func-tion uses []\T1/zi4/m/n/10 splits@info$co
+ldata
+
+Overfull \hbox (10.81876pt too wide) in paragraph at lines 1139--1143
+\T1/ptm/m/n/10 the func-tion in-fers columns from the split mode (e.g., []\T1/z
+i4/m/n/10 group []\T1/ptm/m/n/10 for []\T1/zi4/m/n/10 subject_grouped[]\T1/ptm/
+m/n/10 ,
+[20]
+Overfull \hbox (18.96742pt too wide) in paragraph at lines 1182--1184
+[]\T1/ptm/m/n/10 Character vec-tor of columns in `col-data` to eval-u-ate. De-f
+aults to com-mon batch/study
+[21]
+Overfull \hbox (12.02832pt too wide) in paragraph at lines 1264--1266
+[]\T1/ptm/m/n/10 Data.frame with columns []\T1/zi4/m/n/10 fold[]\T1/ptm/m/n/10 
+, []\T1/zi4/m/n/10 learner[]\T1/ptm/m/n/10 , and one or more nu-meric met-ric c
+olumns. 
+
+Overfull \hbox (46.10905pt too wide) in paragraph at lines 1271--1273
+[]\T1/ptm/m/n/10 Average num-ber of train-ing sam-ples per fold. Used only when
+ []\T1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (28.8891pt too wide) in paragraph at lines 1274--1276
+[]\T1/ptm/m/n/10 Average num-ber of test sam-ples per fold. Used only when []\T
+1/zi4/m/n/10 method = "nadeau_bengio"[]\T1/ptm/m/n/10 .
+
+Overfull \hbox (34.99854pt too wide) in paragraph at lines 1280--1283
+[]\T1/ptm/m/n/10 A data.frame with []\T1/zi4/m/n/10 learner []\T1/ptm/m/n/10 an
+d, for each met-ric, columns []\T1/zi4/m/n/10 <metric>_mean[]\T1/ptm/m/n/10 , [
+]\T1/zi4/m/n/10 <metric>_sd[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 <metric>_ci_lo[]
+\T1/ptm/m/n/10 ,
+[22]
+Overfull \hbox (20.56839pt too wide) in paragraph at lines 1324--1333
+\T1/ptm/m/n/10 gether, pre-serv-ing se-rial au-to-cor-re-la-tion un-der the nul
+l; see []\T1/zi4/m/n/10 block_size[]\T1/ptm/m/n/10 . []\T1/zi4/m/n/10 "by_group
+"
+
+Overfull \hbox (43.35881pt too wide) in paragraph at lines 1346--1354
+[]\T1/ptm/m/n/10 Integer or []\T1/zi4/m/n/10 NULL[]\T1/ptm/m/n/10 . Block lengt
+h for the block sign-flip test, used only when []\T1/zi4/m/n/10 exchangeability
+
+[23]
+Overfull \hbox (24.09653pt too wide) in paragraph at lines 1433--1435
+[]\T1/ptm/m/n/10 Performs cross-validated model train-ing and eval-u-a-tion us-
+ing leakage-protected pre-pro-cess-ing (.guard_fit)
+[24]
+Overfull \hbox (26.38962pt too wide) in paragraph at lines 1444--1444
+ []    \T1/zi4/m/n/10 "zscore"), filter = list(var_thresh = 0, iqr_thresh = 0),
+ fs = list(method = "none")),[] 
+
+Overfull \hbox (0.72862pt too wide) in paragraph at lines 1484--1492
+\T1/ptm/m/n/10 tion should ac-cept []\T1/zi4/m/n/10 object[]\T1/ptm/m/n/10 , []
+\T1/zi4/m/n/10 newdata[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 task[]\T1/ptm/m/n
+/10 . For bi-no-mial/regression/survival
+[25]
+Overfull \hbox (8.25684pt too wide) in paragraph at lines 1493--1497
+[]\T1/ptm/m/n/10 named list of met-ric func-tions, vec-tor of met-ric names, or
+ a `yard-stick::metric_set`.
+
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 1515--1520
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) o
+ver-rid-ing group/batch/study/time
+
+Overfull \hbox (18.7869pt too wide) in paragraph at lines 1521--1524
+\T1/ptm/m/n/10 in-side the fit to en-able refit-based per-mu-ta-tion tests with
+-out man-ual `perm_refit_spec`
+[26]
+Overfull \hbox (31.32895pt too wide) in paragraph at lines 1570--1573
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the task type ([]\T1/zi4/m/n/10
+ "binomial"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "multiclass"[]\T1/ptm/m/n/10 , [
+]\T1/zi4/m/n/10 "gaussian"[]\T1/ptm/m/n/10 , or []\T1/zi4/m/n/10 "survival"[]\T
+1/ptm/m/n/10 ). 
+
+Overfull \hbox (8.10919pt too wide) in paragraph at lines 1575--1580
+[]\T1/ptm/m/n/10 List of ad-di-tional meta-data in-clud-ing []\T1/zi4/m/n/10 ha
+sh[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 metrics_used[]\T1/ptm/m/n/10 , []\T1/zi4/
+m/n/10 class_weights[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 positive_class[]\T1/ptm
+/m/n/10 ,
+
+Overfull \hbox (40.94011pt too wide) in paragraph at lines 1575--1580
+[]\T1/zi4/m/n/10 sample_ids[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 fold_status[]\T1
+/ptm/m/n/10 , []\T1/zi4/m/n/10 refit[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 final_m
+odel []\T1/ptm/m/n/10 (re-fit-ted model if []\T1/zi4/m/n/10 refit = TRUE[]\T1/p
+tm/m/n/10 ), []\T1/zi4/m/n/10 final_preprocess[]\T1/ptm/m/n/10 ,
+
+Overfull \hbox (5.24408pt too wide) in paragraph at lines 1612--1612
+ []      \T1/zi4/m/n/9 as.numeric(stats::predict(object, newdata = as.data.fram
+e(newdata), type = "response"))[] 
+[27] [28]
+Overfull \hbox (3.95862pt too wide) in paragraph at lines 1727--1729
+[]\T1/ptm/m/n/10 A list (S3 class []\T1/zi4/m/n/10 "LeakImpute"[]\T1/ptm/m/n/10
+ ) with el-e-ments []\T1/zi4/m/n/10 train[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 te
+st[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 model[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 
+method[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 summary[]\T1/ptm/m/n/10 , and []\T1/z
+i4/m/n/10 outliers[]\T1/ptm/m/n/10 . 
+[29] (/usr/local/texlive/2024/texmf-dist/tex/latex/inconsolata/ts1zi4.fd)
+[30{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/inconsolata/i4-ts1.enc}]
+
+Overfull \hbox (36.42029pt too wide) in paragraph at lines 1883--1883
+ []  \T1/zi4/m/n/10 mode = c("subject_grouped", "batch_blocked", "study_loocv",
+ "time_series", "combined"),[] 
+[31]
+Overfull \hbox (20.11781pt too wide) in paragraph at lines 1914--1915
+[]\T1/ptm/m/n/10 one of "sub-ject_grouped","batch_blocked","study_loocv","time_
+series","combined". 
+[32]
+Overfull \hbox (1.86774pt too wide) in paragraph at lines 1950--1953
+\T1/ptm/m/n/10 strat-i-fi-ca-tion is ap-plied at the group level (by ma-jor-ity
+ class per group) if []\T1/zi4/m/n/10 outcome
+
+Overfull \hbox (1.21819pt too wide) in paragraph at lines 1976--1978
+[]\T1/ptm/m/n/10 logical; dep-re-cated and ig-nored. `sub-ject_grouped` al-ways
+ re-quires a non-NULL
+
+Overfull \hbox (49.92862pt too wide) in paragraph at lines 1985--1988
+[]\T1/ptm/m/n/10 Character string in-di-cat-ing the split-ting mode ([]\T1/zi4/
+m/n/10 "subject_grouped"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "batch_blocked"[]\T
+1/ptm/m/n/10 , []\T1/zi4/m/n/10 "study_loocv"[]\T1/ptm/m/n/10 ,
+[33] [34] [35] [36] [37] [38] [39] [40] [41] [42]
+Overfull \hbox (26.42029pt too wide) in paragraph at lines 2561--2561
+ []  \T1/zi4/m/n/10 leakage = c("none", "subject_overlap", "batch_confounded", 
+"peek_norm", "lookahead"),[] 
+
+Overfull \hbox (19.57857pt too wide) in paragraph at lines 2600--2607
+[]\T1/ptm/m/n/10 Character scalar. Leak-age mech-a-nism to in-ject; one of []\T
+1/zi4/m/n/10 "none"[]\T1/ptm/m/n/10 , []\T1/zi4/m/n/10 "subject_overlap"[]\T1/p
+tm/m/n/10 ,
+
+Overfull \hbox (51.24904pt too wide) in paragraph at lines 2600--2607
+\T1/ptm/m/n/10 ex-tra pre-dic-tor: []\T1/zi4/m/n/10 "subject_overlap" []\T1/ptm
+/m/n/10 adds per-subject mean out-come, []\T1/zi4/m/n/10 "batch_confounded"
+[43] [44]
+Overfull \hbox (1.03755pt too wide) in paragraph at lines 2690--2693
+[]\T1/ptm/b/n/10 lookahead leak-age\T1/ptm/m/n/10 : this func-tion shifts the b
+i-nary out-come ([]\T1/zi4/m/n/10 c(y[-1], y[n])[]\T1/ptm/m/n/10 ); the manuscr
+ipt
+[45] [46] (/usr/local/texlive/2024/texmf-dist/tex/latex/base/t1cmtt.fd)
+(/usr/local/texlive/2024/texmf-dist/tex/latex/base/ts1cmtt.fd)
+Overfull \hbox (14.8067pt too wide) in paragraph at lines 2868--2871
+[]\T1/ptm/m/n/10 A [Leak-Fit] ob-ject re-turned by [fit_resample()]. It should 
+con-tain `met-ric_summary`
+[47{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.en
+c}] [48] [49]
+Overfull \hbox (6.75821pt too wide) in paragraph at lines 3019--3023
+\T1/ptm/m/n/10 Ig-nored when `learner` is al-ready a work-flow. Recipe/workflow
+ leak-age guardrails
+
+Overfull \hbox (20.02779pt too wide) in paragraph at lines 3027--3033
+[]\T1/ptm/m/n/10 Character vec-tor of met-ric names (`auc`, `pr_auc`, `ac-cu-ra
+cy`, `macro_f1`, `log_loss`,
+[50]
+Overfull \hbox (44.23703pt too wide) in paragraph at lines 3065--3070
+[]\T1/ptm/m/n/10 Optional named list/character vec-tor or `"auto"` (de-fault) o
+ver-rid-ing group/batch/study/time
+
+Overfull \hbox (1.18794pt too wide) in paragraph at lines 3089--3092
+[]\T1/ptm/m/n/10 Mean/SD met-rics across outer folds with columns []\T1/zi4/m/n
+/10 learner[]\T1/ptm/m/n/10 , and []\T1/zi4/m/n/10 <metric>_mean
+[51]
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.ind [52]
+
+LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
+(Font)              using `T1/zi4/m/n' instead on input line 63.
+
+[53])
+(/private/var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T/RtmpiTwgft/Rd2pdf14d7
+05b7a5adc/Rd2.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+ )
+(see the transcript file for additional information)
+pdfTeX warning (dest): name{Rfn.browseURL} has been referenced but does not exi
+st, replaced by a fixed one
+
+</usr/local/texlive/2024/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-
+zi4r.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmm
+i10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi
+7.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.
+pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb
+></usr/local/texlive/2024/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb>
+</usr/local/texlive/2024/texmf-dist/fonts/type1/public/cm-super/sftt0900.pfb></
+usr/local/texlive/2024/texmf-dist/fonts/type1/urw/helvetic/uhvr8a.pfb></usr/loc
+al/texlive/2024/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive
+/2024/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texm
+f-dist/fonts/type1/urw/times/utmr8a.pfb></usr/local/texlive/2024/texmf-dist/fon
+ts/type1/urw/times/utmri8a.pfb>
+Output written on Rd2.pdf (53 pages, 267900 bytes).
+Transcript written on Rd2.log.
+Saving output to 'bioLeak-manual.pdf' ...
+Done
+You may want to clean up by 'rm -Rf /var/folders/dr/pwksczrd3gg7sxbphrjs5twh0000gn/T//RtmpiTwgft/Rd2pdf14d705b7a5adc'

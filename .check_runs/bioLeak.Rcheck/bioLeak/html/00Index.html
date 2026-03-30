@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head><title>R: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+<link rel="stylesheet" type="text/css" href="R.css" />
+</head><body><div class="container">
+<h1> Leakage-Safe Modeling and Auditing for Genomic and Clinical Data
+<img class="toplogo" src="../../../doc/html/Rlogo.svg" alt="[R logo]" />
+</h1>
+<hr/>
+<div style="text-align: center;">
+<a href="../../../doc/html/packages.html"><img class="arrow" src="../../../doc/html/left.jpg" alt="[Up]" /></a>
+<a href="../../../doc/html/index.html"><img class="arrow" src="../../../doc/html/up.jpg" alt="[Top]" /></a>
+</div><h2>Documentation for package &lsquo;bioLeak&rsquo; version 0.3.5</h2>
+
+<ul><li><a href="../DESCRIPTION">DESCRIPTION file</a>.</li>
+<li><a href="../doc/index.html">User guides, package vignettes and other documentation.</a></li>
+<li><a href="../NEWS">Package NEWS</a>.</li>
+</ul>
+
+<h2>Help Pages</h2>
+
+
+<table style="width: 100%;">
+<tr><td style="width: 25%;"><a href="dot-guard_fit.html">.guard_fit</a></td>
+<td>Fit leakage-safe preprocessing pipeline</td></tr>
+<tr><td style="width: 25%;"><a href="as_rsample.html">as_rsample</a></td>
+<td>Convert LeakSplits to an rsample resample set</td></tr>
+<tr><td style="width: 25%;"><a href="audit_leakage.html">audit_leakage</a></td>
+<td>Audit leakage and confounding</td></tr>
+<tr><td style="width: 25%;"><a href="audit_leakage_by_learner.html">audit_leakage_by_learner</a></td>
+<td>Audit leakage per learner</td></tr>
+<tr><td style="width: 25%;"><a href="audit_report.html">audit_report</a></td>
+<td>Render an HTML audit report</td></tr>
+<tr><td style="width: 25%;"><a href="benchmark_leakage_suite.html">benchmark_leakage_suite</a></td>
+<td>Simulation benchmark matrix for leakage diagnostics</td></tr>
+<tr><td style="width: 25%;"><a href="calibration_summary.html">calibration_summary</a></td>
+<td>Calibration diagnostics for binomial predictions</td></tr>
+<tr><td style="width: 25%;"><a href="check_split_overlap.html">check_split_overlap</a></td>
+<td>Check split overlap invariants</td></tr>
+<tr><td style="width: 25%;"><a href="confounder_sensitivity.html">confounder_sensitivity</a></td>
+<td>Confounder sensitivity summaries</td></tr>
+<tr><td style="width: 25%;"><a href="cv_ci.html">cv_ci</a></td>
+<td>Confidence intervals for cross-validated metrics</td></tr>
+<tr><td style="width: 25%;"><a href="delta_lsi.html">delta_lsi</a></td>
+<td>Delta Leakage Sensitivity Index (Delta LSI)</td></tr>
+<tr><td style="width: 25%;"><a href="fit_resample.html">fit_resample</a></td>
+<td>Fit and evaluate with leakage guards over predefined splits</td></tr>
+<tr><td style="width: 25%;"><a href="guard_to_recipe.html">guard_to_recipe</a></td>
+<td>Convert guard preprocessing steps to a recipes recipe</td></tr>
+<tr><td style="width: 25%;"><a href="impute_guarded.html">impute_guarded</a></td>
+<td>Leakage-safe data imputation via guarded preprocessing</td></tr>
+<tr><td style="width: 25%;"><a href="LeakClasses.html">LeakAudit-class</a></td>
+<td>S4 Classes for bioLeak Pipeline</td></tr>
+<tr><td style="width: 25%;"><a href="LeakClasses.html">LeakDeltaLSI-class</a></td>
+<td>S4 Classes for bioLeak Pipeline</td></tr>
+<tr><td style="width: 25%;"><a href="LeakClasses.html">LeakFit-class</a></td>
+<td>S4 Classes for bioLeak Pipeline</td></tr>
+<tr><td style="width: 25%;"><a href="LeakClasses.html">LeakSplits-class</a></td>
+<td>S4 Classes for bioLeak Pipeline</td></tr>
+<tr><td style="width: 25%;"><a href="make_split_plan.html">make_split_plan</a></td>
+<td>Create leakage-resistant splits</td></tr>
+<tr><td style="width: 25%;"><a href="plot_calibration.html">plot_calibration</a></td>
+<td>Plot calibration curve for binomial predictions</td></tr>
+<tr><td style="width: 25%;"><a href="plot_confounder_sensitivity.html">plot_confounder_sensitivity</a></td>
+<td>Plot confounder sensitivity</td></tr>
+<tr><td style="width: 25%;"><a href="plot_fold_balance.html">plot_fold_balance</a></td>
+<td>Plot fold balance of class counts per fold</td></tr>
+<tr><td style="width: 25%;"><a href="plot_overlap_checks.html">plot_overlap_checks</a></td>
+<td>Plot overlap diagnostics between train/test groups</td></tr>
+<tr><td style="width: 25%;"><a href="plot_perm_distribution.html">plot_perm_distribution</a></td>
+<td>Plot permutation distribution for a LeakAudit object</td></tr>
+<tr><td style="width: 25%;"><a href="plot_time_acf.html">plot_time_acf</a></td>
+<td>Plot ACF of test predictions for time-series leakage checks</td></tr>
+<tr><td style="width: 25%;"><a href="predict_guard.html">predict_guard</a></td>
+<td>Apply a fitted GuardFit transformer to new data</td></tr>
+<tr><td style="width: 25%;"><a href="LeakClasses.html">show-method</a></td>
+<td>S4 Classes for bioLeak Pipeline</td></tr>
+<tr><td style="width: 25%;"><a href="show-LeakSplits-method.html">show-method</a></td>
+<td>Display summary for LeakSplits objects</td></tr>
+<tr><td style="width: 25%;"><a href="simulate_leakage_suite.html">simulate_leakage_suite</a></td>
+<td>Simulate leakage scenarios and audit results</td></tr>
+<tr><td style="width: 25%;"><a href="summary.LeakAudit.html">summary.LeakAudit</a></td>
+<td>Summarize a leakage audit</td></tr>
+<tr><td style="width: 25%;"><a href="summary.LeakDeltaLSI.html">summary.LeakDeltaLSI</a></td>
+<td>Summarize a LeakDeltaLSI object</td></tr>
+<tr><td style="width: 25%;"><a href="summary.LeakFit.html">summary.LeakFit</a></td>
+<td>Summarize a LeakFit object</td></tr>
+<tr><td style="width: 25%;"><a href="summary.LeakTune.html">summary.LeakTune</a></td>
+<td>Summarize a nested tuning result</td></tr>
+<tr><td style="width: 25%;"><a href="tune_resample.html">tune_resample</a></td>
+<td>Leakage-aware nested tuning with tidymodels</td></tr>
+</table>
+</div></body></html>

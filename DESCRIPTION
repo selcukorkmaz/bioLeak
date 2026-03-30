@@ -56,7 +56,6 @@ Suggests:
     knitr,
     rmarkdown,
     testthat (>= 3.0.0)
-biocViews: Software, Classification, Regression, Survival, Reproducibility, QualityControl, GeneExpression, Workflow
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3
