@@ -23,8 +23,8 @@ n_workers <- max(1L, min(4L, physical_cores - 1L))
 plan(multisession, workers = n_workers)
 cat(sprintf("Parallel backend: %d workers\n\n", n_workers))
 
-B       <- 50
-n_seeds <- 20
+B       <- 200
+n_seeds <- 50
 seeds   <- seq_len(n_seeds)
 n_fix   <- 500
 p_fix   <- 20

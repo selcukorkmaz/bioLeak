@@ -1,35 +1,29 @@
-\begin{thebibliography}{41}
+\begin{thebibliography}{39}
 \newcommand{\enquote}[1]{``#1''}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \providecommand{\urlprefix}{URL }
 \expandafter\ifx\csname urlstyle\endcsname\relax
   \providecommand{\doi}[1]{doi:\discretionary{}{}{}#1}\else
-  \providecommand{\doi}{doi:\discretionary{}{}{}\begingroup
-  \urlstyle{rm}\Url}\fi
+  \providecommand{\doi}{doi:\discretionary{}{}{}\begingroup \urlstyle{rm}\Url}\fi
 \providecommand{\eprint}[2][]{\url{#2}}
 
 \bibitem[{Ambroise and McLachlan(2002)}]{ambroise2002}
 Ambroise C, McLachlan GJ (2002).
-\newblock \enquote{Selection Bias in Gene Extraction on the Basis of Microarray
-  Gene-Expression Data.}
-\newblock \emph{Proceedings of the National Academy of Sciences},
-  \textbf{99}(10), 6562--6566.
+\newblock \enquote{Selection Bias in Gene Extraction on the Basis of Microarray Gene-Expression Data.}
+\newblock \emph{Proceedings of the National Academy of Sciences}, \textbf{99}(10), 6562--6566.
 \newblock \doi{10.1073/pnas.102102699}.
 
 \bibitem[{Arlot and Celisse(2010)}]{arlot2010}
 Arlot S, Celisse A (2010).
-\newblock \enquote{A Survey of Cross-Validation Procedures for Model
-  Selection.}
+\newblock \enquote{A Survey of Cross-Validation Procedures for Model Selection.}
 \newblock \emph{Statistics Surveys}, \textbf{4}, 40--79.
 \newblock \doi{10.1214/09-SS054}.
 
 \bibitem[{Bates \emph{et~al.}(2024)Bates, Hastie, and Tibshirani}]{bates2024}
 Bates S, Hastie T, Tibshirani R (2024).
-\newblock \enquote{Cross-Validation: What Does It Estimate and How Well Does It
-  Do It?}
-\newblock \emph{Journal of the American Statistical Association},
-  \textbf{119}(546), 1434--1445.
+\newblock \enquote{Cross-Validation: What Does It Estimate and How Well Does It Do It?}
+\newblock \emph{Journal of the American Statistical Association}, \textbf{119}(546), 1434--1445.
 \newblock \doi{10.1080/01621459.2023.2197686}.
 
 \bibitem[{Beam and Kohane(2018)}]{beam2018}
@@ -40,85 +34,52 @@ Beam AL, Kohane IS (2018).
 
 \bibitem[{Bengio and Grandvalet(2004)}]{bengio2004}
 Bengio Y, Grandvalet Y (2004).
-\newblock \enquote{No Unbiased Estimator of the Variance of {K}-Fold
-  Cross-Validation.}
+\newblock \enquote{No Unbiased Estimator of the Variance of {K}-Fold Cross-Validation.}
 \newblock \emph{Journal of Machine Learning Research}, \textbf{5}, 1089--1105.
 
-\bibitem[{Bischl \emph{et~al.}(2024)Bischl, Sonabend, Kotthoff, and
-  Lang}]{bischl2024}
+\bibitem[{Bischl \emph{et~al.}(2024)Bischl, Sonabend, Kotthoff, and Lang}]{bischl2024}
 Bischl B, Sonabend R, Kotthoff L, Lang M (2024).
 \newblock \emph{Applied Machine Learning Using mlr3 in {R}}.
 \newblock CRC Press.
 
 \bibitem[{Cawley and Talbot(2010)}]{cawley2010}
 Cawley GC, Talbot NLC (2010).
-\newblock \enquote{On Over-Fitting in Model Selection and Subsequent Selection
-  Bias in Performance Evaluation.}
+\newblock \enquote{On Over-Fitting in Model Selection and Subsequent Selection Bias in Performance Evaluation.}
 \newblock \emph{Journal of Machine Learning Research}, \textbf{11}, 2079--2107.
 
 \bibitem[{Christen(2012)}]{christen2012}
 Christen P (2012).
-\newblock \emph{Data Matching: Concepts and Techniques for Record Linkage,
-  Entity Resolution, and Duplicate Detection}.
+\newblock \emph{Data Matching: Concepts and Techniques for Record Linkage, Entity Resolution, and Duplicate Detection}.
 \newblock Springer.
 \newblock \doi{10.1007/978-3-642-31164-2}.
-
-\bibitem[{Davis \emph{et~al.}(2024)Davis, Greevy, Fonnesbeck, Lasko, Walsh, and
-  Matheny}]{davis2024}
-Davis SE, Greevy RA, Fonnesbeck C, Lasko TA, Walsh CG, Matheny ME (2024).
-\newblock \enquote{A Nonparametric Updating Method to Correct Clinical
-  Prediction Model Drift.}
-\newblock \emph{Journal of the American Medical Informatics Association},
-  \textbf{31}(6), 1275--1282.
-\newblock \doi{10.1093/jamia/ocae030}.
-
-\bibitem[{Efron(1979)}]{efron1979}
-Efron B (1979).
-\newblock \enquote{Bootstrap Methods: Another Look at the Jackknife.}
-\newblock \emph{The Annals of Statistics}, \textbf{7}(1), 1--26.
-\newblock \doi{10.1214/aos/1176344552}.
-
-\bibitem[{Efron and Tibshirani(1993)}]{efron1993}
-Efron B, Tibshirani RJ (1993).
-\newblock \emph{An Introduction to the Bootstrap}.
-\newblock Chapman and Hall/CRC.
 
 \bibitem[{Gentleman and Lang(2007)}]{gentleman2007}
 Gentleman R, Lang DT (2007).
 \newblock \enquote{Statistical Analyses and Reproducible Research.}
-\newblock \emph{Journal of Computational and Graphical Statistics},
-  \textbf{16}(1), 1--23.
+\newblock \emph{Journal of Computational and Graphical Statistics}, \textbf{16}(1), 1--23.
 \newblock \doi{10.1198/106186007X178663}.
 
-\bibitem[{Golub \emph{et~al.}(1999)Golub, Slonim, Tamayo, Huard, Gaasenbeek,
-  Mesirov, Coller, Loh, Downing, Caligiuri, Bloomfield, and Lander}]{golub1999}
-Golub TR, Slonim DK, Tamayo P, Huard C, Gaasenbeek M, Mesirov JP, Coller H, Loh
-  ML, Downing JR, Caligiuri MA, Bloomfield CD, Lander ES (1999).
-\newblock \enquote{Molecular Classification of Cancer: Class Discovery and
-  Class Prediction by Gene Expression Monitoring.}
+\bibitem[{Golub \emph{et~al.}(1999)Golub, Slonim, Tamayo, Huard, Gaasenbeek, Mesirov, Coller, Loh, Downing, Caligiuri, Bloomfield, and Lander}]{golub1999}
+Golub TR, Slonim DK, Tamayo P, Huard C, Gaasenbeek M, Mesirov JP, Coller H, Loh ML, Downing JR, Caligiuri MA, Bloomfield CD, Lander ES (1999).
+\newblock \enquote{Molecular Classification of Cancer: Class Discovery and Class Prediction by Gene Expression Monitoring.}
 \newblock \emph{Science}, \textbf{286}(5439), 531--537.
 \newblock \doi{10.1126/science.286.5439.531}.
 
-\bibitem[{Hamdan \emph{et~al.}(2023)Hamdan, Love, and von~dem
-  Hagen}]{hamdan2023}
+\bibitem[{Hamdan \emph{et~al.}(2023)Hamdan, Love, and von~dem Hagen}]{hamdan2023}
 Hamdan S, Love BC, von~dem Hagen EAH (2023).
-\newblock \enquote{Confound-Leaking: Regression Leak in Machine Learning
-  Applied to Neuroimaging.}
-\newblock \eprint{2306.12952}.
+\newblock \enquote{Confound-Leaking: Regression Leak in Machine Learning Applied to Neuroimaging.}
+\newblock ArXiv preprint, \eprint{2306.12952}.
 
-\bibitem[{Hastie \emph{et~al.}(2009)Hastie, Tibshirani, and
-  Friedman}]{hastie2009}
+\bibitem[{Hastie \emph{et~al.}(2009)Hastie, Tibshirani, and Friedman}]{hastie2009}
 Hastie T, Tibshirani R, Friedman J (2009).
-\newblock \emph{The Elements of Statistical Learning: Data Mining, Inference,
-  and Prediction}.
+\newblock \emph{The Elements of Statistical Learning: Data Mining, Inference, and Prediction}.
 \newblock 2nd edition. Springer.
 \newblock \doi{10.1007/978-0-387-84858-7}.
 
 \bibitem[{Huber(1964)}]{huber1964}
 Huber PJ (1964).
 \newblock \enquote{Robust Estimation of a Location Parameter.}
-\newblock \emph{The Annals of Mathematical Statistics}, \textbf{35}(1),
-  73--101.
+\newblock \emph{The Annals of Mathematical Statistics}, \textbf{35}(1), 73--101.
 \newblock \doi{10.1214/aoms/1177703732}.
 
 \bibitem[{Huber and Ronchetti(2009)}]{huber2009}
@@ -129,61 +90,47 @@ Huber PJ, Ronchetti EM (2009).
 
 \bibitem[{Kapoor and Narayanan(2023)}]{kapoor2023}
 Kapoor S, Narayanan A (2023).
-\newblock \enquote{Leakage and the Reproducibility Crisis in
-  Machine-Learning-Based Science.}
+\newblock \enquote{Leakage and the Reproducibility Crisis in Machine-Learning-Based Science.}
 \newblock \emph{Patterns}, \textbf{4}(9), 100804.
 \newblock \doi{10.1016/j.patter.2023.100804}.
 
-\bibitem[{Kaufman \emph{et~al.}(2012)Kaufman, Rosset, Perlich, and
-  Stitelman}]{kaufman2012}
+\bibitem[{Kaufman \emph{et~al.}(2012)Kaufman, Rosset, Perlich, and Stitelman}]{kaufman2012}
 Kaufman S, Rosset S, Perlich C, Stitelman O (2012).
-\newblock \enquote{Leakage in Data Mining: Formulation, Detection, and
-  Avoidance.}
-\newblock \emph{ACM Transactions on Knowledge Discovery from Data},
-  \textbf{6}(4), 1--21.
+\newblock \enquote{Leakage in Data Mining: Formulation, Detection, and Avoidance.}
+\newblock \emph{ACM Transactions on Knowledge Discovery from Data}, \textbf{6}(4), 1--21.
 \newblock \doi{10.1145/2382577.2382579}.
 
 \bibitem[{Kohavi(1995)}]{kohavi1995}
 Kohavi R (1995).
-\newblock \enquote{A Study of Cross-Validation and Bootstrap for Accuracy
-  Estimation and Model Selection.}
-\newblock In \emph{Proceedings of the 14th International Joint Conference on
-  Artificial Intelligence (IJCAI)}, volume~14, pp. 1137--1145.
+\newblock \enquote{A Study of Cross-Validation and Bootstrap for Accuracy Estimation and Model Selection.}
+\newblock In \emph{Proceedings of the 14th International Joint Conference on Artificial Intelligence (IJCAI)}, volume~14, pp. 1137--1145.
 
 \bibitem[{Kuhn(2008)}]{kuhn2008}
 Kuhn M (2008).
-\newblock \enquote{Building Predictive Models in {R} Using the \textbf{caret}
-  Package.}
+\newblock \enquote{Building Predictive Models in {R} Using the \textbf{caret} Package.}
 \newblock \emph{Journal of Statistical Software}, \textbf{28}(5), 1--26.
 \newblock \doi{10.18637/jss.v028.i05}.
 
 \bibitem[{Kuhn and Wickham(2020)}]{kuhn2020}
 Kuhn M, Wickham H (2020).
-\newblock \enquote{Tidymodels: A Collection of Packages for Modeling and
-  Machine Learning Using Tidyverse Principles.}
+\newblock \enquote{Tidymodels: A Collection of Packages for Modeling and Machine Learning Using Tidyverse Principles.}
 \newblock \urlprefix\url{https://www.tidymodels.org}.
 
-\bibitem[{Lang \emph{et~al.}(2019)Lang, Binder, Richter, Schratz, Pfisterer,
-  Coors, Au, Casalicchio, Kotthoff, and Bischl}]{lang2019}
-Lang M, Binder M, Richter J, Schratz P, Pfisterer F, Coors S, Au Q, Casalicchio
-  G, Kotthoff L, Bischl B (2019).
-\newblock \enquote{\textbf{mlr3}: A Modern Object-Oriented Machine Learning
-  Framework in {R}.}
+\bibitem[{Lang \emph{et~al.}(2019)Lang, Binder, Richter, Schratz, Pfisterer, Coors, Au, Casalicchio, Kotthoff, and Bischl}]{lang2019}
+Lang M, Binder M, Richter J, Schratz P, Pfisterer F, Coors S, Au Q, Casalicchio G, Kotthoff L, Bischl B (2019).
+\newblock \enquote{\textbf{mlr3}: A Modern Object-Oriented Machine Learning Framework in {R}.}
 \newblock \emph{Journal of Open Source Software}, \textbf{4}(44), 1903.
 \newblock \doi{10.21105/joss.01903}.
 
-\bibitem[{Leskovec \emph{et~al.}(2014)Leskovec, Rajaraman, and
-  Ullman}]{leskovec2014}
+\bibitem[{Leskovec \emph{et~al.}(2014)Leskovec, Rajaraman, and Ullman}]{leskovec2014}
 Leskovec J, Rajaraman A, Ullman JD (2014).
 \newblock \emph{Mining of Massive Datasets}.
 \newblock 2nd edition. Cambridge University Press.
 
 \bibitem[{Moscovich and Rosset(2022)}]{moscovich2022}
 Moscovich A, Rosset S (2022).
-\newblock \enquote{On the Cross-Validation Bias Due to Unsupervised
-  Pre-Processing.}
-\newblock \emph{Journal of the Royal Statistical Society: Series B (Statistical
-  Methodology)}, \textbf{84}(4), 1474--1502.
+\newblock \enquote{On the Cross-Validation Bias Due to Unsupervised Pre-Processing.}
+\newblock \emph{Journal of the Royal Statistical Society: Series B (Statistical Methodology)}, \textbf{84}(4), 1474--1502.
 \newblock \doi{10.1111/rssb.12537}.
 
 \bibitem[{Peng(2011)}]{peng2011}
@@ -192,120 +139,99 @@ Peng RD (2011).
 \newblock \emph{Science}, \textbf{334}(6060), 1226--1227.
 \newblock \doi{10.1126/science.1213847}.
 
-\bibitem[{{R Core Team}(2024)}]{R}
-{R Core Team} (2024).
+\bibitem[{Phipson and Smyth(2010)}]{phipson2010}
+Phipson B, Smyth GK (2010).
+\newblock \enquote{Permutation P-values Should Never Be Zero: Calculating Exact P-values When Permutations Are Randomly Drawn.}
+\newblock \emph{Statistical Applications in Genetics and Molecular Biology}, \textbf{9}(1), Article 39.
+\newblock \doi{10.2202/1544-6115.1585}.
+
+\bibitem[{{R Core Team}(2025)}]{R}
+{R Core Team} (2025).
 \newblock \emph{{R}: A Language and Environment for Statistical Computing}.
 \newblock R Foundation for Statistical Computing, Vienna, Austria.
 \newblock \urlprefix\url{https://www.R-project.org/}.
 
-\bibitem[{Roberts \emph{et~al.}(2017)Roberts, Bahn, Ciuti, Boyce, Elith,
-  Guillera-Arroita, Hauenstein, Lahoz-Monfort, Schr{\"o}der, Thuiller, Warton,
-  Wintle, Hartig, and Dormann}]{roberts2017}
-Roberts DR, Bahn V, Ciuti S, Boyce MS, Elith J, Guillera-Arroita G, Hauenstein
-  S, Lahoz-Monfort JJ, Schr{\"o}der B, Thuiller W, Warton DI, Wintle BA, Hartig
-  F, Dormann CF (2017).
-\newblock \enquote{Cross-Validation Strategies for Data with Temporal, Spatial,
-  Hierarchical, or Phylogenetic Structure.}
+\bibitem[{Roberts \emph{et~al.}(2017)Roberts, Bahn, Ciuti, Boyce, Elith, Guillera-Arroita, Hauenstein, Lahoz-Monfort, Schr{\"o}der, Thuiller, Warton, Wintle, Hartig, and Dormann}]{roberts2017}
+Roberts DR, Bahn V, Ciuti S, Boyce MS, Elith J, Guillera-Arroita G, Hauenstein S, Lahoz-Monfort JJ, Schr{\"o}der B, Thuiller W, Warton DI, Wintle BA, Hartig F, Dormann CF (2017).
+\newblock \enquote{Cross-Validation Strategies for Data with Temporal, Spatial, Hierarchical, or Phylogenetic Structure.}
 \newblock \emph{Ecography}, \textbf{40}(8), 913--929.
 \newblock \doi{10.1111/ecog.02881}.
 
-\bibitem[{Rosenblatt \emph{et~al.}(2024)Rosenblatt, Ben~Simhon, Gal, and
-  Gilron}]{rosenblatt2024}
+\bibitem[{Rosenblatt \emph{et~al.}(2024)Rosenblatt, Ben~Simhon, Gal, and Gilron}]{rosenblatt2024}
 Rosenblatt JD, Ben~Simhon Y, Gal S, Gilron R (2024).
-\newblock \enquote{Practicalities of Resampling Methods for Brain Imaging: What
-  Every Researcher Should Know.}
+\newblock \enquote{Practicalities of Resampling Methods for Brain Imaging: What Every Researcher Should Know.}
 \newblock \emph{NeuroImage}, \textbf{287}, 120520.
 \newblock \doi{10.1016/j.neuroimage.2024.120520}.
 
-\bibitem[{Sandve \emph{et~al.}(2013)Sandve, Nekrutenko, Taylor, and
-  Hovig}]{sandve2013}
+\bibitem[{Sandve \emph{et~al.}(2013)Sandve, Nekrutenko, Taylor, and Hovig}]{sandve2013}
 Sandve GK, Nekrutenko A, Taylor J, Hovig E (2013).
 \newblock \enquote{Ten Simple Rules for Reproducible Computational Research.}
 \newblock \emph{PLOS Computational Biology}, \textbf{9}(10), e1003285.
 \newblock \doi{10.1371/journal.pcbi.1003285}.
 
-\bibitem[{Sendak \emph{et~al.}(2020)Sendak, Elish, Gao, Futoma, Ratliff,
-  Nichols, Bedoya, Balu, and O'Brien}]{sendak2019}
-Sendak M, Elish MC, Gao M, Futoma J, Ratliff W, Nichols M, Bedoya A, Balu S,
-  O'Brien C (2020).
-\newblock \enquote{The Human Body Is a Black Box: Supporting Clinical
-  Decision-Making with Deep Learning.}
-\newblock In \emph{Proceedings of the Conference on Fairness, Accountability,
-  and Transparency (FAT* '20)}, pp. 99--109.
+\bibitem[{Sendak \emph{et~al.}(2020)Sendak, Elish, Gao, Futoma, Ratliff, Nichols, Bedoya, Balu, and O'Brien}]{sendak2020}
+Sendak M, Elish MC, Gao M, Futoma J, Ratliff W, Nichols M, Bedoya A, Balu S, O'Brien C (2020).
+\newblock \enquote{The Human Body Is a Black Box: Supporting Clinical Decision-Making with Deep Learning.}
+\newblock In \emph{Proceedings of the Conference on Fairness, Accountability, and Transparency (FAT* '20)}, pp. 99--109.
 \newblock \doi{10.1145/3351095.3372827}.
 
-\bibitem[{Simon \emph{et~al.}(2003)Simon, Radmacher, Dobbin, and
-  McShane}]{simon2003}
+\bibitem[{Simon \emph{et~al.}(2003)Simon, Radmacher, Dobbin, and McShane}]{simon2003}
 Simon R, Radmacher MD, Dobbin K, McShane LM (2003).
-\newblock \enquote{Pitfalls in the Use of {DNA} Microarray Data for Diagnostic
-  and Prognostic Classification.}
-\newblock \emph{Journal of the National Cancer Institute}, \textbf{95}(1),
-  14--18.
+\newblock \enquote{Pitfalls in the Use of {DNA} Microarray Data for Diagnostic and Prognostic Classification.}
+\newblock \emph{Journal of the National Cancer Institute}, \textbf{95}(1), 14--18.
 \newblock \doi{10.1093/jnci/95.1.14}.
 
 \bibitem[{Soneson and Delorenzi(2014)}]{soneson2014}
 Soneson C, Delorenzi M (2014).
-\newblock \enquote{Batch Effect Confounding Leads to Strong Bias in Performance
-  Estimates Obtained by Cross-Validation.}
+\newblock \enquote{Batch Effect Confounding Leads to Strong Bias in Performance Estimates Obtained by Cross-Validation.}
 \newblock \emph{PLOS ONE}, \textbf{9}(6), e100335.
 \newblock \doi{10.1371/journal.pone.0100335}.
 
 \bibitem[{Stone(1974)}]{stone1974}
 Stone M (1974).
-\newblock \enquote{Cross-Validatory Choice and Assessment of Statistical
-  Predictions.}
-\newblock \emph{Journal of the Royal Statistical Society: Series B
-  (Methodological)}, \textbf{36}(2), 111--147.
+\newblock \enquote{Cross-Validatory Choice and Assessment of Statistical Predictions.}
+\newblock \emph{Journal of the Royal Statistical Society: Series B (Methodological)}, \textbf{36}(2), 111--147.
 \newblock \doi{10.1111/j.2517-6161.1974.tb00994.x}.
 
 \bibitem[{Subramanian and Simon(2013)}]{subramanian2013}
 Subramanian J, Simon R (2013).
-\newblock \enquote{Overfitting in Prediction Models -- Is It a Problem Only in
-  High Dimensions?}
+\newblock \enquote{Overfitting in Prediction Models -- Is It a Problem Only in High Dimensions?}
 \newblock \emph{Contemporary Clinical Trials}, \textbf{36}(2), 636--641.
 \newblock \doi{10.1016/j.cct.2013.06.011}.
 
-\bibitem[{Tarca \emph{et~al.}(2007)Tarca, Carey, Chen, Romero, and
-  Drăghici}]{tarca2006}
+\bibitem[{Tarca \emph{et~al.}(2007)Tarca, Carey, Chen, Romero, and Drăghici}]{tarca2007}
 Tarca AL, Carey VJ, Chen Xw, Romero R, Drăghici S (2007).
 \newblock \enquote{Machine Learning and Its Applications to Biology.}
 \newblock \emph{PLOS Computational Biology}, \textbf{3}(6), e116.
 \newblock \doi{10.1371/journal.pcbi.0030116}.
 
-\bibitem[{Valavi \emph{et~al.}(2019)Valavi, Elith, Lahoz-Monfort, and
-  Guillera-Arroita}]{valavi2019}
+\bibitem[{Valavi \emph{et~al.}(2019)Valavi, Elith, Lahoz-Monfort, and Guillera-Arroita}]{valavi2019}
 Valavi R, Elith J, Lahoz-Monfort JJ, Guillera-Arroita G (2019).
-\newblock \enquote{\textbf{blockCV}: An {R} Package for Generating Spatially or
-  Environmentally Separated Folds for \textit{k}-Fold Cross-Validation of
-  Species Distribution Models.}
+\newblock \enquote{\textbf{blockCV}: An {R} Package for Generating Spatially or Environmentally Separated Folds for \textit{k}-Fold Cross-Validation of Species Distribution Models.}
 \newblock \emph{Methods in Ecology and Evolution}, \textbf{10}(2), 225--232.
 \newblock \doi{10.1111/2041-210X.13107}.
 
 \bibitem[{van~de Mortel and van Wingen(2025)}]{vandemortel2025}
 van~de Mortel LA, van Wingen GA (2025).
-\newblock \enquote{Data Leakage Inflates Prediction Performance in
-  Connectome-Based Machine Learning Models.}
+\newblock \enquote{Data Leakage Inflates Prediction Performance in Connectome-Based Machine Learning Models.}
 \newblock \emph{Nature Communications}, \textbf{16}, 1106.
 \newblock \doi{10.1038/s41467-025-56082-4}.
 
 \bibitem[{Varma and Simon(2006)}]{varma2006}
 Varma S, Simon R (2006).
-\newblock \enquote{Bias in Error Estimation When Using Cross-Validation for
-  Model Selection.}
+\newblock \enquote{Bias in Error Estimation When Using Cross-Validation for Model Selection.}
 \newblock \emph{BMC Bioinformatics}, \textbf{7}, 91.
 \newblock \doi{10.1186/1471-2105-7-91}.
 
 \bibitem[{Wenger and Olden(2012)}]{wenger2012}
 Wenger SJ, Olden JD (2012).
-\newblock \enquote{Assessing Transferability of Ecological Models: An
-  Underappreciated Aspect of Statistical Validation.}
+\newblock \enquote{Assessing Transferability of Ecological Models: An Underappreciated Aspect of Statistical Validation.}
 \newblock \emph{Methods in Ecology and Evolution}, \textbf{3}(2), 260--267.
 \newblock \doi{10.1111/j.2041-210X.2011.00170.x}.
 
 \bibitem[{Winkler(1999)}]{winkler1999}
 Winkler WE (1999).
 \newblock \enquote{The State of Record Linkage and Current Research Problems.}
-\newblock \emph{Statistical Research Report Series RR99/04}, U.S. Bureau of the
-  Census.
+\newblock \emph{Statistical Research Report Series RR99/04}, U.S. Bureau of the Census.
 
 \end{thebibliography}

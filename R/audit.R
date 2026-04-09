@@ -1169,6 +1169,10 @@ audit_leakage <- function(fit,
     }
     if (is.null(perm_refit_spec) || !is.list(perm_refit_spec)) {
       perm_refit_reason <- "perm_refit_spec missing; using fixed predictions."
+      message("audit_leakage(): perm_refit_spec not supplied; using fixed-prediction ",
+              "permutations (perm_refit = FALSE). This test can be slightly liberal ",
+              "(type I error above nominal). For tighter calibration, supply ",
+              "perm_refit_spec to enable refit-based permutations.")
       perm_refit <- FALSE
     } else if (!is.finite(B) || B > perm_refit_auto_max) {
       perm_refit_reason <- sprintf("B=%s exceeds perm_refit_auto_max=%s; using fixed predictions.",
@@ -1671,42 +1675,31 @@ audit_leakage <- function(fit,
               return(survival::Surv(df$truth_time[idx], df$truth_event[idx]))
             }
           }
-          sample(df$truth)
+          if (length(df$truth) <= 1L) df$truth else df$truth[sample.int(length(df$truth))]
         })
       }
     }
 
+    # Global label shuffle: concatenate all fold predictions and permute
+    # labels across the full dataset.  Per-fold shuffling would preserve
+    # within-fold class balance, inflating the null when fold structure
+    # correlates with the outcome (e.g., study_loocv with unequal class
+    # proportions across studies).  A global shuffle gives the correct
+    # null: E[AUC] = 0.5, testing whether predictions are associated with
+    # labels without conditioning on fold membership.
+    agg_base <- do.call(rbind, pred_list)
     perm_eval <- function(b) {
-      truths <- perm_source(b)
-      if (length(truths) != length(pred_list)) {
-        stop(
-          "Permutation source returned ", length(truths),
-          " truth sets for ", length(pred_list), " prediction tables"
-        )
+      n <- nrow(agg_base)
+      if (n <= 1L) return(NA_real_)
+      agg <- agg_base
+      perm_idx <- sample.int(n)
+      if (identical(task, "survival") &&
+          all(c("truth_time", "truth_event") %in% names(agg))) {
+        agg$truth_time <- agg$truth_time[perm_idx]
+        agg$truth_event <- agg$truth_event[perm_idx]
+      } else {
+        agg$truth <- agg$truth[perm_idx]
       }
-      new_preds <- Map(function(df, tr, fold_idx) {
-        if (!nrow(df)) return(df)
-        tr_len <- if (inherits(tr, "Surv")) nrow(tr) else length(tr)
-        if (tr_len != nrow(df)) {
-          stop(
-            "Permutation truth length (", tr_len,
-            ") does not match predictions (", nrow(df),
-            ") for fold ", fold_idx, "."
-          )
-        }
-        if (identical(task, "survival") &&
-            all(c("truth_time", "truth_event") %in% names(df))) {
-          tr_mat <- as.matrix(tr)
-          time_col <- if ("time" %in% colnames(tr_mat)) "time" else colnames(tr_mat)[1]
-          status_col <- if ("status" %in% colnames(tr_mat)) "status" else colnames(tr_mat)[ncol(tr_mat)]
-          df$truth_time <- tr_mat[, time_col]
-          df$truth_event <- tr_mat[, status_col]
-        } else {
-          df$truth <- .coerce_truth_like(df$truth, tr)
-        }
-        df
-      }, pred_list, truths, seq_along(pred_list))
-      agg <- do.call(rbind, new_preds)
       .metric_value(metric, task, agg$truth, agg$pred, pred_df = agg)
     }
 

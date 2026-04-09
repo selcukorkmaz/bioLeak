@@ -43,100 +43,159 @@ sim$leakage_label <- lk_labels[sim$leakage]
 sim$leakage_label <- factor(sim$leakage_label,
                             levels = lk_labels)
 
-pdf(file.path(base_dir, "fig_sim_main.pdf"), width = 10, height = 9)
-par(mfrow = c(2, 2), mar = c(4.5, 4.5, 2.5, 1), oma = c(0, 0, 1, 0))
-
-## Panel (a): Observed AUC by leakage and signal level
-sim_sig <- sim[sim$s > 0, ]
-auc_agg <- aggregate(metric_obs ~ leakage + s, data = sim_sig, FUN = mean)
-auc_agg$leakage_label <- lk_labels[auc_agg$leakage]
-
-s_vals <- sort(unique(auc_agg$s))
-lk_types <- names(lk_labels)
-x_pos <- seq_along(s_vals)
-
-plot(NA, xlim = c(0.5, length(s_vals) + 0.5), ylim = c(0.45, 1.0),
-     xlab = "Signal strength (s)", ylab = "Mean observed AUC",
-     main = "(a) Observed AUC by leakage and signal",
-     xaxt = "n", las = 1)
-axis(1, at = x_pos, labels = s_vals)
-abline(h = 0.5, lty = 2, col = "gray70")
-
-bar_w <- 0.15
-for (k in seq_along(lk_types)) {
-  lk <- lk_types[k]
-  sub <- auc_agg[auc_agg$leakage == lk, ]
-  y_vals <- sub$metric_obs[match(s_vals, sub$s)]
-  x_offset <- (k - (length(lk_types) + 1) / 2) * bar_w
-  points(x_pos + x_offset, y_vals, pch = 15 + k - 1,
-         col = lk_colors[lk], cex = 1.4)
-  lines(x_pos + x_offset, y_vals, col = lk_colors[lk], lwd = 1.5)
+## Helper: aggregate mean and 95% t-CI for a continuous metric
+agg_ci <- function(df, group_vars, value_col) {
+  keys <- do.call(paste, c(df[, group_vars, drop = FALSE], sep = "||"))
+  ordered_keys <- unique(keys)
+  out <- do.call(rbind, lapply(ordered_keys, function(k) {
+    sub <- df[keys == k, , drop = FALSE]
+    x <- sub[[value_col]]
+    nseed <- length(x)
+    mu <- mean(x)
+    se <- sd(x) / sqrt(nseed)
+    tval <- qt(0.975, nseed - 1)
+    data.frame(sub[1, group_vars, drop = FALSE],
+               mean = mu, lo = mu - tval * se, hi = mu + tval * se,
+               stringsAsFactors = FALSE)
+  }))
+  rownames(out) <- NULL
+  out
 }
-legend("bottomright", legend = lk_labels, col = lk_colors,
-       pch = 15:19, lwd = 1.5, cex = 0.7, bg = "white")
 
-## Panel (b): Permutation gap by mechanism (s > 0)
-gap_agg <- aggregate(gap ~ leakage + n, data = sim_sig, FUN = mean)
-gap_agg$leakage_label <- lk_labels[gap_agg$leakage]
+## Helper: Wilson 95% CI for a binomial proportion (k successes out of n)
+wilson_ci <- function(k, n) {
+  z <- 1.959964
+  phat <- k / n
+  denom <- 1 + z^2 / n
+  center <- (phat + z^2 / (2 * n)) / denom
+  half <- z * sqrt(phat * (1 - phat) / n + z^2 / (4 * n^2)) / denom
+  list(rate = phat, lo = pmax(0, center - half), hi = pmin(1, center + half))
+}
 
-n_vals <- sort(unique(gap_agg$n))
-plot(NA, xlim = c(0.5, length(n_vals) + 0.5), ylim = c(-0.02, 0.35),
-     xlab = "Sample size (n)", ylab = "Mean permutation gap",
-     main = "(b) Permutation gap by mechanism",
+## Helper: draw jittered error bar + point for a single mechanism at x position
+draw_err <- function(x, lo, hi, col, pch, jitter = 0) {
+  xj <- x + jitter
+  segments(xj, lo, xj, hi, col = col, lwd = 1.2)
+  cap <- 0.04
+  segments(xj - cap, lo, xj + cap, lo, col = col, lwd = 1.2)
+  segments(xj - cap, hi, xj + cap, hi, col = col, lwd = 1.2)
+}
+
+pdf(file.path(base_dir, "fig_sim_main.pdf"), width = 10, height = 9)
+par(mfrow = c(2, 2), mar = c(4.5, 4.5, 2.5, 1), oma = c(0, 0, 1, 0),
+    cex.lab = 1.2, cex.axis = 1.1, cex.main = 1.3)
+
+lk_types <- names(lk_labels)
+K <- length(lk_types)
+jitter_step <- 0.08
+jitters <- (seq_len(K) - (K + 1) / 2) * jitter_step
+
+## Panel (a): Observed AUC by leakage mechanism and sample size (s > 0)
+sim_sig <- sim[sim$s > 0, ]
+auc_stats <- agg_ci(sim_sig, c("leakage", "n"), "metric_obs")
+n_vals <- sort(unique(auc_stats$n))
+
+plot(NA, xlim = c(0.5, length(n_vals) + 0.5), ylim = c(0.6, 1.02),
+     xlab = "Sample size (n)", ylab = "Mean observed AUC",
+     main = "(a) Observed AUC by mechanism",
      xaxt = "n", las = 1)
 axis(1, at = seq_along(n_vals), labels = n_vals)
-abline(h = 0, lty = 2, col = "gray70")
 
 for (k in seq_along(lk_types)) {
   lk <- lk_types[k]
-  sub <- gap_agg[gap_agg$leakage == lk, ]
-  y_vals <- sub$gap[match(n_vals, sub$n)]
-  x_offset <- (k - (length(lk_types) + 1) / 2) * bar_w
-  points(seq_along(n_vals) + x_offset, y_vals, pch = 15 + k - 1,
+  sub <- auc_stats[auc_stats$leakage == lk, ]
+  idx <- match(n_vals, sub$n)
+  y_mean <- sub$mean[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
+  x_pos <- seq_along(n_vals)
+  draw_err(x_pos, y_lo, y_hi, col = lk_colors[lk], pch = 15 + k - 1,
+           jitter = jitters[k])
+  lines(x_pos + jitters[k], y_mean, col = lk_colors[lk], lwd = 1.5)
+  points(x_pos + jitters[k], y_mean, pch = 15 + k - 1,
          col = lk_colors[lk], cex = 1.4)
-  lines(seq_along(n_vals) + x_offset, y_vals, col = lk_colors[lk], lwd = 1.5)
 }
-legend("topright", legend = lk_labels, col = lk_colors,
-       pch = 15:19, lwd = 1.5, cex = 0.7, bg = "white")
+legend("bottomright", legend = lk_labels, col = lk_colors,
+       pch = 15:19, lwd = 1.5, cex = 0.8, bg = "white")
 
-## Panel (c): Type I error at s = 0 (clean baseline)
-clean_null <- sim[sim$leakage == "none" & sim$s == 0, ]
-type1_by_n <- aggregate(p_value ~ n, data = clean_null,
-                        FUN = function(x) mean(x < 0.05) * 100)
-names(type1_by_n)[2] <- "type1"
+## Panel (b): AUC by mechanism and signal strength (averaged over n and p)
+auc_s_stats <- agg_ci(sim, c("leakage", "s"), "metric_obs")
+s_vals <- sort(unique(auc_s_stats$s))
 
-barplot(type1_by_n$type1, names.arg = type1_by_n$n,
-        xlab = "Sample size (n)", ylab = "Type I error (%)",
-        main = "(c) Null-run Type I error (s = 0)",
-        col = "gray70", ylim = c(0, max(15, max(type1_by_n$type1) * 1.3)),
-        las = 1, border = NA)
+plot(NA, xlim = c(0.5, length(s_vals) + 0.5), ylim = c(0.45, 1.02),
+     xlab = "Signal strength (s)", ylab = "Mean observed AUC",
+     main = "(b) AUC by signal strength",
+     xaxt = "n", las = 1)
+axis(1, at = seq_along(s_vals), labels = s_vals)
+abline(h = 0.5, lty = 2, col = "gray70")
+
+for (k in seq_along(lk_types)) {
+  lk <- lk_types[k]
+  sub <- auc_s_stats[auc_s_stats$leakage == lk, ]
+  idx <- match(s_vals, sub$s)
+  y_mean <- sub$mean[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
+  x_pos <- seq_along(s_vals)
+  draw_err(x_pos, y_lo, y_hi, col = lk_colors[lk], pch = 15 + k - 1,
+           jitter = jitters[k])
+  lines(x_pos + jitters[k], y_mean, col = lk_colors[lk], lwd = 1.5)
+  points(x_pos + jitters[k], y_mean, pch = 15 + k - 1,
+         col = lk_colors[lk], cex = 1.4)
+}
+legend("bottomright", legend = lk_labels, col = lk_colors,
+       pch = 15:19, lwd = 1.5, cex = 0.8, bg = "white")
+
+## Panel (c): Rejection rate at s = 0 by mechanism and feature dimension
+sim_s0 <- sim[sim$s == 0, ]
+rej_stats <- do.call(rbind, lapply(split(sim_s0, list(sim_s0$leakage, sim_s0$p),
+                                         drop = TRUE), function(sub) {
+  x <- sub$p_value
+  x <- x[!is.na(x)]
+  k <- sum(x < 0.05); n <- length(x)
+  wci <- wilson_ci(k, n)
+  data.frame(leakage = sub$leakage[1], p = sub$p[1],
+             rate = wci$rate * 100, lo = wci$lo * 100, hi = wci$hi * 100,
+             stringsAsFactors = FALSE)
+}))
+rownames(rej_stats) <- NULL
+
+p_vals <- sort(unique(rej_stats$p))
+plot(NA, xlim = c(0.5, length(p_vals) + 0.5), ylim = c(0, 105),
+     xlab = "Feature dimension (p)", ylab = "Rejection rate (%)",
+     main = "(c) Rejection rate at s = 0",
+     xaxt = "n", las = 1)
+axis(1, at = seq_along(p_vals), labels = p_vals)
 abline(h = 5, lty = 2, col = "red", lwd = 1.5)
-text(0.5, 5.8, "5% nominal", col = "red", cex = 0.8, adj = 0)
+text(0.55, 1, "5% nominal", col = "red", cex = 0.7, adj = 0)
+
+for (k in seq_along(lk_types)) {
+  lk <- lk_types[k]
+  sub <- rej_stats[rej_stats$leakage == lk, ]
+  idx <- match(p_vals, sub$p)
+  y_mean <- sub$rate[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
+  x_pos <- seq_along(p_vals)
+  draw_err(x_pos, y_lo, y_hi, col = lk_colors[lk], pch = 15 + k - 1,
+           jitter = jitters[k])
+  lines(x_pos + jitters[k], y_mean, col = lk_colors[lk], lwd = 1.5)
+  points(x_pos + jitters[k], y_mean, pch = 15 + k - 1,
+         col = lk_colors[lk], cex = 1.4)
+}
+legend("right", legend = lk_labels, col = lk_colors,
+       pch = 15:19, lwd = 1.5, cex = 0.8, bg = "white")
 
 ## Panel (d): AUC inflation relative to clean baseline (s > 0)
-auc_by_cond <- aggregate(metric_obs ~ leakage + n + s, data = sim_sig, FUN = mean)
-clean_auc <- auc_by_cond[auc_by_cond$leakage == "none", ]
+## Per-seed paired differences: delta = leaky_AUC - clean_AUC at matched (n,p,s,seed)
+clean_df <- subset(sim_sig, leakage == "none")[, c("seed", "n", "p", "s", "metric_obs")]
+names(clean_df)[5] <- "metric_clean"
+leaky_df <- subset(sim_sig, leakage != "none")
+pair_df <- merge(leaky_df, clean_df, by = c("seed", "n", "p", "s"))
+pair_df$delta <- pair_df$metric_obs - pair_df$metric_clean
+infl_stats <- agg_ci(pair_df, c("leakage", "n"), "delta")
 
 lk_leak <- setdiff(names(lk_labels), "none")
-inflation_by_n <- data.frame()
-for (lk in lk_leak) {
-  leaky_sub <- auc_by_cond[auc_by_cond$leakage == lk, ]
-  for (nn in n_vals) {
-    matched <- merge(
-      leaky_sub[leaky_sub$n == nn, c("s", "metric_obs")],
-      clean_auc[clean_auc$n == nn, c("s", "metric_obs")],
-      by = "s", suffixes = c("_leak", "_clean")
-    )
-    if (nrow(matched) > 0) {
-      delta <- mean(matched$metric_obs_leak - matched$metric_obs_clean)
-      inflation_by_n <- rbind(inflation_by_n,
-                              data.frame(leakage = lk, n = nn, delta = delta))
-    }
-  }
-}
+lk_leak_idx <- seq_along(lk_leak)
+jitters_d <- (lk_leak_idx - (length(lk_leak) + 1) / 2) * jitter_step
 
 plot(NA, xlim = c(0.5, length(n_vals) + 0.5), ylim = c(-0.02, 0.35),
-     xlab = "Sample size (n)", ylab = "Mean AUC inflation",
+     xlab = "Sample size (n)",
+     ylab = expression("Mean AUC inflation  (" * Delta * "AUC)"),
      main = "(d) AUC inflation vs clean baseline",
      xaxt = "n", las = 1)
 axis(1, at = seq_along(n_vals), labels = n_vals)
@@ -144,15 +203,18 @@ abline(h = 0, lty = 2, col = "gray70")
 
 for (k in seq_along(lk_leak)) {
   lk <- lk_leak[k]
-  sub <- inflation_by_n[inflation_by_n$leakage == lk, ]
-  y_vals <- sub$delta[match(n_vals, sub$n)]
-  x_offset <- (k - (length(lk_leak) + 1) / 2) * 0.18
-  points(seq_along(n_vals) + x_offset, y_vals, pch = 15 + k,
+  sub <- infl_stats[infl_stats$leakage == lk, ]
+  idx <- match(n_vals, sub$n)
+  y_mean <- sub$mean[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
+  x_pos <- seq_along(n_vals)
+  draw_err(x_pos, y_lo, y_hi, col = lk_colors[lk], pch = 15 + k,
+           jitter = jitters_d[k])
+  lines(x_pos + jitters_d[k], y_mean, col = lk_colors[lk], lwd = 1.5)
+  points(x_pos + jitters_d[k], y_mean, pch = 15 + k,
          col = lk_colors[lk], cex = 1.4)
-  lines(seq_along(n_vals) + x_offset, y_vals, col = lk_colors[lk], lwd = 1.5)
 }
 legend("topright", legend = lk_labels[lk_leak], col = lk_colors[lk_leak],
-       pch = 16:19, lwd = 1.5, cex = 0.7, bg = "white")
+       pch = 16:19, lwd = 1.5, cex = 0.8, bg = "white")
 
 dev.off()
 cat("Figure 2 saved: paper/fig_sim_main.pdf\n")
@@ -166,46 +228,51 @@ if (!file.exists(scan_file)) {
 } else {
   scan <- readRDS(scan_file)
 
-  pdf(file.path(base_dir, "fig_target_scan.pdf"), width = 9, height = 4.5)
-  par(mfrow = c(1, 2), mar = c(5, 4.5, 2.5, 1))
+  ## Filter to s = 0 only — at s > 0 all mechanisms (including clean) reject
+  ## because real signal creates legitimate target association
+  scan_s0 <- scan[scan$s == 0, ]
 
-  ## Panel (a): Univariate flag rate by mechanism
-  flag_rate <- aggregate(leak_feature_flagged ~ leakage, data = scan,
-                         FUN = function(x) mean(x, na.rm = TRUE) * 100)
-  ## Include "none" for false positive context
-  flag_rate$label <- lk_labels[flag_rate$leakage]
-  flag_rate <- flag_rate[order(match(flag_rate$leakage, names(lk_labels))), ]
+  pdf(file.path(base_dir, "fig_target_scan.pdf"), width = 6, height = 5)
+  par(mar = c(6.5, 4.5, 0.5, 3.2), cex.lab = 1.1)
 
-  bp <- barplot(flag_rate$leak_feature_flagged,
-                names.arg = flag_rate$label,
-                ylab = "Leak feature flag rate (%)",
-                main = "(a) Univariate target-scan detection",
-                col = lk_colors[flag_rate$leakage],
-                ylim = c(0, 110), las = 2, border = NA)
-  ## Add percentage text on bars
-  text(bp, flag_rate$leak_feature_flagged + 3,
-       labels = sprintf("%.0f%%", flag_rate$leak_feature_flagged),
-       cex = 0.8)
+  ## Order levels to match the rest of the paper
+  scan_s0$leakage <- factor(scan_s0$leakage,
+                            levels = names(lk_labels))
 
-  ## Panel (b): Multivariate p-values
-  scan_leaky <- scan[scan$leakage != "none", ]
-  scan_clean <- scan[scan$leakage == "none", ]
-
-  boxplot(multivariate_p ~ leakage, data = scan,
-          names = lk_labels[levels(factor(scan$leakage))],
+  boxplot(multivariate_p ~ leakage, data = scan_s0,
+          xaxt = "n", xlab = "",
           ylab = "Multivariate scan p-value",
-          main = "(b) Multivariate target-scan p-values",
-          col = lk_colors[levels(factor(scan$leakage))],
-          las = 2, outline = TRUE, border = "gray30")
+          main = "",
+          col = lk_colors[levels(scan_s0$leakage)],
+          las = 1, outline = FALSE, border = "gray30")
+  ## Jittered stripchart overlay: keeps linear scale's honest view of the
+  ## uniform null while making individual points visible for the collapsed
+  ## leakage boxes (including near-threshold misses). Points share the
+  ## mechanism color with a dark outline for visibility against the box fill.
+  set.seed(42)
+  for (i in seq_along(levels(scan_s0$leakage))) {
+    lk <- levels(scan_s0$leakage)[i]
+    y_i <- scan_s0$multivariate_p[scan_s0$leakage == lk]
+    x_i <- jitter(rep(i, length(y_i)), amount = 0.15)
+    points(x_i, y_i, pch = 21,
+           bg = adjustcolor(lk_colors[lk], 0.7),
+           col = "gray15", cex = 0.7)
+  }
+  ## Rotated x-axis labels
+  axis(1, at = 1:5, labels = FALSE)
+  text(1:5, par("usr")[3] - 0.03, labels = lk_labels[levels(scan_s0$leakage)],
+       srt = 45, adj = 1, xpd = TRUE, cex = 0.9)
   abline(h = 0.05, lty = 2, col = "red", lwd = 1.5)
-  text(0.6, 0.08, "p = 0.05", col = "red", cex = 0.75, adj = 0)
+  ## Place label in the right margin adjacent to the red line
+  text(par("usr")[2] + 0.12, 0.05, "p = 0.05", col = "red", cex = 0.8,
+       adj = c(0, 0.5), xpd = NA)
 
   dev.off()
   cat("Figure 4 saved: paper/fig_target_scan.pdf\n")
 }
 
 ## ---------------------------------------------------------------
-## Figure 5: Case study (3-panel)
+## Figure 5: Case study (2-panel)
 ## ---------------------------------------------------------------
 cs_file <- file.path(base_dir, "casestudy_results.rds")
 if (!file.exists(cs_file)) {
@@ -213,66 +280,99 @@ if (!file.exists(cs_file)) {
 } else {
   cs <- readRDS(cs_file)
 
-  pdf(file.path(base_dir, "fig_casestudy.pdf"), width = 11, height = 4)
-  par(mfrow = c(1, 3), mar = c(5, 4.5, 2.5, 1))
+  pdf(file.path(base_dir, "fig_casestudy.pdf"), width = 8, height = 4)
+  par(mfrow = c(1, 2), mar = c(5, 5.5, 3, 1))
 
-  ## Panel (a): AUC comparison
-  auc_vals <- c(cs$guarded$auc, cs$leaky$auc)
-  gap_vals <- c(cs$guarded$gap, cs$leaky$gap)
-  sd_vals  <- c(cs$guarded$auc_sd, cs$leaky$auc_sd)
-
-  bp <- barplot(auc_vals, names.arg = c("Guarded\n(Study LOOCV)", "Naive\n(Row-wise CV)"),
-                ylab = "AUC", main = "(a) Observed AUC",
-                col = c("#4DAF4A", "#E41A1C"), ylim = c(0, 1),
-                las = 1, border = NA)
-  ## Error bars (1 SD)
-  arrows(bp, auc_vals - sd_vals, bp, auc_vals + sd_vals,
-         angle = 90, code = 3, length = 0.08, lwd = 1.5)
-  ## Annotate gap
-  text(bp, auc_vals + sd_vals + 0.04,
-       labels = sprintf("gap=%.3f\np=%.4f", gap_vals,
-                        c(cs$guarded$p_value, cs$leaky$p_value)),
-       cex = 0.7)
-
-  ## Panel (b): Target-association scores (top features from leaky pipeline)
+  ## Panel (a): Target-association scores (top features from leaky pipeline)
   ta <- cs$leaky$target_assoc
   if (!is.null(ta) && nrow(ta) > 0) {
     ta <- ta[order(-ta$score), ]
     top_n <- min(15, nrow(ta))
     ta_top <- ta[seq_len(top_n), ]
 
+    ## Mark synthetic injected features with an asterisk
+    synthetic <- grepl("^leak_", ta_top$feature)
+    labels <- ifelse(synthetic,
+                     paste0(ta_top$feature, " *"),
+                     as.character(ta_top$feature))
+
     cols <- ifelse(ta_top$flag, "#CC79A7", "gray60")
     bp2 <- barplot(rev(ta_top$score),
                    horiz = TRUE, las = 1,
-                   names.arg = rev(ta_top$feature),
-                   xlab = "Target-association score",
-                   main = "(b) Target scan (naive pipeline)",
+                   names.arg = rev(labels),
+                   xlab = expression("Target-association score  " *
+                                       group("|", "AUC" - 0.5, "|") %*% 2),
+                   main = "",
                    col = rev(cols), border = NA,
-                   xlim = c(0, 1.1), cex.names = 0.6)
+                   xlim = c(0, 1.15), cex.names = 0.7)
+    title(main = "(a)", adj = 0, line = 1, cex.main = 1.1, font.main = 2)
     abline(v = 0.9, lty = 2, col = "red", lwd = 1.5)
-    text(0.92, 0.5, "threshold", col = "red", cex = 0.7, srt = 90)
-    legend("bottomright",
-           legend = c("Flagged", "Not flagged"),
-           fill = c("#CC79A7", "gray60"),
-           cex = 0.7, border = NA, bg = "white")
+    mtext("threshold = 0.9", side = 3, at = 0.9, col = "red",
+          cex = 0.65, line = 0.1, adj = 0.5)
+    ## Numeric score annotations at bar ends
+    text(x = rev(ta_top$score), y = bp2,
+         labels = sprintf("%.3f", rev(ta_top$score)),
+         pos = 4, cex = 0.65, col = "gray30", offset = 0.25)
+    legend(x = 0.58, y = 2.3,
+           legend = c("Flagged", "Not flagged", "* synthetic"),
+           fill = c("#CC79A7", "gray60", NA),
+           border = c(NA, NA, NA),
+           cex = 0.65, bg = "white", box.col = "gray80")
   } else {
     plot.new()
     text(0.5, 0.5, "No target scan data available")
   }
 
-  ## Panel (c): Duplicate counts
-  n_dup_g <- if (!is.null(cs$guarded$duplicates)) nrow(cs$guarded$duplicates) else 0
-  n_dup_l <- if (!is.null(cs$leaky$duplicates)) nrow(cs$leaky$duplicates) else 0
+  ## Panel (b): Delta LSI repeat-level dot plot
+  dlsi_obj <- cs$delta_lsi$delta_lsi_obj
+  if (!is.null(dlsi_obj)) {
+    rn <- dlsi_obj@repeats_naive
+    rg <- dlsi_obj@repeats_guarded
+    deltas <- rn$metric - rg$metric
+    R_eff <- length(deltas)
 
-  bp3 <- barplot(c(n_dup_g, n_dup_l),
-                 names.arg = c("Guarded", "Naive"),
-                 ylab = "Near-duplicate pairs",
-                 main = "(c) Cross-fold duplicate pairs",
-                 col = c("#4DAF4A", "#E41A1C"),
-                 las = 1, border = NA)
-  text(bp3, c(n_dup_g, n_dup_l),
-       labels = format(c(n_dup_g, n_dup_l), big.mark = ","),
-       pos = 3, cex = 0.8)
+    delta_robust <- dlsi_obj@delta_lsi
+    delta_mean   <- dlsi_obj@delta_metric
+    ci <- dlsi_obj@delta_lsi_ci
+
+    par(mar = c(5, 5.5, 3, 1))
+    ylim <- c(-0.02, max(c(deltas, ci[2])) * 1.12)
+    plot(seq_len(R_eff), deltas, pch = 19, cex = 1.0, col = "gray40",
+         xlab = "Repeat", ylab = expression(Delta[italic(r)] ~ "(leaky " * minus * " guarded AUC)"),
+         xlim = c(0.5, R_eff + 0.5), ylim = ylim,
+         las = 1, xaxt = "n", main = "")
+    axis(1, at = seq(5, R_eff, by = 5))
+    title(main = "(b)", adj = 0, line = 1, cex.main = 1.1, font.main = 2)
+
+    ## BCa CI band
+    rect(0, ci[1], R_eff + 1, ci[2],
+         col = adjustcolor("#0072B2", alpha.f = 0.12), border = NA)
+
+    ## Robust estimate (solid) and mean (dashed)
+    abline(h = delta_robust, col = "#0072B2", lwd = 2)
+    abline(h = delta_mean, col = "#0072B2", lwd = 1.5, lty = 2)
+
+    ## Zero reference
+    abline(h = 0, col = "gray70", lty = 3)
+
+    ## Re-draw points on top
+    points(seq_len(R_eff), deltas, pch = 19, cex = 1.0, col = "gray40")
+
+    legend("bottomright",
+           legend = c(
+             bquote(hat(Delta)[LSI] == .(sprintf("%.3f", delta_robust))),
+             bquote(hat(Delta)[metric] == .(sprintf("%.3f", delta_mean))),
+             "95% BCa CI"
+           ),
+           lty = c(1, 2, NA), lwd = c(2, 1.5, NA), col = c("#0072B2", "#0072B2", NA),
+           fill = c(NA, NA, adjustcolor("#0072B2", alpha.f = 0.12)),
+           border = c(NA, NA, "gray80"),
+           cex = 0.65, bg = "white", box.col = "gray80")
+  } else {
+    par(mar = c(5, 5.5, 3, 1))
+    plot.new()
+    text(0.5, 0.5, "No delta LSI data available")
+  }
 
   dev.off()
   cat("Figure 5 saved: paper/fig_casestudy.pdf\n")

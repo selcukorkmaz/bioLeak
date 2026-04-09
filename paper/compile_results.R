@@ -341,6 +341,31 @@ if (file.exists(cs_file)) {
   L_SD        <- sprintf("%.3f", cs$leaky$auc_sd)
   DELTA_AUC   <- sprintf("%.3f", cs$leaky$auc - cs$guarded$auc)
 
+  ## Sensitivity pipeline (guarded, no feature selection)
+  if (!is.null(cs$guarded_nofs)) {
+    GNOFS_AUC <- sprintf("%.3f", cs$guarded_nofs$auc)
+    GNOFS_SD  <- sprintf("%.3f", cs$guarded_nofs$auc_sd)
+    GNOFS_GAP <- sprintf("%.3f", cs$guarded_nofs$gap)
+    GNOFS_PVAL <- sprintf("%.4f", cs$guarded_nofs$p_value)
+    FS_EFFECT  <- sprintf("%.3f", cs$guarded_nofs$auc - cs$guarded$auc)
+  } else {
+    GNOFS_AUC <- GNOFS_SD <- GNOFS_GAP <- GNOFS_PVAL <- "NA"
+    FS_EFFECT <- "NA"
+  }
+
+  ## Naive clean pipeline (row-wise split, clean data, no FS)
+  if (!is.null(cs$naive_clean)) {
+    NC_AUC  <- sprintf("%.3f", cs$naive_clean$auc)
+    NC_SD   <- sprintf("%.3f", cs$naive_clean$auc_sd)
+    NC_GAP  <- sprintf("%.3f", cs$naive_clean$gap)
+    NC_PVAL <- sprintf("%.4f", cs$naive_clean$p_value)
+    SPLIT_EFFECT   <- sprintf("%.3f", cs$naive_clean$auc - cs$guarded_nofs$auc)
+    LEAK_EFFECT    <- sprintf("%.3f", cs$leaky$auc - cs$naive_clean$auc)
+  } else {
+    NC_AUC <- NC_SD <- NC_GAP <- NC_PVAL <- "NA"
+    SPLIT_EFFECT <- LEAK_EFFECT <- "NA"
+  }
+
   G_GAP  <- sprintf("%.3f", cs$guarded$gap)
   G_PVAL <- sprintf("%.4f", cs$guarded$p_value)
   L_GAP  <- sprintf("%.3f", cs$leaky$gap)
@@ -400,12 +425,19 @@ if (file.exists(cs_file)) {
   }
 
   cat(sprintf("\nCase study: N=%s, S=%s, G=%s\n", CS_N, CS_S, CS_G))
-  cat(sprintf("Guarded: AUC=%s, gap=%s, p=%s\n", GUARDED_AUC, G_GAP, G_PVAL))
-  cat(sprintf("Leaky:   AUC=%s, gap=%s, p=%s\n", LEAKY_AUC, L_GAP, L_PVAL))
+  cat(sprintf("Guarded:      AUC=%s, gap=%s, p=%s\n", GUARDED_AUC, G_GAP, G_PVAL))
+  cat(sprintf("Guarded noFS: AUC=%s, gap=%s, p=%s\n", GNOFS_AUC, GNOFS_GAP, GNOFS_PVAL))
+  cat(sprintf("Naive clean:  AUC=%s, gap=%s, p=%s\n", NC_AUC, NC_GAP, NC_PVAL))
+  cat(sprintf("Leaky:        AUC=%s, gap=%s, p=%s\n", LEAKY_AUC, L_GAP, L_PVAL))
+  cat(sprintf("FS effect: %s | Split effect: %s | Leak effect: %s\n",
+              FS_EFFECT, SPLIT_EFFECT, LEAK_EFFECT))
 } else {
   cat("\nWARNING: Case study results not found. Using placeholders.\n")
   CS_N <- CS_S <- CS_G <- "NA"
   GUARDED_AUC <- G_SD <- LEAKY_AUC <- L_SD <- DELTA_AUC <- "NA"
+  GNOFS_AUC <- GNOFS_SD <- GNOFS_GAP <- GNOFS_PVAL <- "NA"
+  NC_AUC <- NC_SD <- NC_GAP <- NC_PVAL <- "NA"
+  FS_EFFECT <- SPLIT_EFFECT <- LEAK_EFFECT <- "NA"
   G_GAP <- G_PVAL <- L_GAP <- L_PVAL <- "NA"
   G_CRAMER <- G_BATCH_P <- L_CRAMER <- L_BATCH_P <- "NA"
   SCORE_1 <- SCORE_2 <- SCORE_3 <- "NA"
@@ -446,22 +478,13 @@ if (file.exists(cs_file)) {
   DLSI_CI_LO <- DLSI_CI_HI <- "NA"
 }
 
-## 8b. Delta LSI simulation
+## 8b. Delta LSI simulation (power only — no null condition)
 dlsi_sim_file <- file.path(base_dir, "sim_results", "delta_lsi_sim.rds")
 if (file.exists(dlsi_sim_file)) {
   dlsi_sim <- readRDS(dlsi_sim_file)
 
-  ## Null condition: type I error
-  null_sub <- dlsi_sim[dlsi_sim$leakage == "none" & !is.na(dlsi_sim$p_value), ]
-  if (nrow(null_sub) > 0) {
-    DLSI_SIM_NULL_REJECT <- sprintf("%.1f", mean(null_sub$p_value < 0.05) * 100)
-    DLSI_SIM_NULL_MEAN   <- sprintf("%.4f", mean(null_sub$delta_metric, na.rm = TRUE))
-  } else {
-    DLSI_SIM_NULL_REJECT <- DLSI_SIM_NULL_MEAN <- "NA"
-  }
-
-  ## Alternative condition: power
-  alt_sub <- dlsi_sim[dlsi_sim$leakage == "peek_norm" & !is.na(dlsi_sim$p_value), ]
+  ## Power condition: peek_norm leakage
+  alt_sub <- dlsi_sim[!is.na(dlsi_sim$p_value), ]
   if (nrow(alt_sub) > 0) {
     DLSI_SIM_ALT_REJECT <- sprintf("%.1f", mean(alt_sub$p_value < 0.05) * 100)
     DLSI_SIM_ALT_MEAN   <- sprintf("%.4f", mean(alt_sub$delta_metric, na.rm = TRUE))
@@ -469,12 +492,32 @@ if (file.exists(dlsi_sim_file)) {
     DLSI_SIM_ALT_REJECT <- DLSI_SIM_ALT_MEAN <- "NA"
   }
 
-  cat(sprintf("\nDelta LSI sim: null reject=%.1f%%, alt reject=%.1f%%\n",
-              as.numeric(DLSI_SIM_NULL_REJECT), as.numeric(DLSI_SIM_ALT_REJECT)))
+  cat(sprintf("\nDelta LSI sim: power (peek_norm) reject=%.1f%%\n",
+              as.numeric(DLSI_SIM_ALT_REJECT)))
 } else {
   cat("\nWARNING: delta_lsi_sim.rds not found. Run run_delta_lsi.R first.\n")
-  DLSI_SIM_NULL_REJECT <- DLSI_SIM_NULL_MEAN <- "NA"
   DLSI_SIM_ALT_REJECT <- DLSI_SIM_ALT_MEAN <- "NA"
+}
+
+## 8c. Delta LSI null calibration
+dlsi_null_file <- file.path(base_dir, "sim_results", "delta_lsi_null.rds")
+if (file.exists(dlsi_null_file)) {
+  dlsi_null <- readRDS(dlsi_null_file)
+
+  null_sub <- dlsi_null[!is.na(dlsi_null$p_value), ]
+  if (nrow(null_sub) > 0) {
+    DLSI_SIM_NULL_REJECT <- sprintf("%.1f", mean(null_sub$p_value < 0.05) * 100)
+    DLSI_SIM_NULL_MEAN   <- sprintf("%.4f", mean(null_sub$delta_metric, na.rm = TRUE))
+  } else {
+    DLSI_SIM_NULL_REJECT <- DLSI_SIM_NULL_MEAN <- "NA"
+  }
+
+  cat(sprintf("\nDelta LSI null: reject=%.1f%%, mean delta=%.4f\n",
+              as.numeric(DLSI_SIM_NULL_REJECT),
+              as.numeric(DLSI_SIM_NULL_MEAN)))
+} else {
+  cat("\nWARNING: delta_lsi_null.rds not found. Run run_delta_lsi.R Part C first.\n")
+  DLSI_SIM_NULL_REJECT <- DLSI_SIM_NULL_MEAN <- "NA"
 }
 
 ## ---------------------------------------------------------------
@@ -606,10 +649,12 @@ placeholders <- list(
   "[DLSI_CI_HI]" = DLSI_CI_HI,
 
   ## Appendix - Delta LSI simulation
-  "[DLSI_SIM_NULL_REJECT]" = DLSI_SIM_NULL_REJECT,
-  "[DLSI_SIM_NULL_MEAN]" = DLSI_SIM_NULL_MEAN,
   "[DLSI_SIM_ALT_REJECT]" = DLSI_SIM_ALT_REJECT,
-  "[DLSI_SIM_ALT_MEAN]" = DLSI_SIM_ALT_MEAN
+  "[DLSI_SIM_ALT_MEAN]" = DLSI_SIM_ALT_MEAN,
+
+  ## Appendix - Delta LSI null calibration
+  "[DLSI_SIM_NULL_REJECT]" = DLSI_SIM_NULL_REJECT,
+  "[DLSI_SIM_NULL_MEAN]" = DLSI_SIM_NULL_MEAN
 )
 
 for (ph in names(placeholders)) {

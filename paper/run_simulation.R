@@ -29,10 +29,10 @@
 ##
 ## Custom loop using perm_refit=FALSE (fixed-prediction permutations)
 ## Parameters:
-##   B = 50, Replicates = 20, perm_refit = FALSE
+##   B = 200, Replicates = 50, perm_refit = FALSE
 ##
 ## Full factorial: 5 leakage x 4 n x 3 p x 3 s = 180 configs
-## Total seeds: 180 x 20 = 3,600
+## Total seeds: 180 x 50 = 9,000
 ##
 ## Key design choices:
 ##   - s=0 included as a true null (y ~ Bernoulli(0.5), no signal)
@@ -57,7 +57,7 @@ library(future.apply)
 library(progressr)
 
 ## ── Worker count: conservative to avoid memory pressure ──────────
-## Each worker holds a ~n×p matrix, glmnet models, and B=50 permutation
+## Each worker holds a ~n×p matrix, glmnet models, and B=200 permutation
 ## results. Cap at 4 workers max so the OS + R main session keep headroom.
 physical_cores <- parallel::detectCores(logical = FALSE)
 n_workers <- max(1L, min(4L, physical_cores - 1L))
@@ -72,8 +72,8 @@ leakage_types <- c("none", "subject_overlap", "batch_confounded",
 sample_sizes  <- c(100, 250, 500, 1000)
 dimensions    <- c(10, 50, 100)
 signals       <- c(0, 0.5, 2.0)
-B             <- 50
-n_seeds       <- 20
+B             <- 200
+n_seeds       <- 50
 
 out_dir      <- "paper/sim_results"
 ckpt_dir     <- file.path(out_dir, "checkpoints")
@@ -199,7 +199,11 @@ if (n_remaining == 0L) {
           X <- cbind(X, leak_global = as.numeric(y) + rnorm(n, 0, 0.3))
         } else if (leakage_type == "lookahead") {
           ## Continuous biomarker (noisy proxy of latent process);
-          ## lookahead = next time point's measurement (future information)
+          ## lookahead = next time point's measurement (future information).
+          ## NOTE: At s=0, linpred=0 so biomarker is pure i.i.d. noise
+          ## (N(0, 0.5)). The shifted version carries no outcome information,
+          ## making this mechanism undetectable — the s=0 entries in Table 2
+          ## are type I error, not detection rates.
           biomarker <- linpred + rnorm(n, 0, 0.5)
           X <- cbind(X, leak_future = c(biomarker[-1], biomarker[n]))
         }

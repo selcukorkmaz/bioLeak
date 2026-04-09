@@ -11,7 +11,7 @@ test_configs <- expand.grid(
   leakage = leakage_types,
   n = c(100, 1000),
   p = c(10, 100),
-  s = c(0.5, 2.0),
+  s = c(0, 0.5, 2.0),
   stringsAsFactors = FALSE
 )
 
@@ -32,37 +32,42 @@ for (i in seq_len(nrow(test_configs))) {
     colnames(X) <- sprintf("x%02d", seq_len(p))
     subject <- sample(seq_len(max(5, n %/% 5)), n, replace = TRUE)
 
-    linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
-    linpred <- scale(linpred) * s
+    ## Generate outcome: s=0 → pure noise, s>0 → signal + AR noise
+    if (s > 0) {
+      linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
+      linpred <- as.numeric(scale(linpred)) * s
+      ar_noise <- as.numeric(arima.sim(model = list(ar = 0.9), n = n,
+                                       sd = 0.3))
+      linpred <- linpred + ar_noise
+    } else {
+      linpred <- rep(0, n)
+    }
 
-    ## Add AR(1) temporal structure so consecutive observations share
-    ## latent risk — makes the lookahead leak (future linpred) informative
-    ar_noise <- as.numeric(arima.sim(model = list(ar = 0.9), n = n,
-                                     sd = s * 0.3))
-    linpred <- as.numeric(linpred) + ar_noise
-
-    y_prob  <- pnorm(linpred - qnorm(0.5))
+    y_prob  <- pnorm(linpred)
     y       <- rbinom(n, 1, y_prob)
 
-    ## Confounded batch: y=1 concentrated in batch "a", y=0 in "b"
-    batch <- ifelse(y == 1,
-                    sample(c("a","b","c"), n, replace = TRUE, prob = c(0.6, 0.2, 0.2)),
-                    sample(c("a","b","c"), n, replace = TRUE, prob = c(0.15, 0.5, 0.35)))
+    ## Batch: independent of outcome by default
+    batch <- sample(c("a","b","c"), n, replace = TRUE)
     study   <- sample(seq_len(max(3, n %/% 80)), n, replace = TRUE)
     time_var <- seq_len(n)
 
     if (leakage_type == "subject_overlap") {
       X <- cbind(X, leak_subj = ave(y, subject, FUN = mean))
     } else if (leakage_type == "batch_confounded") {
+      ## Make batch outcome-dependent, then leak the group mean
+      batch <- ifelse(y == 1,
+                      sample(c("a","b","c"), n, replace = TRUE, prob = c(0.6, 0.2, 0.2)),
+                      sample(c("a","b","c"), n, replace = TRUE, prob = c(0.15, 0.5, 0.35)))
       X <- cbind(X, leak_batch = ave(y, batch, FUN = mean))
     } else if (leakage_type == "peek_norm") {
       ## Continuous feature encoding y via global statistics (simulates
       ## normalisation using full dataset incl. test fold)
       X <- cbind(X, leak_global = as.numeric(y) + rnorm(n, 0, 0.3))
     } else if (leakage_type == "lookahead") {
-      ## Future linpred value — continuous, captures the AR(1) component
-      ## that X alone cannot explain
-      X <- cbind(X, leak_future = c(linpred[-1], linpred[n]))
+      ## Continuous biomarker (noisy proxy of latent process);
+      ## lookahead = next time point's measurement (future information)
+      biomarker <- linpred + rnorm(n, 0, 0.5)
+      X <- cbind(X, leak_future = c(biomarker[-1], biomarker[n]))
     }
 
     df <- data.frame(X, y = factor(y))

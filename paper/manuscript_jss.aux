@@ -1,0 +1,110 @@
+\relax 
+\bibstyle{jss}
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{ambroise2002}
+\citation{kaufman2012}
+\citation{simon2003,subramanian2013}
+\citation{kapoor2023}
+\citation{varma2006,cawley2010}
+\newlabel{sec:intro}{{1}{1}{}{section.1}{}}
+\citation{beam2018,sendak2020}
+\citation{kapoor2023}
+\citation{rosenblatt2024}
+\citation{vandemortel2025}
+\citation{R}
+\citation{kuhn2008,kuhn2020,lang2019,bischl2024}
+\citation{moscovich2022}
+\citation{ambroise2002,simon2003,subramanian2013}
+\citation{roberts2017}
+\citation{wenger2012}
+\citation{valavi2019}
+\citation{soneson2014}
+\citation{hamdan2023}
+\citation{roberts2017}
+\newlabel{sec:leakage}{{2}{3}{}{section.2}{}}
+\citation{stone1974,arlot2010,hastie2009}
+\citation{winkler1999,christen2012,leskovec2014}
+\newlabel{sec:overview}{{3}{4}{}{section.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces {\fontseries  {m}\fontseries  {b}\selectfont  bioLeak} leakage-aware modeling workflow. Rounded boxes (\texttt  {monospace}) are function calls; italic labels are the objects they return. Solid arrows show the primary data flow; dashed arrows indicate secondary inputs. \bgroup \catcode `\_12\relax \catcode `\~12\relax \catcode `\$12\relax {\normalfont  \ttfamily  \hyphenchar \font =-1 audit\_leakage()}\egroup  accepts both \bgroup \catcode `\_12\relax \catcode `\~12\relax \catcode `\$12\relax {\normalfont  \ttfamily  \hyphenchar \font =-1 LeakFit}\egroup  and \bgroup \catcode `\_12\relax \catcode `\~12\relax \catcode `\$12\relax {\normalfont  \ttfamily  \hyphenchar \font =-1 LeakTune}\egroup  objects; \bgroup \catcode `\_12\relax \catcode `\~12\relax \catcode `\$12\relax {\normalfont  \ttfamily  \hyphenchar \font =-1 delta\_lsi()}\egroup  compares two \bgroup \catcode `\_12\relax \catcode `\~12\relax \catcode `\$12\relax {\normalfont  \ttfamily  \hyphenchar \font =-1 LeakFit}\egroup  objects (one from each pipeline).}}{5}{figure.1}\protected@file@percent }
+\newlabel{fig:workflow}{{1}{5}{\pkg {bioLeak} leakage-aware modeling workflow. Rounded boxes (\texttt {monospace}) are function calls; italic labels are the objects they return. Solid arrows show the primary data flow; dashed arrows indicate secondary inputs. \code {audit\_leakage()} accepts both \code {LeakFit} and \code {LeakTune} objects; \code {delta\_lsi()} compares two \code {LeakFit} objects (one from each pipeline)}{figure.1}{}}
+\citation{stone1974,kohavi1995,arlot2010}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Primary software components in {\fontseries  {m}\fontseries  {b}\selectfont  bioLeak}.}}{6}{table.1}\protected@file@percent }
+\newlabel{tab:components}{{1}{6}{Primary software components in \pkg {bioLeak}}{table.1}{}}
+\newlabel{sec:workflow}{{4}{6}{}{section.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Practical guidance on permutation calibration.}{12}{section*.1}\protected@file@percent }
+\citation{bengio2004,bates2024}
+\newlabel{sec:dlsi}{{5}{15}{Practical guidance on permutation calibration}{section.5}{}}
+\citation{huber1964,huber2009}
+\citation{phipson2010}
+\newlabel{sec:simulation}{{6}{18}{Practical guidance on permutation calibration}{section.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Null calibration of the fixed-prediction permutation test.}{19}{section*.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Rejection rates (permutation-gap $p < 0.05$) at $s > 0$, pooled over $p$ and $s$.}}{20}{table.2}\protected@file@percent }
+\newlabel{tab:sim-power}{{2}{20}{Rejection rates (permutation-gap $p < 0.05$) at $s > 0$, pooled over $p$ and $s$}{table.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Leakage-specific detection at $s = 0$ (no real signal), pooled over $p$.}}{21}{table.3}\protected@file@percent }
+\newlabel{tab:sim-s0}{{3}{21}{Leakage-specific detection at $s = 0$ (no real signal), pooled over $p$}{table.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Simulation results across leakage mechanisms. (a) Observed AUC across sample sizes ($s > 0$). (b) AUC across signal strengths (all $s$). (c) Rejection rate across feature dimensions ($s = 0$). (d) AUC inflation relative to clean baseline ($s > 0$). Error bars are $95\%$ confidence intervals: Student-$t$ for the AUC panels (a, b, d); Wilson for the binomial rejection rate in panel (c). Intervals may be too narrow to be visible at highly precise points. Points are horizontally jittered to avoid overlap.}}{22}{figure.2}\protected@file@percent }
+\newlabel{fig:sim-main}{{2}{22}{Simulation results across leakage mechanisms. (a) Observed AUC across sample sizes ($s > 0$). (b) AUC across signal strengths (all $s$). (c) Rejection rate across feature dimensions ($s = 0$). (d) AUC inflation relative to clean baseline ($s > 0$). Error bars are $95\%$ confidence intervals: Student-$t$ for the AUC panels (a, b, d); Wilson for the binomial rejection rate in panel (c). Intervals may be too narrow to be visible at highly precise points. Points are horizontally jittered to avoid overlap}{figure.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Supplementary split-mode analysis: rejection rates (permutation-gap $p < 0.05$) at $(n = 500, p = 20, s = 0)$.}}{22}{table.4}\protected@file@percent }
+\newlabel{tab:sim-modes}{{4}{22}{Supplementary split-mode analysis: rejection rates (permutation-gap $p < 0.05$) at $(n = 500, p = 20, s = 0)$}{table.4}{}}
+\citation{golub1999,simon2003,tarca2007}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Multivariate target-scan $p$-values at $s = 0$.}}{23}{figure.3}\protected@file@percent }
+\newlabel{fig:sim-target}{{3}{23}{Multivariate target-scan $p$-values at $s = 0$}{figure.3}{}}
+\newlabel{sec:casestudy}{{7}{23}{Null calibration of the fixed-prediction permutation test}{section.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Case-study summary. The four columns form a decomposition chain: each successive pipeline changes exactly one factor (feature selection, split design, or leakage features), isolating its contribution to the AUC gap.}}{25}{table.5}\protected@file@percent }
+\newlabel{tab:case-study}{{5}{25}{Case-study summary. The four columns form a decomposition chain: each successive pipeline changes exactly one factor (feature selection, split design, or leakage features), isolating its contribution to the AUC gap}{table.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Case-study summaries. (a) Top univariate target-association scores (rescaled AUC, $|\text  {AUC} - 0.5| \times 2$) for the leaky pipeline feature matrix; asterisks mark injected synthetic leakage features. (b) Repeat-level inflation scores $\Delta _r$ (leaky minus guarded AUC) from \bgroup \catcode `\_12\relax \catcode `\~12\relax \catcode `\$12\relax {\normalfont  \ttfamily  \hyphenchar \font =-1 delta\_lsi()}\egroup  with 20 paired repeats; the solid line is the robust Huber estimate $\setbox \z@ \hbox {\mathsurround \z@ $\textstyle \Delta $}\mathaccent "0362{\Delta }_{\mathrm  {LSI}}$, the dashed line is the arithmetic mean, and the shaded band is the $95\%$ BCa bootstrap interval.}}{26}{figure.4}\protected@file@percent }
+\newlabel{fig:case-study}{{4}{26}{Case-study summaries. (a) Top univariate target-association scores (rescaled AUC, $|\text {AUC} - 0.5| \times 2$) for the leaky pipeline feature matrix; asterisks mark injected synthetic leakage features. (b) Repeat-level inflation scores $\Delta _r$ (leaky minus guarded AUC) from \code {delta\_lsi()} with 20 paired repeats; the solid line is the robust Huber estimate $\widehat {\Delta }_{\mathrm {LSI}}$, the dashed line is the arithmetic mean, and the shaded band is the $95\%$ BCa bootstrap interval}{figure.4}{}}
+\citation{gentleman2007,peng2011,sandve2013}
+\newlabel{sec:implementation}{{8}{27}{Null calibration of the fixed-prediction permutation test}{section.8}{}}
+\citation{lang2019,bischl2024}
+\citation{kuhn2008,kuhn2020,lang2019,bischl2024}
+\newlabel{sec:discussion}{{9}{28}{Null calibration of the fixed-prediction permutation test}{section.9}{}}
+\citation{kapoor2023}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Function-level task-type coverage. \text  {$\mathsurround \z@ \mathchar "458$}\ = supported, (\text  {$\mathsurround \z@ \mathchar "458$}) = supported but not empirically evaluated in this paper, --- = not yet implemented.}}{29}{table.6}\protected@file@percent }
+\newlabel{tab:task-coverage}{{6}{29}{Function-level task-type coverage. \checkmark \ = supported, (\checkmark ) = supported but not empirically evaluated in this paper, --- = not yet implemented}{table.6}{}}
+\citation{R}
+\newlabel{sec:summary}{{10}{30}{Null calibration of the fixed-prediction permutation test}{section.10}{}}
+\newlabel{sec:availability}{{11}{30}{Null calibration of the fixed-prediction permutation test}{section.11}{}}
+\bibdata{refs}
+\bibcite{ambroise2002}{{1}{2002}{{Ambroise and McLachlan}}{{}}}
+\bibcite{arlot2010}{{2}{2010}{{Arlot and Celisse}}{{}}}
+\bibcite{bates2024}{{3}{2024}{{Bates \emph  {et~al.}}}{{Bates, Hastie, and Tibshirani}}}
+\bibcite{beam2018}{{4}{2018}{{Beam and Kohane}}{{}}}
+\bibcite{bengio2004}{{5}{2004}{{Bengio and Grandvalet}}{{}}}
+\bibcite{bischl2024}{{6}{2024}{{Bischl \emph  {et~al.}}}{{Bischl, Sonabend, Kotthoff, and Lang}}}
+\bibcite{cawley2010}{{7}{2010}{{Cawley and Talbot}}{{}}}
+\bibcite{christen2012}{{8}{2012}{{Christen}}{{}}}
+\bibcite{gentleman2007}{{9}{2007}{{Gentleman and Lang}}{{}}}
+\bibcite{golub1999}{{10}{1999}{{Golub \emph  {et~al.}}}{{Golub, Slonim, Tamayo, Huard, Gaasenbeek, Mesirov, Coller, Loh, Downing, Caligiuri, Bloomfield, and Lander}}}
+\bibcite{hamdan2023}{{11}{2023}{{Hamdan \emph  {et~al.}}}{{Hamdan, Love, and von~dem Hagen}}}
+\bibcite{hastie2009}{{12}{2009}{{Hastie \emph  {et~al.}}}{{Hastie, Tibshirani, and Friedman}}}
+\bibcite{huber1964}{{13}{1964}{{Huber}}{{}}}
+\bibcite{huber2009}{{14}{2009}{{Huber and Ronchetti}}{{}}}
+\bibcite{kapoor2023}{{15}{2023}{{Kapoor and Narayanan}}{{}}}
+\bibcite{kaufman2012}{{16}{2012}{{Kaufman \emph  {et~al.}}}{{Kaufman, Rosset, Perlich, and Stitelman}}}
+\bibcite{kohavi1995}{{17}{1995}{{Kohavi}}{{}}}
+\bibcite{kuhn2008}{{18}{2008}{{Kuhn}}{{}}}
+\bibcite{kuhn2020}{{19}{2020}{{Kuhn and Wickham}}{{}}}
+\bibcite{lang2019}{{20}{2019}{{Lang \emph  {et~al.}}}{{Lang, Binder, Richter, Schratz, Pfisterer, Coors, Au, Casalicchio, Kotthoff, and Bischl}}}
+\bibcite{leskovec2014}{{21}{2014}{{Leskovec \emph  {et~al.}}}{{Leskovec, Rajaraman, and Ullman}}}
+\bibcite{moscovich2022}{{22}{2022}{{Moscovich and Rosset}}{{}}}
+\bibcite{peng2011}{{23}{2011}{{Peng}}{{}}}
+\bibcite{phipson2010}{{24}{2010}{{Phipson and Smyth}}{{}}}
+\bibcite{R}{{25}{2025}{{R Core Team}}{{}}}
+\bibcite{roberts2017}{{26}{2017}{{Roberts \emph  {et~al.}}}{{Roberts, Bahn, Ciuti, Boyce, Elith, Guillera-Arroita, Hauenstein, Lahoz-Monfort, Schr{\"o}der, Thuiller, Warton, Wintle, Hartig, and Dormann}}}
+\bibcite{rosenblatt2024}{{27}{2024}{{Rosenblatt \emph  {et~al.}}}{{Rosenblatt, Ben~Simhon, Gal, and Gilron}}}
+\bibcite{sandve2013}{{28}{2013}{{Sandve \emph  {et~al.}}}{{Sandve, Nekrutenko, Taylor, and Hovig}}}
+\bibcite{sendak2020}{{29}{2020}{{Sendak \emph  {et~al.}}}{{Sendak, Elish, Gao, Futoma, Ratliff, Nichols, Bedoya, Balu, and O'Brien}}}
+\bibcite{simon2003}{{30}{2003}{{Simon \emph  {et~al.}}}{{Simon, Radmacher, Dobbin, and McShane}}}
+\bibcite{soneson2014}{{31}{2014}{{Soneson and Delorenzi}}{{}}}
+\bibcite{stone1974}{{32}{1974}{{Stone}}{{}}}
+\bibcite{subramanian2013}{{33}{2013}{{Subramanian and Simon}}{{}}}
+\bibcite{tarca2007}{{34}{2007}{{Tarca \emph  {et~al.}}}{{Tarca, Carey, Chen, Romero, and Drăghici}}}
+\bibcite{valavi2019}{{35}{2019}{{Valavi \emph  {et~al.}}}{{Valavi, Elith, Lahoz-Monfort, and Guillera-Arroita}}}
+\bibcite{vandemortel2025}{{36}{2025}{{van~de Mortel and van Wingen}}{{}}}
+\bibcite{varma2006}{{37}{2006}{{Varma and Simon}}{{}}}
+\bibcite{wenger2012}{{38}{2012}{{Wenger and Olden}}{{}}}
+\bibcite{winkler1999}{{39}{1999}{{Winkler}}{{}}}
+\gdef \@abspage@last{34}

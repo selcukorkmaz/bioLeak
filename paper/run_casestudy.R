@@ -9,148 +9,24 @@ cat("=== bioLeak Case Study ===\n")
 cat("Start time:", format(Sys.time()), "\n\n")
 
 library(bioLeak)
-suppressPackageStartupMessages(library(curatedOvarianData))
 
 B <- 500
 
 ## ---------------------------------------------------------------
 ## 1. Load and prepare data
 ## ---------------------------------------------------------------
-cat("Loading curatedOvarianData...\n")
-data(package = "curatedOvarianData")
+source("paper/_helpers.R")
+cs_data <- load_ovarian_casestudy()
 
-## Get all available datasets
-all_ds <- data(package = "curatedOvarianData")$results[, "Item"]
-## Filter to ExpressionSets
-all_ds <- gsub("\\s.*", "", all_ds)
-
-## Load each dataset and check eligibility
-study_list <- list()
-for (ds_name in all_ds) {
-  tryCatch({
-    data(list = ds_name, package = "curatedOvarianData", envir = environment())
-    eset <- get(ds_name, envir = environment())
-    if (!inherits(eset, "ExpressionSet")) next
-
-    pd <- Biobase::pData(eset)
-    ## Check for overall survival and vital status
-    has_os <- "days_to_death" %in% names(pd) && "vital_status" %in% names(pd)
-    if (!has_os) next
-
-    ## Create binary endpoint: 3-year OS
-    os_days <- as.numeric(pd$days_to_death)
-    vital   <- pd$vital_status
-
-    ## Need both time and status
-    valid <- !is.na(os_days) & !is.na(vital)
-    if (sum(valid) < 50) next
-
-    ## Binary endpoint: survived >= 3 years (1095 days) OR censored after 3 years
-    os_binary <- ifelse(os_days >= 1095, 1,
-                        ifelse(vital == "deceased" & os_days < 1095, 0, NA))
-    valid2 <- valid & !is.na(os_binary)
-    if (sum(valid2) < 50) next
-
-    ## Both classes needed
-    if (length(unique(os_binary[valid2])) < 2) next
-
-    study_list[[ds_name]] <- list(
-      eset = eset,
-      valid_idx = which(valid2),
-      os_binary = os_binary[valid2],
-      n = sum(valid2)
-    )
-    cat(sprintf("  %s: n=%d (class 0: %d, class 1: %d)\n",
-                ds_name, sum(valid2),
-                sum(os_binary[valid2] == 0), sum(os_binary[valid2] == 1)))
-  }, error = function(e) NULL)
-}
-
-cat(sprintf("\nEligible studies: %d\n", length(study_list)))
-
-## ---------------------------------------------------------------
-## 2. Combine datasets
-## ---------------------------------------------------------------
-cat("Combining datasets...\n")
-
-## Find common genes
-gene_lists <- lapply(study_list, function(x) Biobase::featureNames(x$eset))
-common_genes <- Reduce(intersect, gene_lists)
-cat(sprintf("Common genes across all studies: %d\n", length(common_genes)))
-
-## If too few common genes, use top studies with most overlap
-if (length(common_genes) < 100) {
-  cat("Too few common genes, selecting studies with maximum overlap...\n")
-  ## Iteratively find best subset
-  study_names <- names(study_list)
-  ## Start with the two studies with most common genes
-  best_pair <- NULL; best_common <- 0
-  for (i in seq_along(study_names)) {
-    for (j in seq_along(study_names)) {
-      if (j <= i) next
-      cg <- length(intersect(gene_lists[[i]], gene_lists[[j]]))
-      if (cg > best_common) {
-        best_common <- cg
-        best_pair <- c(i, j)
-      }
-    }
-  }
-  selected <- study_names[best_pair]
-  common_genes <- intersect(gene_lists[[best_pair[1]]], gene_lists[[best_pair[2]]])
-
-  ## Add studies that maintain at least 500 common genes
-  for (sn in setdiff(study_names, selected)) {
-    cg <- intersect(common_genes, gene_lists[[sn]])
-    if (length(cg) >= 500) {
-      common_genes <- cg
-      selected <- c(selected, sn)
-    }
-  }
-  study_list <- study_list[selected]
-  cat(sprintf("Selected %d studies with %d common genes\n",
-              length(study_list), length(common_genes)))
-}
-
-## Limit to top 2000 most variable genes for speed
-if (length(common_genes) > 2000) {
-  ## Compute variance across first study to rank genes
-  first_eset <- study_list[[1]]$eset
-  gene_var <- apply(Biobase::exprs(first_eset)[common_genes, ], 1, var, na.rm = TRUE)
-  common_genes <- names(sort(gene_var, decreasing = TRUE))[1:2000]
-}
-
-## Build combined matrix
-combined_X  <- list()
-combined_y  <- c()
-combined_study <- c()
-sample_ids  <- c()
-
-for (sn in names(study_list)) {
-  sl <- study_list[[sn]]
-  expr_mat <- t(Biobase::exprs(sl$eset)[common_genes, sl$valid_idx, drop = FALSE])
-  combined_X[[sn]]  <- expr_mat
-  combined_y         <- c(combined_y, sl$os_binary)
-  combined_study     <- c(combined_study, rep(sn, sl$n))
-  sample_ids         <- c(sample_ids, paste0(sn, "_", seq_len(sl$n)))
-}
-
-X_combined <- do.call(rbind, combined_X)
-rownames(X_combined) <- sample_ids
+df_combined    <- cs_data$df_combined
+X_combined     <- cs_data$X_combined
+combined_y     <- cs_data$combined_y
+combined_study <- cs_data$combined_study
+study_list     <- cs_data$study_list
 
 N_total <- nrow(X_combined)
 S_total <- length(unique(combined_study))
 G_total <- ncol(X_combined)
-
-cat(sprintf("\nCombined dataset: N=%d samples, S=%d studies, G=%d genes\n",
-            N_total, S_total, G_total))
-cat(sprintf("Class distribution: 0=%d (%.1f%%), 1=%d (%.1f%%)\n",
-            sum(combined_y == 0), 100 * mean(combined_y == 0),
-            sum(combined_y == 1), 100 * mean(combined_y == 1)))
-
-## Create data.frame
-df_combined <- data.frame(X_combined, check.names = TRUE)
-df_combined$y <- factor(combined_y)
-df_combined$study <- combined_study
 
 ## ---------------------------------------------------------------
 ## 3. Guarded pipeline (study LOOCV)
@@ -163,7 +39,7 @@ splits_guarded <- make_split_plan(
 )
 
 preprocess_guarded <- list(
-  impute    = list(method = "median"),
+  impute    = list(method = "median", winsor = FALSE),
   normalize = list(method = "zscore"),
   filter    = list(var_thresh = 0, iqr_thresh = 0),
   fs        = list(method = "ttest", top_k = 100)
@@ -200,6 +76,78 @@ cat(sprintf("Guarded perm gap: %.3f, p=%.4f\n",
             audit_guarded@permutation_gap$p_value))
 
 ## ---------------------------------------------------------------
+## 3b. Guarded pipeline WITHOUT feature selection (sensitivity analysis)
+## ---------------------------------------------------------------
+cat("\n=== Guarded Pipeline — No Feature Selection (Sensitivity) ===\n")
+
+preprocess_guarded_nofs <- list(
+  impute    = list(method = "median", winsor = FALSE),
+  normalize = list(method = "zscore"),
+  filter    = list(var_thresh = 0, iqr_thresh = 0),
+  fs        = list(method = "none")
+)
+
+fit_guarded_nofs <- fit_resample(
+  df_combined, outcome = "y", splits = splits_guarded,
+  preprocess = preprocess_guarded_nofs,
+  learner = "glmnet", metrics = c("auc"), seed = 42
+)
+
+audit_guarded_nofs <- audit_leakage(
+  fit_guarded_nofs, metric = "auc", B = B,
+  perm_refit = FALSE, perm_stratify = TRUE, seed = 42,
+  batch_cols = "study",
+  coldata = df_combined[, "study", drop = FALSE],
+  X_ref = X_ref_guarded,
+  target_scan = FALSE,
+  target_scan_multivariate = FALSE
+)
+
+cat(sprintf("Guarded (no FS) AUC: %.3f (SD: %.3f)\n",
+            audit_guarded_nofs@permutation_gap$metric_obs,
+            sd(fit_guarded_nofs@metrics$auc, na.rm = TRUE)))
+cat(sprintf("Guarded (no FS) perm gap: %.3f, p=%.4f\n",
+            audit_guarded_nofs@permutation_gap$gap,
+            audit_guarded_nofs@permutation_gap$p_value))
+
+## ---------------------------------------------------------------
+## 3c. Naive-split clean pipeline (decomposition arm: split effect only)
+## ---------------------------------------------------------------
+cat("\n=== Naive-Split Clean Pipeline (Split-Design Sensitivity) ===\n")
+
+## Same row-wise 5-fold as leaky, but on CLEAN data (no leak features, no FS)
+df_naive_clean <- df_combined
+df_naive_clean$dummy_subject <- seq_len(nrow(df_naive_clean))
+
+splits_naive_clean <- make_split_plan(
+  df_naive_clean, outcome = "y", mode = "subject_grouped",
+  group = "dummy_subject", v = 5, stratify = TRUE, seed = 42
+)
+
+fit_naive_clean <- fit_resample(
+  df_naive_clean, outcome = "y", splits = splits_naive_clean,
+  preprocess = preprocess_guarded_nofs,
+  learner = "glmnet", metrics = c("auc"), seed = 42
+)
+
+audit_naive_clean <- audit_leakage(
+  fit_naive_clean, metric = "auc", B = B,
+  perm_refit = FALSE, perm_stratify = TRUE, seed = 42,
+  batch_cols = "study",
+  coldata = df_naive_clean[, "study", drop = FALSE],
+  X_ref = X_ref_guarded,
+  target_scan = FALSE,
+  target_scan_multivariate = FALSE
+)
+
+cat(sprintf("Naive clean AUC: %.3f (SD: %.3f)\n",
+            audit_naive_clean@permutation_gap$metric_obs,
+            sd(fit_naive_clean@metrics$auc, na.rm = TRUE)))
+cat(sprintf("Naive clean perm gap: %.3f, p=%.4f\n",
+            audit_naive_clean@permutation_gap$gap,
+            audit_naive_clean@permutation_gap$p_value))
+
+## ---------------------------------------------------------------
 ## 4. Leaky pipeline (standard 5-fold, global preprocessing, injected features)
 ## ---------------------------------------------------------------
 cat("\n=== Leaky Comparator Pipeline ===\n")
@@ -211,9 +159,9 @@ y_num <- as.numeric(as.character(df_leaky$y))
 ## (i) Per-study mean outcome
 df_leaky$leak_study_mean <- ave(y_num, df_leaky$study, FUN = mean)
 
-## (ii) Globally z-scored outcome
-y_sd <- sd(y_num); if (y_sd == 0) y_sd <- 1
-df_leaky$leak_global_y <- (y_num - mean(y_num)) / y_sd
+## (ii) Noisy outcome encoding (y + Gaussian noise, sigma = 1.0)
+set.seed(42)
+df_leaky$leak_global_y <- y_num + rnorm(nrow(df_leaky), 0, 1.0)
 
 ## (iii) Globally z-scored first PC of expression matrix
 X_for_pca <- as.matrix(df_combined[, grep("^[Xx]", names(df_combined))])
@@ -236,7 +184,7 @@ splits_leaky <- make_split_plan(
 ## features) go directly to glmnet, which will heavily weight the leak features.
 ## This mirrors a sloppy pipeline that skips proper feature screening.
 preprocess_leaky <- list(
-  impute    = list(method = "median"),
+  impute    = list(method = "median", winsor = FALSE),
   normalize = list(method = "zscore"),
   filter    = list(var_thresh = 0, iqr_thresh = 0),
   fs        = list(method = "none")
@@ -309,6 +257,22 @@ results <- list(
     multi_p = audit_guarded@info$target_multivariate$p_value
   ),
 
+  ## Guarded pipeline without feature selection (sensitivity)
+  guarded_nofs = list(
+    auc = audit_guarded_nofs@permutation_gap$metric_obs,
+    auc_sd = sd(fit_guarded_nofs@metrics$auc, na.rm = TRUE),
+    gap = audit_guarded_nofs@permutation_gap$gap,
+    p_value = audit_guarded_nofs@permutation_gap$p_value
+  ),
+
+  ## Naive-split clean pipeline (split-design decomposition arm)
+  naive_clean = list(
+    auc = audit_naive_clean@permutation_gap$metric_obs,
+    auc_sd = sd(fit_naive_clean@metrics$auc, na.rm = TRUE),
+    gap = audit_naive_clean@permutation_gap$gap,
+    p_value = audit_naive_clean@permutation_gap$p_value
+  ),
+
   ## Leaky pipeline
   leaky = list(
     auc = audit_leaky@permutation_gap$metric_obs,
@@ -330,6 +294,12 @@ cat(sprintf("Dataset: N=%d, S=%d studies, G=%d genes\n", N_total, S_total, G_tot
 cat(sprintf("\nGuarded pipeline: AUC=%.3f (SD=%.3f), gap=%.3f, p=%.4f\n",
             results$guarded$auc, results$guarded$auc_sd,
             results$guarded$gap, results$guarded$p_value))
+cat(sprintf("Guarded (no FS):  AUC=%.3f (SD=%.3f), gap=%.3f, p=%.4f\n",
+            results$guarded_nofs$auc, results$guarded_nofs$auc_sd,
+            results$guarded_nofs$gap, results$guarded_nofs$p_value))
+cat(sprintf("Naive clean:      AUC=%.3f (SD=%.3f), gap=%.3f, p=%.4f\n",
+            results$naive_clean$auc, results$naive_clean$auc_sd,
+            results$naive_clean$gap, results$naive_clean$p_value))
 cat(sprintf("Leaky pipeline:   AUC=%.3f (SD=%.3f), gap=%.3f, p=%.4f\n",
             results$leaky$auc, results$leaky$auc_sd,
             results$leaky$gap, results$leaky$p_value))

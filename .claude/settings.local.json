@@ -50,7 +50,18 @@
       "Bash(Rscript -e \"warnings\\(\\)\")",
       "Bash(Rscript -e \"devtools::document\\(\\)\")",
       "Bash(cut -d'{' -f2)",
-      "Bash(__NEW_LINE_d483c379aec7c07f__ echo:*)"
+      "Bash(__NEW_LINE_d483c379aec7c07f__ echo:*)",
+      "Read(//Users/selcuk/Documents/GitHub/bioLeak/**)",
+      "Bash(/tmp/final_report.md:*)",
+      "Read(//tmp/**)",
+      "Bash(R --slave -e \":*)",
+      "Bash(sed 's/ *$//')",
+      "Bash(tlmgr list:*)",
+      "Bash(kpsewhich grfext.sty)",
+      "Bash(tlmgr --version)",
+      "Bash(kpsewhich:*)",
+      "Bash(du:*)",
+      "Bash(open:*)"
     ]
   }
 }
