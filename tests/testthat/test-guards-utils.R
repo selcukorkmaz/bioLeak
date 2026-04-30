@@ -74,12 +74,12 @@ test_that("guard hashing and level normalization behave predictably", {
   expect_true(nchar(h) > 0)
 
   df <- data.frame(flag = c(TRUE, FALSE), group = c("a", "a"))
-  out <- bioLeak:::.guard_ensure_levels(df)
+  out <- guard_ensure_levels(df)
   expect_true(is.factor(out$data$flag))
   expect_true(is.factor(out$data$group))
   expect_true(length(out$levels$group) >= 2)
 
-  out2 <- bioLeak:::.guard_ensure_levels(data.frame(flag = c(TRUE, FALSE)),
+  out2 <- guard_ensure_levels(data.frame(flag = c(TRUE, FALSE)),
                                          levels_map = out$levels)
   expect_true("group" %in% names(out2$data))
   expect_true(is.factor(out2$data$group))

@@ -1,4 +1,4 @@
-\begin{thebibliography}{39}
+\begin{thebibliography}{41}
 \newcommand{\enquote}[1]{``#1''}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
@@ -53,6 +53,12 @@ Christen P (2012).
 \newblock Springer.
 \newblock \doi{10.1007/978-3-642-31164-2}.
 
+\bibitem[{Ganzfried \emph{et~al.}(2013)Ganzfried, Riester, Haibe-Kains, Risch, Tyekucheva, Jazic, Wang, Ahmadifar, Birrer, Parmigiani, Huttenhower, and Waldron}]{ganzfried2013}
+Ganzfried BF, Riester M, Haibe-Kains B, Risch T, Tyekucheva S, Jazic I, Wang XV, Ahmadifar M, Birrer M, Parmigiani G, Huttenhower C, Waldron L (2013).
+\newblock \enquote{{curatedOvarianData}: Clinically Annotated Data for the Ovarian Cancer Transcriptome.}
+\newblock \emph{Database}, \textbf{2013}.
+\newblock \doi{10.1093/database/bat013}.
+
 \bibitem[{Gentleman and Lang(2007)}]{gentleman2007}
 Gentleman R, Lang DT (2007).
 \newblock \enquote{Statistical Analyses and Reproducible Research.}
@@ -104,6 +110,11 @@ Kaufman S, Rosset S, Perlich C, Stitelman O (2012).
 Kohavi R (1995).
 \newblock \enquote{A Study of Cross-Validation and Bootstrap for Accuracy Estimation and Model Selection.}
 \newblock In \emph{Proceedings of the 14th International Joint Conference on Artificial Intelligence (IJCAI)}, volume~14, pp. 1137--1145.
+
+\bibitem[{Korkmaz \emph{et~al.}(2026)Korkmaz, G\"oks\"ul\"uk, and Karaismailo\u{g}lu}]{korkmaz2026}
+Korkmaz S, G\"oks\"ul\"uk D, Karaismailo\u{g}lu E (2026).
+\newblock \enquote{\textbf{fastml}: Guarded Resampling Workflows for Safer Automated Machine Learning in {R}.}
+\newblock \eprint{2604.05225}, \urlprefix\url{https://arxiv.org/abs/2604.05225}.
 
 \bibitem[{Kuhn(2008)}]{kuhn2008}
 Kuhn M (2008).

@@ -153,7 +153,7 @@ test_that("inner test indices do not intersect outer test indices", {
 # Transform locality
 # ============================================================
 
-test_that(".guard_fit zscore uses train stats, not test stats", {
+test_that("guard_fit zscore uses train stats, not test stats", {
   set.seed(1)
   n_train <- 50
   n_test <- 50
@@ -164,7 +164,7 @@ test_that(".guard_fit zscore uses train stats, not test stats", {
                      dimnames = list(NULL, c("x1", "x2")))
   train_y <- rbinom(n_train, 1, 0.5)
 
-  guard_obj <- bioLeak:::.guard_fit(
+  guard_obj <- guard_fit(
     X = train_x, y = train_y,
     steps = list(
       impute = list(winsor = FALSE),

@@ -439,12 +439,14 @@ project-wide enforcement.
 `bioLeak` uses guarded preprocessing to prevent leakage from global imputation,
 scaling, and feature selection. The low-level API is:
 
-- `.guard_fit()` to fit preprocessing on training data only
-- `predict_guard()` to apply the trained guard to new data
-- `.guard_ensure_levels()` to align factor levels across train/test
+- `guard_fit()` to fit preprocessing on training data only
+- `predict()` (dispatching to `predict.GuardFit()`) to apply the trained guard
+  to new data; the legacy alias `predict_guard()` is also kept for
+  backward compatibility
+- `guard_ensure_levels()` to align factor levels across train/test
 - `impute_guarded()` as a convenience wrapper for leakage-safe imputation
 
-`.guard_fit()` fits a pipeline that can winsorize, impute, normalize, filter,
+`guard_fit()` fits a pipeline that can winsorize, impute, normalize, filter,
 and select features. It one-hot encodes non-numeric columns and carries factor
 levels forward to new data. Assumptions and misuse to avoid:
 
@@ -490,7 +492,7 @@ fold1 <- safe_splits@indices[[1]]
 train_x <- df[fold1$train, predictors]
 test_x <- df[fold1$test, predictors]
 
-guard <- .guard_fit(
+guard <- guard_fit(
   X = train_x,
   y = df$outcome[fold1$train],
   steps = list(
@@ -502,8 +504,8 @@ guard <- .guard_fit(
   task = "binomial"
 )
 
-train_x_guarded <- predict_guard(guard, train_x)
-test_x_guarded <- predict_guard(guard, test_x)
+train_x_guarded <- predict(guard, train_x)
+test_x_guarded <- predict(guard, test_x)
 
 cat("GuardFit object:\n")
 guard
@@ -532,7 +534,7 @@ raw_levels <- data.frame(
   stringsAsFactors = FALSE
 )
 
-level_state <- .guard_ensure_levels(raw_levels)
+level_state <- guard_ensure_levels(raw_levels)
 
 # Aligned factor data with consistent levels
 level_state$data
@@ -596,7 +598,7 @@ Here, the imputation statistics are computed from the training set only. The mis
 This confirms that the test set is transformed using fixed values learned from the training data, preserving a clean separation between training and evaluation.
 The `LeakImpute` object also contains missingness diagnostics in
 `imp$summary$diagnostics`, and guarded outputs use the same encoding as
-`.guard_fit()` (categorical variables are one-hot encoded). Use `vars` to
+`guard_fit()` (categorical variables are one-hot encoded). Use `vars` to
 impute only a subset of columns when needed.
 
 **Bridging guard steps to recipes: `guard_to_recipe()`**
@@ -956,7 +958,13 @@ Note that `features_final` here reflects only the assay predictors (`x1`, `x2`,
 - `metrics` can be a `yardstick::metric_set`.
 - `as_rsample()` converts `LeakSplits` to an `rsample` object.
 
-```{r tidymodels-interop}
+```{r tidymodels-interop, eval = requireNamespace("recipes", quietly = TRUE) && requireNamespace("yardstick", quietly = TRUE)}
+## This chunk requires the recipes and yardstick packages, which are
+## listed in DESCRIPTION's Suggests rather than Imports. The eval=
+## option above gates the chunk on their availability, so the vignette
+## still builds when those packages are absent. Users copying this
+## code into their own R session must have both packages installed
+## (e.g., install.packages(c("recipes", "yardstick"))).
 library(bioLeak)
 library(parsnip)
 library(recipes)
@@ -2333,6 +2341,8 @@ preprocessing pipeline for remaining leakage pathways.
 `parallel_learners = TRUE`).
 
 ```{r parallel-setup, eval=FALSE}
+## future is a Suggests dependency. Install with install.packages("future")
+## before running this code; otherwise library(future) errors.
 library(future)
 
 # Use multiple cores (works on all OS)
@@ -2410,7 +2420,7 @@ bioLeak uses S4 classes and list-like results to capture provenance and diagnost
   `confounding_alignment`, `proxy_target_leakage`, `duplicate_overlap`,
   `temporal_lookahead`).
 - `LeakAuditList`: returned by `audit_leakage_by_learner()`, printed directly
-- `GuardFit`: returned by `.guard_fit()`, printed and summarized.
+- `GuardFit`: returned by `guard_fit()`, printed and summarized.
   Use `guard_to_recipe()` to convert guard preprocessing specs to a
   `recipes::recipe` for tidymodels workflows.
 - `LeakImpute`: returned by `impute_guarded()` (guarded data + diagnostics)

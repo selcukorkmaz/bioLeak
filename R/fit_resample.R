@@ -1,7 +1,7 @@
 #' Fit and evaluate with leakage guards over predefined splits
 #'
 #' Performs cross-validated model training and evaluation using
-#' leakage-protected preprocessing (.guard_fit) and user-specified learners.
+#' leakage-protected preprocessing (guard_fit) and user-specified learners.
 #'
 #' @param x SummarizedExperiment or matrix/data.frame
 #' @param outcome outcome column name (if x is SE or data.frame), or a length-2
@@ -1143,7 +1143,7 @@ fit_resample <- function(x, outcome, splits,
     dfte <- NULL
 
     if (identical(preprocess_mode, "guard")) {
-      guard <- .guard_fit(
+      guard <- guard_fit(
         X = Xtr,
         y = ytr,
         steps = if (exists("preprocess") && is.list(preprocess)) preprocess else list(),
@@ -1480,7 +1480,7 @@ fit_resample <- function(x, outcome, splits,
     learner_obj <- learner_objs[[1]]
     full_weights <- if (task %in% c("binomial", "multiclass")) resolve_weights(yall, class_weights) else NULL
     if (identical(preprocess_mode, "guard")) {
-      guard_full <- .guard_fit(Xall, yall, preprocess, task)
+      guard_full <- guard_fit(Xall, yall, preprocess, task)
       Xfullg <- guard_full$transform(Xall)
       colnames(Xfullg) <- make.names(colnames(Xfullg))
       final_model <- train_one_learner(learner_obj, ln, Xfullg, yall, Xfullg, yall,
@@ -1551,3 +1551,77 @@ fit_resample <- function(x, outcome, splits,
                   perm_refit_spec = perm_refit_spec,
                   provenance = .bio_capture_provenance()))
 }
+
+
+# ---- LeakFit: show() method --------------------------------------------
+# Brief auto-print representation. Detailed reporting is produced by
+# summary(). Added in 0.3.7 (Comment 8 response): standard R idiom is
+# that every public S4 class should have a show() method so that
+# auto-printing at the console is informative.
+
+#' @title Display summary for LeakFit objects
+#' @description Prints a brief one-screen summary of a LeakFit, including
+#'   task and outcome, fold count and status (successful, skipped, failed),
+#'   and the headline cross-validated metric. Use \code{summary()} for the
+#'   full per-fold diagnostic report.
+#' @param object A \code{LeakFit} object.
+#' @return No return value, called for side effects (prints a brief summary
+#'   to the console). Returns \code{object} invisibly.
+#' @examples
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:6, each = 2),
+#'   outcome = rbinom(12, 1, 0.5),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
+#' )
+#' splits <- make_split_plan(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 3,
+#'                       progress = FALSE)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object,
+#'                                 newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#' show(fit)
+#' @importMethodsFrom methods show
+#' @export
+setMethod("show", "LeakFit", function(object) {
+  n_folds <- length(object@splits@indices)
+  info <- object@info
+  fold_status_str <- ""
+  if (is.data.frame(info$fold_status) && nrow(info$fold_status) > 0L) {
+    ok <- sum(info$fold_status$status == "success", na.rm = TRUE)
+    sk <- sum(info$fold_status$status == "skipped", na.rm = TRUE)
+    fl <- sum(info$fold_status$status == "failed",  na.rm = TRUE)
+    fold_status_str <- sprintf("  Fold status:    %d success, %d skipped, %d failed\n",
+                               ok, sk, fl)
+  }
+  learner_str <- if (length(object@learners) && !is.null(names(object@learners))) {
+    paste(unique(names(object@learners)), collapse = ", ")
+  } else if (nrow(object@metrics) > 0L && "learner" %in% names(object@metrics)) {
+    paste(unique(object@metrics$learner), collapse = ", ")
+  } else {
+    "(unspecified)"
+  }
+  cat("A LeakFit object\n")
+  cat(sprintf("  Task:           %s\n", object@task))
+  cat(sprintf("  Outcome:        %s\n", object@outcome))
+  cat(sprintf("  Learners:       %s\n", learner_str))
+  cat(sprintf("  Folds:          %d  (mode = %s)\n",
+              n_folds, object@splits@mode))
+  cat(fold_status_str)
+  cat("Use summary(<obj>) for the full diagnostic report.\n")
+  invisible(object)
+})

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.6)  9 APR 2026 09:49
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.6)  12 APR 2026 01:04
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -490,142 +490,89 @@ File: pgflibraryarrows.meta.code.tex 2025-08-29 v3.1.11a (3.1.11a)
 ) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tikzlibrarycalc.code.tex
 File: tikzlibrarycalc.code.tex 2025-08-29 v3.1.11a (3.1.11a)
 )
-LaTeX Font Info:    Trying to load font information for T1+lmr on input line 79.
+LaTeX Font Info:    Trying to load font information for T1+lmr on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/t1lmr.fd
 File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 ) (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2026-02-18 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count332
-)
-No file manuscript_jss.aux.
+) (./manuscript_jss.aux)
 \openout1 = `manuscript_jss.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 79.
-LaTeX Font Info:    ... okay on input line 79.
-(/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 73.
+LaTeX Font Info:    ... okay on input line 73.
+ (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
-Package hyperref Info: Link coloring ON on input line 79.
+Package hyperref Info: Link coloring ON on input line 73.
+ (./manuscript_jss.out) (./manuscript_jss.out)
 \@outlinefile=\write5
 \openout5 = `manuscript_jss.out'.
 
-<jsslogo.jpg, id=7, 540.0175pt x 393.47pt>
+<jsslogo.jpg, id=147, 540.0175pt x 393.47pt>
 File: jsslogo.jpg Graphic file (type jpg)
 <use jsslogo.jpg>
-Package pdftex.def Info: jsslogo.jpg  used on input line 79.
+Package pdftex.def Info: jsslogo.jpg  used on input line 73.
 (pdftex.def)             Requested size: 89.80768pt x 65.43607pt.
-LaTeX Font Info:    Trying to load font information for T1+lmss on input line 79.
+LaTeX Font Info:    Trying to load font information for T1+lmss on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/t1lmss.fd
 File: t1lmss.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 79.
+LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/ot1lmr.fd
 File: ot1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OML+lmm on input line 79.
+LaTeX Font Info:    Trying to load font information for OML+lmm on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/omllmm.fd
 File: omllmm.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 79.
+LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/omslmsy.fd
 File: omslmsy.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 79.
+LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/omxlmex.fd
 File: omxlmex.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10.95> on input line 79.
+(Font)              <10.95> on input line 73.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <8> on input line 79.
+(Font)              <8> on input line 73.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <6> on input line 79.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 79.
+(Font)              <6> on input line 73.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 79.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 73.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-)
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 79.
+) [1
+
+{/Users/selcuk/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc} <./jsslogo.jpg>]
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 99.
  (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-
-Package natbib Warning: Citation `ambroise2002' on page 1 undefined on input line 97.
-
-
-Package natbib Warning: Citation `kaufman2012' on page 1 undefined on input line 97.
-
-
-Package natbib Warning: Citation `simon2003' on page 1 undefined on input line 97.
-
-
-Package natbib Warning: Citation `subramanian2013' on page 1 undefined on input line 97.
-
-
-Package natbib Warning: Citation `kapoor2023' on page 1 undefined on input line 97.
-
-
-Package natbib Warning: Citation `varma2006' on page 1 undefined on input line 97.
-
-
-Package natbib Warning: Citation `cawley2010' on page 1 undefined on input line 97.
-
-[1
-
-{/Users/selcuk/Library/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc} <./jsslogo.jpg>]
-
-Package natbib Warning: Citation `beam2018' on page 2 undefined on input line 99.
-
-
-Package natbib Warning: Citation `sendak2020' on page 2 undefined on input line 99.
-
-
-Package natbib Warning: Citation `kapoor2023' on page 2 undefined on input line 101.
-
-
-Package natbib Warning: Citation `rosenblatt2024' on page 2 undefined on input line 101.
-
-
-Package natbib Warning: Citation `vandemortel2025' on page 2 undefined on input line 101.
-
-
-Package natbib Warning: Citation `R' on page 2 undefined on input line 103.
-
-
-Package natbib Warning: Citation `kuhn2008' on page 2 undefined on input line 103.
-
-
-Package natbib Warning: Citation `kuhn2020' on page 2 undefined on input line 103.
-
-
-Package natbib Warning: Citation `lang2019' on page 2 undefined on input line 103.
-
-
-Package natbib Warning: Citation `bischl2024' on page 2 undefined on input line 103.
-
-
 Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
@@ -634,139 +581,37 @@ Overfull \hbox (5.47499pt too wide) has occurred while \output is active
  []
 
 [2]
-
-LaTeX Warning: Reference `sec:leakage' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:overview' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:workflow' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:dlsi' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:simulation' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:casestudy' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:implementation' on page 3 undefined on input line 109.
-
-
-LaTeX Warning: Reference `sec:discussion' on page 3 undefined on input line 109.
-
-
-Package natbib Warning: Citation `moscovich2022' on page 3 undefined on input line 126.
-
-
-Package natbib Warning: Citation `ambroise2002' on page 3 undefined on input line 126.
-
-
-Package natbib Warning: Citation `simon2003' on page 3 undefined on input line 126.
-
-
-Package natbib Warning: Citation `subramanian2013' on page 3 undefined on input line 126.
-
-
-Package natbib Warning: Citation `roberts2017' on page 3 undefined on input line 130.
-
-
-Package natbib Warning: Citation `wenger2012' on page 3 undefined on input line 130.
-
-
-Package natbib Warning: Citation `valavi2019' on page 3 undefined on input line 130.
-
-
-Package natbib Warning: Citation `soneson2014' on page 3 undefined on input line 134.
-
-
-Package natbib Warning: Citation `hamdan2023' on page 3 undefined on input line 134.
-
-
-Package natbib Warning: Citation `roberts2017' on page 3 undefined on input line 134.
+Underfull \vbox (badness 5878) has occurred while \output is active []
 
 
 Overfull \hbox (5.47499pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 3
  []
 
-[3]
-
-Package natbib Warning: Citation `stone1974' on page 4 undefined on input line 138.
-
-
-Package natbib Warning: Citation `arlot2010' on page 4 undefined on input line 138.
-
-
-Package natbib Warning: Citation `hastie2009' on page 4 undefined on input line 138.
-
-
-Package natbib Warning: Citation `winkler1999' on page 4 undefined on input line 142.
-
-
-Package natbib Warning: Citation `christen2012' on page 4 undefined on input line 142.
-
-
-Package natbib Warning: Citation `leskovec2014' on page 4 undefined on input line 142.
-
-
-LaTeX Warning: Reference `fig:workflow' on page 4 undefined on input line 150.
-
+[3{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}]
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <5> on input line 198.
+(Font)              <5> on input line 192.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <9> on input line 202.
+(Font)              <9> on input line 196.
 
 Overfull \hbox (5.47499pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 4 []
  []
 
 [4]
-Underfull \vbox (badness 3240) has occurred while \output is active []
-
-
 Overfull \hbox (5.47499pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 5
  []
 
-[5{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}]
-
-LaTeX Warning: Reference `tab:components' on page 6 undefined on input line 272.
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 281--281
-[]\T1/lmr/bx/n/10.95 Primary func-
- []
-
-
-Underfull \hbox (badness 2057) in paragraph at lines 287--288
+[5{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}]
+Underfull \hbox (badness 2057) in paragraph at lines 281--282
 \T1/lmr/m/n/10.95 ram-e-ter tun-ing with leakage-aware
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 293--293
-[]\T1/lmr/m/n/10.95 Inflation quan-tifi-ca-
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 295--295
+Underfull \hbox (badness 10000) in paragraph at lines 289--289
 []\T1/lmtt/m/n/10.95 guard_to_recipe()\T1/lmr/m/n/10.95 ,
  []
-
-
-Package natbib Warning: Citation `stone1974' on page 6 undefined on input line 302.
-
-
-Package natbib Warning: Citation `kohavi1995' on page 6 undefined on input line 302.
-
-
-Package natbib Warning: Citation `arlot2010' on page 6 undefined on input line 302.
-
-
-Underfull \vbox (badness 1072) has occurred while \output is active []
 
 
 Overfull \hbox (5.47499pt too wide) has occurred while \output is active
@@ -784,10 +629,6 @@ Overfull \hbox (5.47499pt too wide) has occurred while \output is active
  []
 
 [8]
-
-LaTeX Warning: Reference `sec:dlsi' on page 9 undefined on input line 418.
-
-
 Overfull \hbox (5.47499pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 9
  []
@@ -798,21 +639,14 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [10]
-Overfull \hbox (1.09454pt too wide) in paragraph at lines 527--528
-[]\T1/lmr/m/n/10.95 The re-sult-ing \T1/lmtt/m/n/10.95 LeakAudit \T1/lmr/m/n/10.95 ob-ject stores per-mu-ta-tion sum-maries, feature-level target-association
- []
-
-
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 11
  []
 
 [11]
-
-LaTeX Warning: Reference `sec:simulation' on page 12 undefined on input line 538.
-
-
-LaTeX Warning: Reference `sec:workflow' on page 12 undefined on input line 565.
+Overfull \hbox (1.09454pt too wide) in paragraph at lines 525--526
+[]\T1/lmr/m/n/10.95 The re-sult-ing \T1/lmtt/m/n/10.95 LeakAudit \T1/lmr/m/n/10.95 ob-ject stores per-mu-ta-tion sum-maries, feature-level target-association
+ []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
@@ -830,304 +664,171 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
  []
 
 [14]
-
-Package natbib Warning: Citation `bengio2004' on page 15 undefined on input line 697.
-
-
-Package natbib Warning: Citation `bates2024' on page 15 undefined on input line 697.
-
-
-Overfull \hbox (0.30496pt too wide) in paragraph at lines 699--703
-[]\T1/lmr/m/n/10.95 Suppose re-peated cross-validation yields $\OML/lmm/m/it/10.95 R$ \T1/lmr/m/n/10.95 repeat-level sum-maries. Let $\OML/lmm/m/it/10.95 M[]$ \T1/lmr/m/n/10.95 and $\OML/lmm/m/it/10.95 M[]$
- []
-
-
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 15
  []
 
-[15{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}]
-
-Package natbib Warning: Citation `huber1964' on page 16 undefined on input line 733.
-
-
-Package natbib Warning: Citation `huber2009' on page 16 undefined on input line 733.
-
-
-Package natbib Warning: Citation `phipson2010' on page 16 undefined on input line 746.
-
-
+[15]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 16 []
  []
 
-[16{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}]
-
-LaTeX Warning: Reference `sec:casestudy' on page 17 undefined on input line 791.
-
-
-LaTeX Warning: Reference `sec:simulation' on page 17 undefined on input line 822.
-
-
-LaTeX Warning: Reference `sec:casestudy' on page 17 undefined on input line 823.
+[16]
+Overfull \hbox (0.34473pt too wide) in paragraph at lines 724--728
+[]\T1/lmr/m/n/10.95 Suppose re-peated cross-validation yields $\OML/lmm/m/it/10.95 R$ \T1/lmr/m/n/10.95 repeat-level sum-maries. Let $\OML/lmm/m/it/10.95 M[]$ \T1/lmr/m/n/10.95 and $\OML/lmm/m/it/10.95 M[]$
+ []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 17
  []
 
-[17]
-LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 880.
- (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/ts1lmr.fd
-File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-)
+[17{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 18 []
  []
 
-[18{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
-
-LaTeX Warning: Reference `sec:leakage' on page 19 undefined on input line 885.
-
-
-LaTeX Warning: Reference `tab:sim-power' on page 19 undefined on input line 901.
-
-
-LaTeX Warning: Reference `tab:sim-s0' on page 19 undefined on input line 901.
-
-
-LaTeX Warning: Reference `fig:sim-main' on page 19 undefined on input line 905.
-
-
-LaTeX Warning: Reference `sec:overview' on page 19 undefined on input line 927.
-
-
+[18]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 19
  []
 
 [19]
-
-LaTeX Warning: Reference `fig:sim-main' on page 20 undefined on input line 939.
-
-
-LaTeX Warning: Reference `tab:sim-power' on page 20 undefined on input line 951.
-
-
-LaTeX Warning: Reference `tab:sim-power' on page 20 undefined on input line 957.
-
-
-LaTeX Warning: Reference `tab:sim-s0' on page 20 undefined on input line 993.
-
-
-LaTeX Warning: Reference `tab:sim-power' on page 20 undefined on input line 1000.
-
-
-LaTeX Warning: Reference `sec:workflow' on page 20 undefined on input line 1029.
-
-
-Underfull \vbox (badness 1728) has occurred while \output is active []
+LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 908.
+ (/Users/selcuk/Library/TinyTeX/texmf-dist/tex/latex/lm/ts1lmr.fd
+File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
+)
+Overfull \hbox (2.73653pt too wide) in paragraph at lines 924--925
+\T1/lmr/m/n/10.95 first eval-u-ates the same gen-eral leak-age mech-a-nisms un-der four split modes (\T1/lmtt/m/n/10.95 subject_grouped\T1/lmr/m/n/10.95 ,
+ []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 20 []
  []
 
-[20]
-
-LaTeX Warning: Reference `fig:sim-main' on page 21 undefined on input line 1037.
-
-<fig_sim_main.pdf, id=170, 722.7pt x 650.43pt>
-File: fig_sim_main.pdf Graphic file (type pdf)
-<use fig_sim_main.pdf>
-Package pdftex.def Info: fig_sim_main.pdf  used on input line 1057.
-(pdftex.def)             Requested size: 442.65375pt x 398.38937pt.
-
-LaTeX Warning: Reference `tab:sim-modes' on page 21 undefined on input line 1071.
-
-
-LaTeX Warning: Reference `tab:sim-modes' on page 21 undefined on input line 1076.
-
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10> on input line 1095.
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <7> on input line 1095.
-
+[20{/Users/selcuk/Library/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 21
  []
 
 [21]
+<fig_sim_main.pdf, id=446, 722.7pt x 650.43pt>
+File: fig_sim_main.pdf Graphic file (type pdf)
+<use fig_sim_main.pdf>
+Package pdftex.def Info: fig_sim_main.pdf  used on input line 1086.
+(pdftex.def)             Requested size: 442.65375pt x 398.38937pt.
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 22 []
  []
 
-[22 <./fig_sim_main.pdf>]
-
-LaTeX Warning: Reference `fig:sim-target' on page 23 undefined on input line 1132.
-
-<fig_target_scan.pdf, id=191, 433.62pt x 361.35pt>
-File: fig_target_scan.pdf Graphic file (type pdf)
-<use fig_target_scan.pdf>
-Package pdftex.def Info: fig_target_scan.pdf  used on input line 1144.
-(pdftex.def)             Requested size: 287.72223pt x 239.78195pt.
-
-Package natbib Warning: Citation `golub1999' on page 23 undefined on input line 1163.
-
-
-Package natbib Warning: Citation `simon2003' on page 23 undefined on input line 1163.
-
-
-Package natbib Warning: Citation `tarca2007' on page 23 undefined on input line 1163.
-
-
-Underfull \vbox (badness 4441) has occurred while \output is active []
-
-
+[22]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 23
  []
 
-[23 <./fig_target_scan.pdf>]
-
-LaTeX Warning: Reference `tab:case-study' on page 24 undefined on input line 1193.
-
+[23 <./fig_sim_main.pdf>]
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <10> on input line 1124.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <7> on input line 1124.
+<fig_target_scan.pdf, id=466, 433.62pt x 361.35pt>
+File: fig_target_scan.pdf Graphic file (type pdf)
+<use fig_target_scan.pdf>
+Package pdftex.def Info: fig_target_scan.pdf  used on input line 1174.
+(pdftex.def)             Requested size: 287.72223pt x 239.78195pt.
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 24 []
  []
 
 [24]
-
-LaTeX Warning: Reference `fig:case-study' on page 25 undefined on input line 1267.
+Overfull \hbox (13.10991pt too wide) in paragraph at lines 1183--1194
+\T1/lmr/m/n/10.95 structs a bi-nary three-year over-all sur-vival end-point from stud-ies con-tain-ing both \T1/lmtt/m/n/10.95 days_to_death
+ []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 25
  []
 
-[25]
-<fig_casestudy.pdf, id=230, 578.16pt x 289.08pt>
-File: fig_casestudy.pdf Graphic file (type pdf)
-<use fig_casestudy.pdf>
-Package pdftex.def Info: fig_casestudy.pdf  used on input line 1305.
-(pdftex.def)             Requested size: 442.65375pt x 221.32632pt.
-
-
-LaTeX Warning: Reference `fig:case-study' on page 26 undefined on input line 1319.
-
-
-LaTeX Warning: Reference `fig:case-study' on page 26 undefined on input line 1324.
-
-
-LaTeX Warning: Reference `sec:dlsi' on page 26 undefined on input line 1334.
-
-
-LaTeX Warning: Reference `tab:case-study' on page 26 undefined on input line 1336.
-
-
-Underfull \vbox (badness 6675) has occurred while \output is active []
-
-
+[25 <./fig_target_scan.pdf>]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 26 []
  []
 
-[26 <./fig_casestudy.pdf>]
-
-LaTeX Warning: Reference `sec:overview' on page 27 undefined on input line 1358.
-
-
-Package natbib Warning: Citation `gentleman2007' on page 27 undefined on input line 1387.
-
-
-Package natbib Warning: Citation `peng2011' on page 27 undefined on input line 1387.
-
-
-Package natbib Warning: Citation `sandve2013' on page 27 undefined on input line 1387.
-
-
-Underfull \vbox (badness 10000) has occurred while \output is active []
-
+[26]
+<fig_casestudy.pdf, id=513, 578.16pt x 289.08pt>
+File: fig_casestudy.pdf Graphic file (type pdf)
+<use fig_casestudy.pdf>
+Package pdftex.def Info: fig_casestudy.pdf  used on input line 1336.
+(pdftex.def)             Requested size: 442.65375pt x 221.32632pt.
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 27
  []
 
 [27]
-
-Package natbib Warning: Citation `lang2019' on page 28 undefined on input line 1424.
-
-
-Package natbib Warning: Citation `bischl2024' on page 28 undefined on input line 1424.
-
-
-Package natbib Warning: Citation `kuhn2008' on page 28 undefined on input line 1429.
-
-
-Package natbib Warning: Citation `kuhn2020' on page 28 undefined on input line 1429.
-
-
-Package natbib Warning: Citation `lang2019' on page 28 undefined on input line 1429.
-
-
-Package natbib Warning: Citation `bischl2024' on page 28 undefined on input line 1429.
-
-
-Overfull \hbox (1.79321pt too wide) in paragraph at lines 1435--1442
-[]\T1/lmr/b/n/10.95 bioLeak \T1/lmr/m/n/10.95 ad-dresses a prac-ti-cal gap in biomed-i-cal machine-learning work-flows by pair-ing leakage-
- []
-
-
-Underfull \vbox (badness 5862) has occurred while \output is active []
+Underfull \vbox (badness 10000) has occurred while \output is active []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 28 []
  []
 
-[28]
-
-Package natbib Warning: Citation `kapoor2023' on page 29 undefined on input line 1452.
-
-
-LaTeX Warning: Reference `tab:task-coverage' on page 29 undefined on input line 1470.
-
-
-LaTeX Warning: Reference `sec:dlsi' on page 29 undefined on input line 1507.
-
-
+[28 <./fig_casestudy.pdf>]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 29
  []
 
 [29]
-
-Package natbib Warning: Citation `R' on page 30 undefined on input line 1547.
+Overfull \hbox (1.79321pt too wide) in paragraph at lines 1450--1457
+[]\T1/lmr/b/n/10.95 bioLeak \T1/lmr/m/n/10.95 ad-dresses a prac-ti-cal gap in biomed-i-cal machine-learning work-flows by pair-ing leakage-
+ []
 
 
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 30 []
  []
 
-[30] (./manuscript_jss.bbl
+[30]
+Overfull \hbox (18.37135pt too wide) in paragraph at lines 1551--1555
+[]\T1/lmr/b/n/10.95 bioLeak \T1/lmr/m/n/10.95 is avail-able on CRAN, with a long-form tu-to-rial as the pack-age vi-gnette (\T1/lmtt/m/n/10.95 bioLeak-intro\T1/lmr/m/n/10.95 ).
+ []
+
+
+Overfull \hbox (6.66077pt too wide) in paragraph at lines 1551--1555
+\T1/lmr/m/n/10.95 The de-vel-op-ment source repos-i-tory is hosted at [][]$\T1/lmtt/m/n/10.95 https : / / github . com / selcukorkmaz / bioLeak$[][]\T1/lmr/m/n/10.95 .
+ []
+
+
+Underfull \vbox (badness 2119) has occurred while \output is active []
+
+
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 31
  []
 
 [31]
+Overfull \hbox (17.88211pt too wide) in paragraph at lines 1565--1579
+\T1/lmr/m/n/10.95 points: \T1/lmtt/m/n/10.95 run_simulation.R \T1/lmr/m/n/10.95 runs the main fac-to-rial sim-u-la-tion of Sec-tion [][]6[][], \T1/lmtt/m/n/10.95 run_supplementary.R
+ []
+
+
+Overfull \hbox (3.6486pt too wide) in paragraph at lines 1565--1579
+\T1/lmtt/m/n/10.95 run_casestudy.R \T1/lmr/m/n/10.95 runs the \T1/lmr/b/n/10.95 cu-rate-dOvar-ian-Data \T1/lmr/m/n/10.95 case study of Sec-tion [][]7[][], and \T1/lmtt/m/n/10.95 run_delta_lsi.R
+ []
+
+(./manuscript_jss.bbl
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 32 []
  []
 
-[32])
-
-Package natbib Warning: There were undefined citations.
-
-
-Underfull \vbox (badness 1577) has occurred while \output is active []
-
-
+[32]
 Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 [] \T1/lmr/m/n/10.95 33
  []
@@ -1137,45 +838,32 @@ Overfull \hbox (10.94998pt too wide) has occurred while \output is active
 \T1/lmr/m/n/10.95 34 []
  []
 
-[34] (./manuscript_jss.aux
+[34])
+Overfull \hbox (10.94998pt too wide) has occurred while \output is active
+[] \T1/lmr/m/n/10.95 35
+ []
 
-Package natbib Warning: Citation(s) may have changed.
-(natbib)                Rerun to get citations correct.
-
-)
+[35] (./manuscript_jss.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
  ***********
-
-
-LaTeX Warning: There were undefined references.
-
-
-LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
-
-
-Package rerunfilecheck Warning: File `manuscript_jss.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `manuscript_jss.out':
-(rerunfilecheck)             Before: <no file>
-(rerunfilecheck)             After:  771F850A2AF101AAAB0742E9EDB87950;8819.
+Package rerunfilecheck Info: File `manuscript_jss.out' has not changed.
+(rerunfilecheck)             Checksum: 9D7CE4D981F705C937AB51315C9AE45C;7950.
  ) 
 Here is how much of TeX's memory you used:
- 22204 strings out of 469339
- 412469 string characters out of 5465691
- 795369 words of memory out of 5000000
- 50460 multiletter control sequences out of 15000+600000
+ 22251 strings out of 469339
+ 414074 string characters out of 5465691
+ 801755 words of memory out of 5000000
+ 50504 multiletter control sequences out of 15000+600000
  757692 words of font info for 120 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 90i,14n,94p,1350b,861s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 90i,14n,94p,1341b,861s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmb10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmex10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi8.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi9.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr12.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr8.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr9.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri8.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmri9.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmro10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmss10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmssbx10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsso10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy6.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy7.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt12.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtto10.pfb></Users/selcuk/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb>
-Output written on manuscript_jss.pdf (34 pages, 663448 bytes).
+Output written on manuscript_jss.pdf (35 pages, 680482 bytes).
 PDF statistics:
- 562 PDF objects out of 1000 (max. 8388607)
- 456 compressed objects within 5 object streams
- 171 named destinations out of 1000 (max. 500000)
- 33 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 837 PDF objects out of 1000 (max. 8388607)
+ 727 compressed objects within 8 object streams
+ 168 named destinations out of 1000 (max. 500000)
+ 313 words of extra memory for PDF output out of 10000 (max. 10000000)
 

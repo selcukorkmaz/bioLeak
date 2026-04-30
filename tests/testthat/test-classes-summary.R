@@ -53,7 +53,7 @@ test_that("LeakFit and LeakAudit validity checks enforce class constraints", {
 
 test_that("GuardFit print and summary methods work", {
   X <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
-  fit <- bioLeak:::.guard_fit(X, y = c(1, 2, 3),
+  fit <- guard_fit(X, y = c(1, 2, 3),
                               steps = list(impute = list(method = "median")),
                               task = "gaussian")
   out <- capture.output(print(fit))

@@ -71,7 +71,7 @@ impute_guarded <- function(train,
     fs = list(method = "none")
   )
 
-  guard <- .guard_fit(train, y = NULL, steps = steps, task = "gaussian")
+  guard <- guard_fit(train, y = NULL, steps = steps, task = "gaussian")
   train_imp <- guard$transform(train)
   test_imp <- guard$transform(test)
 

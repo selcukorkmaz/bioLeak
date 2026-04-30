@@ -223,9 +223,8 @@
 #' @param levels_map optional named list of factor levels learned from training data.
 #' @param dummy_prefix prefix used when adding a dummy level to single-level factors.
 #' @return List with elements \code{data} (data.frame) and \code{levels} (named list of levels).
-#' @keywords internal
 #' @export
-.guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__") {
+guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__") {
   stopifnot(is.data.frame(df))
   if (!is.null(levels_map)) {
     missing_cols <- setdiff(names(levels_map), names(df))
@@ -291,13 +290,13 @@
 #' @seealso [predict_guard()]
 #' @examples
 #' x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
-#' fit <- .guard_fit(x, y = c(1, 2, 3),
-#'                   steps = list(impute = list(method = "median")),
-#'                   task = "gaussian")
+#' fit <- guard_fit(x, y = c(1, 2, 3),
+#'                  steps = list(impute = list(method = "median")),
+#'                  task = "gaussian")
 #' fit$transform(x)
 #' @export
-.guard_fit <- function(X, y = NULL, steps = list(),
-                       task = c("binomial", "multiclass", "gaussian", "survival")) {
+guard_fit <- function(X, y = NULL, steps = list(),
+                      task = c("binomial", "multiclass", "gaussian", "survival")) {
   task <- match.arg(task)
   # Coerce to data.frame for flexible handling
   if (is.matrix(X)) X <- as.data.frame(X, check.names = FALSE)
@@ -327,7 +326,7 @@
     X <- as.data.frame(X, check.names = FALSE)
     p_after_encode <- ncol(X)
   } else {
-    prep <- .guard_ensure_levels(X)
+    prep <- guard_ensure_levels(X)
     X <- prep$data
     if (!ncol(X)) stop("Input X has no columns after preprocessing.")
     encoding_levels <- prep$levels
@@ -638,7 +637,7 @@
     # Handle mixed types with the same level structure learned during training
     has_factors <- isTRUE(state$encoding$has_factors) || length(state$encoding$levels) > 0
     if (has_factors) {
-      prep_new <- .guard_ensure_levels(Xnew, state$encoding$levels)
+      prep_new <- guard_ensure_levels(Xnew, state$encoding$levels)
       Xnew <- prep_new$data
       if (!ncol(Xnew)) stop("Input X has no columns after preprocessing.")
       mf <- stats::model.frame(~ ., data = as.data.frame(Xnew), na.action = stats::na.pass)
@@ -911,37 +910,61 @@ print.summary.GuardFit <- function(x, ...) {
 #' numeric-only training fit receives non-numeric predictors. It does not
 #' detect label leakage, duplicate samples, or train/test contamination.
 #'
-#' @param fit A \code{GuardFit} object created by [.guard_fit()]. This required
-#' argument (no default) contains the training-time preprocessing settings and
-#' statistics. Changing \code{fit} (for example, a different imputation method
-#' or feature selection step) changes the output columns and values.
+#' \code{predict.GuardFit()} is the canonical S3 method --- callers can use
+#' \code{predict(fit, newdata)} on a \code{GuardFit} object and the right
+#' method is dispatched. \code{predict_guard()} is retained as a
+#' backward-compatible thin alias that simply forwards to the S3 method, so
+#' existing code that calls \code{predict_guard(fit, x)} continues to work.
+#'
+#' @param object,fit A \code{GuardFit} object created by [guard_fit()].
+#' Contains the training-time preprocessing settings and statistics. Changing
+#' the object (for example, a different imputation method or feature
+#' selection step) changes the output columns and values. \code{object} is
+#' the canonical name (matching the S3 \code{predict()} generic);
+#' \code{fit} is the legacy name accepted only by \code{predict_guard()}.
 #' @param newdata A matrix or data.frame of predictors with one row per sample.
 #' This required argument (no default) is transformed using the training-time
-#' parameters in \code{fit} only. Missing columns are added and filled, extra
-#' columns are dropped, and factor levels are aligned to the training levels; if
-#' the training fit was numeric-only, non-numeric columns in \code{newdata}
+#' parameters in the fit only. Missing columns are added and filled, extra
+#' columns are dropped, and factor levels are aligned to the training levels;
+#' if the training fit was numeric-only, non-numeric columns in \code{newdata}
 #' trigger an error.
+#' @param ... Ignored. Present so that the S3 method signature matches the
+#' [stats::predict()] generic; additional arguments are silently dropped.
 #'
 #' @return A data.frame of transformed predictors with the same number of rows
 #' as \code{newdata}. Column order and content match the training pipeline and
 #' may include derived features (one-hot encodings, missingness indicators, or
-#' PCA components). This output is not a prediction; it is intended as input to
-#' a downstream model and assumes the training-time preprocessing is valid for
-#' the new data.
+#' PCA components). This output is not a prediction; it is intended as input
+#' to a downstream model and assumes the training-time preprocessing is valid
+#' for the new data.
 #'
 #' @examples
 #' x_train <- data.frame(a = c(1, 2, NA, 4), b = c(10, 11, 12, 13))
-#' fit <- .guard_fit(
+#' fit <- guard_fit(
 #'   x_train,
 #'   y = c(0.1, 0.2, 0.3, 0.4),
 #'   steps = list(impute = list(method = "median")),
 #'   task = "gaussian"
 #' )
 #' x_new <- data.frame(a = c(NA, 5), b = c(9, 14))
-#' out <- predict_guard(fit, x_new)
+#' ## Canonical: dispatch through the predict() generic.
+#' out <- predict(fit, x_new)
 #' out
+#' ## Equivalent legacy form (kept for backward compatibility).
+#' identical(out, predict_guard(fit, x_new))
+#' @rdname predict.GuardFit
+#' @export
+predict.GuardFit <- function(object, newdata, ...) {
+  if (!inherits(object, "GuardFit")) {
+    stop("`object` must be a GuardFit object (got: ",
+         paste(class(object), collapse = "/"), ").",
+         call. = FALSE)
+  }
+  object$transform(newdata)
+}
+
+#' @rdname predict.GuardFit
 #' @export
 predict_guard <- function(fit, newdata) {
-  stopifnot(inherits(fit, "GuardFit"))
-  fit$transform(newdata)
+  predict.GuardFit(fit, newdata)
 }

@@ -126,7 +126,7 @@ A \code{\linkS4class{LeakFit}} S4 object containing:
 }
 \description{
 Performs cross-validated model training and evaluation using
-leakage-protected preprocessing (.guard_fit) and user-specified learners.
+leakage-protected preprocessing (guard_fit) and user-specified learners.
 }
 \details{
 Preprocessing is fit on the training fold and applied to the test fold,

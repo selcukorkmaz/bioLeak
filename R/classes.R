@@ -149,3 +149,81 @@ setClass("LeakDeltaLSI",
 )
 
 LeakDeltaLSI <- function(...) methods::new("LeakDeltaLSI", ...)
+
+# ---- LeakAudit: show() method ------------------------------------------
+# Brief auto-print representation. Detailed reporting is produced by
+# summary(). Added in 0.3.7 (Comment 8 response): standard R idiom is
+# that every public S4 class should have a show() method so that
+# auto-printing at the console is informative.
+
+#' @title Display summary for LeakAudit objects
+#' @description Prints a brief one-screen summary of a LeakAudit, including
+#'   task and outcome, the permutation-gap statistic, and counts of
+#'   batch-association rows, target-leakage features, and duplicate pairs.
+#'   Use \code{summary()} for the full diagnostic report.
+#' @param object A \code{LeakAudit} object.
+#' @return No return value, called for side effects (prints a brief summary
+#'   to the console). Returns \code{object} invisibly.
+#' @examples
+#' set.seed(1)
+#' df <- data.frame(
+#'   subject = rep(1:6, each = 2),
+#'   outcome = rbinom(12, 1, 0.5),
+#'   x1 = rnorm(12),
+#'   x2 = rnorm(12)
+#' )
+#' splits <- make_split_plan(df, outcome = "outcome",
+#'                       mode = "subject_grouped", group = "subject", v = 3,
+#'                       progress = FALSE)
+#' custom <- list(
+#'   glm = list(
+#'     fit = function(x, y, task, weights, ...) {
+#'       stats::glm(y ~ ., data = as.data.frame(x),
+#'                  family = stats::binomial(), weights = weights)
+#'     },
+#'     predict = function(object, newdata, task, ...) {
+#'       as.numeric(stats::predict(object,
+#'                                 newdata = as.data.frame(newdata),
+#'                                 type = "response"))
+#'     }
+#'   )
+#' )
+#' fit <- fit_resample(df, outcome = "outcome", splits = splits,
+#'                     learner = "glm", custom_learners = custom,
+#'                     metrics = "auc", refit = FALSE, seed = 1)
+#' aud <- audit_leakage(fit, metric = "auc", B = 10,
+#'                      X_ref = df[, c("x1", "x2")])
+#' show(aud)
+#' @importMethodsFrom methods show
+#' @export
+setMethod("show", "LeakAudit", function(object) {
+  perm_str <- if (is.data.frame(object@permutation_gap) &&
+                  nrow(object@permutation_gap) > 0L &&
+                  "metric_obs" %in% names(object@permutation_gap)) {
+    obs <- as.numeric(object@permutation_gap$metric_obs[1L])
+    gap <- if ("gap" %in% names(object@permutation_gap))
+      as.numeric(object@permutation_gap$gap[1L]) else NA_real_
+    pv <- if ("p_value" %in% names(object@permutation_gap))
+      as.numeric(object@permutation_gap$p_value[1L]) else NA_real_
+    sprintf("metric=%.3f, gap=%.3f, p=%.3f", obs, gap, pv)
+  } else {
+    "(not computed)"
+  }
+  task_str <- if (length(object@fit@task) && nzchar(object@fit@task))
+    object@fit@task else "(unknown)"
+  outcome_str <- if (length(object@fit@outcome) && nzchar(object@fit@outcome))
+    object@fit@outcome else "(unknown)"
+
+  cat("A LeakAudit object\n")
+  cat(sprintf("  Task:               %s\n", task_str))
+  cat(sprintf("  Outcome:            %s\n", outcome_str))
+  cat(sprintf("  Permutation-gap:    %s\n", perm_str))
+  cat(sprintf("  Batch association:  %d row(s)\n",
+              if (is.data.frame(object@batch_assoc)) nrow(object@batch_assoc) else 0L))
+  cat(sprintf("  Target leakage:     %d feature(s)\n",
+              if (is.data.frame(object@target_assoc)) nrow(object@target_assoc) else 0L))
+  cat(sprintf("  Duplicate pairs:    %d\n",
+              if (is.data.frame(object@duplicates)) nrow(object@duplicates) else 0L))
+  cat("Use summary(<obj>) for the full diagnostic report.\n")
+  invisible(object)
+})

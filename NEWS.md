@@ -1,3 +1,74 @@
+# bioLeak 0.3.7
+
+## Documentation
+
+* The vignette previously mixed defensive `requireNamespace()` checks
+  with bare `library(<suggests_pkg>)` calls; the bare calls would
+  hard-error if the suggested package was not installed, defeating
+  the defensive checks elsewhere in the same vignette. The
+  `tidymodels-interop` chunk now carries
+  `eval = requireNamespace("recipes", quietly = TRUE) && requireNamespace("yardstick", quietly = TRUE)`
+  in its chunk header, so the chunk is skipped (rather than erroring)
+  during vignette build when those Suggests packages are absent. The
+  `parallel-setup` chunk gains a brief comment documenting that
+  `future` is a Suggests dependency. A regression test
+  (`test-vignette-suggests.R`) walks the vignette and asserts that
+  every chunk-level `library(<suggests_pkg>)` call is inside an
+  appropriately gated chunk.
+
+## API improvements (no behavior change)
+
+* `predict_guard()` is now also accessible through the standard
+  [stats::predict()] generic via a registered S3 method
+  `predict.GuardFit()`. Calling `predict(fit, newdata)` on a `GuardFit`
+  object dispatches to `predict.GuardFit()` and yields output that is
+  bit-identical to the legacy `predict_guard(fit, newdata)`.
+  `predict_guard()` is preserved as a thin backward-compatible alias,
+  so existing code continues to work without modification.
+  `methods(class = "GuardFit")` now returns `print`, `summary`, and
+  `predict`, restoring the standard R idiom for transformer objects.
+
+* Added `show()` / `print()` methods to the public result classes that
+  previously only had `summary()`:
+    * `LeakFit`: new `show()` (S4) — brief auto-print giving task,
+      outcome, learners, fold count, and fold-status one-liner.
+    * `LeakAudit`: new `show()` (S4) — brief auto-print giving task,
+      outcome, permutation-gap statistics, and component row counts
+      (batch association, target leakage, duplicates).
+    * `LeakTune`: new `print()` (S3) — brief auto-print giving outer-fold
+      success rate, tuning-grid size, selection rule, and refit status.
+  Each method ends with a one-line hint pointing to `summary(<obj>)`
+  for the full diagnostic report. `methods(class = ...)` now returns
+  `show`/`print` alongside `summary` for all three classes.
+
+## Renames (no behavior change)
+
+* `.guard_fit()` is renamed to `guard_fit()` and `.guard_ensure_levels()`
+  is renamed to `guard_ensure_levels()`. Leading-dot prefixes on
+  exported functions are unconventional and were causing the renamed
+  helpers to appear awkwardly in `help(package = "bioLeak")`. Behavior,
+  arguments, and return values are unchanged; only the names move from
+  the dot-prefixed form to ordinary names. Internal callers
+  (`fit_resample()`, `impute_guarded()`, `predict_guard()`'s
+  documentation, and the package vignette) are updated to use the new
+  names.
+
+## New features
+
+* Added public accessor functions for the S4 result classes so that
+  downstream code (replication scripts, vignettes, and end-user
+  analyses) can read components of `LeakFit`, `LeakAudit`, and
+  `LeakDeltaLSI` objects without reaching into S4 internals via `@`.
+  The new accessors are purely additive; slot definitions are unchanged
+  and existing code that uses `@` continues to work.
+    * `LeakFit`: `fit_metrics()`.
+    * `LeakAudit`: `audit_perm_gap()`, `audit_batch_assoc()`,
+      `audit_target_assoc()`, `audit_duplicates()`, `audit_info()`.
+    * `LeakDeltaLSI`: `dlsi_metric()`, `dlsi_robust()`, `dlsi_ci()`,
+      `dlsi_p_value()`, `dlsi_tier()`, `dlsi_R_eff()`, `dlsi_repeats()`.
+  Each accessor performs an `is(x, "<Class>")` validation and emits an
+  informative error when called on the wrong object.
+
 # bioLeak 0.3.5
 
 ## Breaking changes

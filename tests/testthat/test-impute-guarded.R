@@ -9,7 +9,7 @@ test_that("impute_guarded matches guarded preprocessing output", {
   )
 
   res <- impute_guarded(train, test, method = "median", winsor = FALSE, seed = 1)
-  guard <- bioLeak:::.guard_fit(
+  guard <- guard_fit(
     train,
     y = NULL,
     steps = list(

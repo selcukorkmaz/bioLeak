@@ -27,7 +27,7 @@ sim <- sim_all[!is.na(sim_all$metric_obs), ]
 lk_labels <- c(
   none = "Clean",
   subject_overlap = "Subject overlap",
-  batch_confounded = "Batch confounded",
+  batch_confounded = "Batch confounding",
   peek_norm = "Peek normalization",
   lookahead = "Look-ahead"
 )
@@ -90,30 +90,42 @@ K <- length(lk_types)
 jitter_step <- 0.08
 jitters <- (seq_len(K) - (K + 1) / 2) * jitter_step
 
-## Panel (a): Observed AUC by leakage mechanism and sample size (s > 0)
-sim_sig <- sim[sim$s > 0, ]
-auc_stats <- agg_ci(sim_sig, c("leakage", "n"), "metric_obs")
-n_vals <- sort(unique(auc_stats$n))
+## Panel (a): Rejection rate at s = 0 by mechanism and feature dimension
+sim_s0 <- sim[sim$s == 0, ]
+rej_stats <- do.call(rbind, lapply(split(sim_s0, list(sim_s0$leakage, sim_s0$p),
+                                         drop = TRUE), function(sub) {
+  x <- sub$p_value
+  x <- x[!is.na(x)]
+  k <- sum(x < 0.05); n <- length(x)
+  wci <- wilson_ci(k, n)
+  data.frame(leakage = sub$leakage[1], p = sub$p[1],
+             rate = wci$rate * 100, lo = wci$lo * 100, hi = wci$hi * 100,
+             stringsAsFactors = FALSE)
+}))
+rownames(rej_stats) <- NULL
 
-plot(NA, xlim = c(0.5, length(n_vals) + 0.5), ylim = c(0.6, 1.02),
-     xlab = "Sample size (n)", ylab = "Mean observed AUC",
-     main = "(a) Observed AUC by mechanism",
+p_vals <- sort(unique(rej_stats$p))
+plot(NA, xlim = c(0.5, length(p_vals) + 0.5), ylim = c(0, 105),
+     xlab = "Feature dimension (p)", ylab = "Rejection rate (%)",
+     main = "(a) Rejection rate at s = 0",
      xaxt = "n", las = 1)
-axis(1, at = seq_along(n_vals), labels = n_vals)
+axis(1, at = seq_along(p_vals), labels = p_vals)
+abline(h = 5, lty = 2, col = "red", lwd = 1.5)
+text(0.55, 1, "5% nominal", col = "red", cex = 0.7, adj = 0)
 
 for (k in seq_along(lk_types)) {
   lk <- lk_types[k]
-  sub <- auc_stats[auc_stats$leakage == lk, ]
-  idx <- match(n_vals, sub$n)
-  y_mean <- sub$mean[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
-  x_pos <- seq_along(n_vals)
+  sub <- rej_stats[rej_stats$leakage == lk, ]
+  idx <- match(p_vals, sub$p)
+  y_mean <- sub$rate[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
+  x_pos <- seq_along(p_vals)
   draw_err(x_pos, y_lo, y_hi, col = lk_colors[lk], pch = 15 + k - 1,
            jitter = jitters[k])
   lines(x_pos + jitters[k], y_mean, col = lk_colors[lk], lwd = 1.5)
   points(x_pos + jitters[k], y_mean, pch = 15 + k - 1,
          col = lk_colors[lk], cex = 1.4)
 }
-legend("bottomright", legend = lk_labels, col = lk_colors,
+legend("right", legend = lk_labels, col = lk_colors,
        pch = 15:19, lwd = 1.5, cex = 0.8, bg = "white")
 
 ## Panel (b): AUC by mechanism and signal strength (averaged over n and p)
@@ -142,42 +154,30 @@ for (k in seq_along(lk_types)) {
 legend("bottomright", legend = lk_labels, col = lk_colors,
        pch = 15:19, lwd = 1.5, cex = 0.8, bg = "white")
 
-## Panel (c): Rejection rate at s = 0 by mechanism and feature dimension
-sim_s0 <- sim[sim$s == 0, ]
-rej_stats <- do.call(rbind, lapply(split(sim_s0, list(sim_s0$leakage, sim_s0$p),
-                                         drop = TRUE), function(sub) {
-  x <- sub$p_value
-  x <- x[!is.na(x)]
-  k <- sum(x < 0.05); n <- length(x)
-  wci <- wilson_ci(k, n)
-  data.frame(leakage = sub$leakage[1], p = sub$p[1],
-             rate = wci$rate * 100, lo = wci$lo * 100, hi = wci$hi * 100,
-             stringsAsFactors = FALSE)
-}))
-rownames(rej_stats) <- NULL
+## Panel (c): Observed AUC by leakage mechanism and sample size (s > 0)
+sim_sig <- sim[sim$s > 0, ]
+auc_stats <- agg_ci(sim_sig, c("leakage", "n"), "metric_obs")
+n_vals <- sort(unique(auc_stats$n))
 
-p_vals <- sort(unique(rej_stats$p))
-plot(NA, xlim = c(0.5, length(p_vals) + 0.5), ylim = c(0, 105),
-     xlab = "Feature dimension (p)", ylab = "Rejection rate (%)",
-     main = "(c) Rejection rate at s = 0",
+plot(NA, xlim = c(0.5, length(n_vals) + 0.5), ylim = c(0.6, 1.02),
+     xlab = "Sample size (n)", ylab = "Mean observed AUC",
+     main = "(c) Observed AUC by mechanism",
      xaxt = "n", las = 1)
-axis(1, at = seq_along(p_vals), labels = p_vals)
-abline(h = 5, lty = 2, col = "red", lwd = 1.5)
-text(0.55, 1, "5% nominal", col = "red", cex = 0.7, adj = 0)
+axis(1, at = seq_along(n_vals), labels = n_vals)
 
 for (k in seq_along(lk_types)) {
   lk <- lk_types[k]
-  sub <- rej_stats[rej_stats$leakage == lk, ]
-  idx <- match(p_vals, sub$p)
-  y_mean <- sub$rate[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
-  x_pos <- seq_along(p_vals)
+  sub <- auc_stats[auc_stats$leakage == lk, ]
+  idx <- match(n_vals, sub$n)
+  y_mean <- sub$mean[idx]; y_lo <- sub$lo[idx]; y_hi <- sub$hi[idx]
+  x_pos <- seq_along(n_vals)
   draw_err(x_pos, y_lo, y_hi, col = lk_colors[lk], pch = 15 + k - 1,
            jitter = jitters[k])
   lines(x_pos + jitters[k], y_mean, col = lk_colors[lk], lwd = 1.5)
   points(x_pos + jitters[k], y_mean, pch = 15 + k - 1,
          col = lk_colors[lk], cex = 1.4)
 }
-legend("right", legend = lk_labels, col = lk_colors,
+legend("bottomright", legend = lk_labels, col = lk_colors,
        pch = 15:19, lwd = 1.5, cex = 0.8, bg = "white")
 
 ## Panel (d): AUC inflation relative to clean baseline (s > 0)

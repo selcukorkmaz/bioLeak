@@ -1212,3 +1212,54 @@ tune_resample <- function(x, outcome, splits,
     class = "LeakTune"
   )
 }
+
+
+# ---- LeakTune: print() method (S3) -------------------------------------
+# LeakTune is an S3-classed list (see tune_resample() return value).
+# A print() method completes the standard set: print(), summary(), and
+# (where applicable) predict(). Added in 0.3.7 (Comment 8 response).
+
+#' Print a LeakTune object
+#'
+#' Brief one-screen auto-print representation of a `LeakTune` result
+#' returned by [tune_resample()]. Use [summary()] for the full
+#' diagnostic report (outer-loop metrics, selected hyperparameters,
+#' fold-by-fold detail, and refit summary).
+#'
+#' @param x A `LeakTune` object returned by [tune_resample()].
+#' @param ... Ignored; present so that the S3 signature matches
+#'   [base::print()].
+#' @return Invisibly returns `x`.
+#' @export
+print.LeakTune <- function(x, ...) {
+  info  <- x$info
+  outer <- x$outer_summary
+
+  outer_n_total   <- length(x$outer_fits)
+  outer_n_success <- sum(vapply(x$outer_fits, function(of) {
+    !is.null(of) && methods::is(of, "LeakFit")
+  }, logical(1)))
+
+  metric_str <- if (is.list(info) && !is.null(info$refit_metric))
+    info$refit_metric else "(unspecified)"
+  selection_str <- if (is.list(info) && !is.null(info$selection_rule))
+    info$selection_rule else "(unspecified)"
+  refit_str <- if (is.list(info) && isTRUE(info$refit)) "yes" else "no"
+  grid_size <- if (is.list(info) && !is.null(info$grid)) {
+    g <- info$grid
+    if (is.data.frame(g)) nrow(g)
+    else if (is.numeric(g) && length(g) == 1L) as.integer(g)
+    else NA_integer_
+  } else NA_integer_
+
+  cat("A LeakTune object\n")
+  cat(sprintf("  Outer folds:    %d successful / %d total\n",
+              outer_n_success, outer_n_total))
+  cat(sprintf("  Tuning grid:    %s\n",
+              if (is.na(grid_size)) "(unknown)" else sprintf("%d candidates", grid_size)))
+  cat(sprintf("  Selection rule: %s  (metric = %s)\n",
+              selection_str, metric_str))
+  cat(sprintf("  Refit:          %s\n", refit_str))
+  cat("Use summary(<obj>) for the full diagnostic report.\n")
+  invisible(x)
+}

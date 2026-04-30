@@ -1,7 +1,7 @@
 Package: bioLeak
 Type: Package
 Title: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data
-Version: 0.3.6
+Version: 0.3.7
 Authors@R: c(
     person("Selcuk", "Korkmaz", role = c("aut","cre"), email = "selcukorkmaz@gmail.com",
            comment = c(ORCID = "0000-0003-4632-6850"))
@@ -15,7 +15,6 @@ License: MIT + file LICENSE
 URL: https://github.com/selcukorkmaz/bioLeak
 BugReports: https://github.com/selcukorkmaz/bioLeak/issues
 Encoding: UTF-8
-LazyData: true
 Depends: R (>= 4.3)
 Imports:
     digest,
@@ -29,6 +28,7 @@ Imports:
     parsnip
 Suggests:
     BiocParallel,
+    splitGraph,
     cli,
     dials,
     FNN,

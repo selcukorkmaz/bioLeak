@@ -36,18 +36,12 @@ constructing leakage-aware resampling workflows and for auditing fitted models
 for common leakage mechanisms. The package provides leakage-aware split
 construction, train-fold-only preprocessing, cross-validated model fitting,
 nested hyperparameter tuning, post hoc leakage audits, and HTML reporting.
-The primary functions are
-\code{make\_split\_plan},
-\code{fit\_resample},
-\code{tune\_resample},
-\code{audit\_leakage},
-\code{audit\_report}, and
-\code{delta\_lsi}. The implementation supports binary classification,
-multiclass classification, continuous regression, and survival analysis, with
+The implementation supports binary classification,
+multiclass classification, regression, and survival analysis, with
 task-specific metrics and S4 containers for splits, fits, audits, and
 inflation summaries. The simulation artifacts show how apparent
 performance changes under controlled leakage mechanisms, and the case study
-illustrates how guarded and naive pipelines can yield materially different
+illustrates how guarded and leaky pipelines can yield materially different
 conclusions on multi-study transcriptomic data. The emphasis throughout is on
 software design, reproducible workflows, and interpretation of diagnostic
 output.
@@ -98,7 +92,7 @@ Cross-validated performance estimates are often interpreted as evidence that a p
 
 The problem is especially acute in biomedical applications. A single study may include repeated measurements from the same participant, technical replicates, laboratory batches, study-site effects, or longitudinal samples collected over time. In such settings, ordinary row-wise cross-validation can place correlated samples in both training and test folds. Likewise, global imputation, normalization, filtering, or feature screening performed before resampling can transmit information from assessment data into the training pipeline. These choices can materially inflate apparent performance while leaving little trace in a conventional model summary, a practical concern in health-care machine learning where evaluation, implementation, and deployment constraints are already difficult to align \citep{beam2018, sendak2020}.
 
-Recent methodological work has further clarified the scale and heterogeneity of the problem. \citet{kapoor2023} described leakage as one contributor to broader reproducibility failures in machine-learning-based science. In neuroimaging, \citet{rosenblatt2024} showed that repeated-subject leakage and feature-selection leakage can substantially inflate predictive performance, while \citet{vandemortel2025} reported that leakage-compatible practices were common enough to affect meta-analytic conclusions in psychiatric imaging. Taken together, these studies suggest that leakage cannot be addressed by a single generic rule. It is heterogeneous, domain specific, and tightly tied to evaluation design.
+Recent methodological work has further clarified the scale and heterogeneity of the problem. \citet{kapoor2023} described leakage as one contributor to broader reproducibility failures in machine-learning-based science. In neuroimaging, \citet{rosenblatt2024} showed that repeated-subject leakage and feature-selection leakage can substantially inflate predictive performance, while \citet{vandemortel2025} reported that leakage-compatible practices were common enough to affect meta-analytic conclusions in psychiatric imaging. These studies suggest that leakage cannot be addressed by a single generic rule. It is heterogeneous, domain specific, and tightly tied to evaluation design.
 
 Existing modeling frameworks provide much of the infrastructure needed for modern predictive analysis, but they do not by themselves define valid leakage boundaries. In \proglang{R} \citep{R}, \pkg{caret}, \pkg{tidymodels}, and \pkg{mlr3} support flexible resampling, preprocessing, and model-fitting workflows \citep{kuhn2008, kuhn2020, lang2019, bischl2024}. These frameworks can be used safely, but they rely on the analyst to encode resampling units, grouping variables, temporal structure, and fold-wise preprocessing correctly. In biomedical applications, where rows are often nested within subjects, batches, studies, or time windows, the central difficulty is not only fitting a model but specifying which observations may legitimately share information under the intended prediction setting.
 
@@ -106,7 +100,7 @@ Existing modeling frameworks provide much of the infrastructure needed for moder
 
 The contribution of \pkg{bioLeak} is therefore not a new learner. Rather, it is a software framework for representing leakage-aware evaluation design as a first-class object, enforcing key train--test separation rules during preprocessing and resampling, and attaching audit procedures to fitted workflows so that suspicious performance inflation can be examined explicitly rather than inferred informally after the fact. This combination is particularly useful in biomedical settings, where dependency structure is often known in principle but inconsistently encoded in routine modeling practice.
 
-The remainder of the manuscript is organized as follows. Section~\ref{sec:leakage} summarizes the leakage mechanisms that motivate the package. Section~\ref{sec:overview} describes the main software components. Section~\ref{sec:workflow} presents a reproducible workflow based on the package API. Section~\ref{sec:dlsi} introduces the \code{delta\_lsi()} framework for quantifying performance inflation between naive and guarded pipelines. Section~\ref{sec:simulation} reports simulation results, Section~\ref{sec:casestudy} presents a multi-study transcriptomic case study, and Section~\ref{sec:implementation} discusses software design and implementation. Section~\ref{sec:discussion} addresses limitations and future directions.
+The remainder of the manuscript is organized as follows. Section~\ref{sec:leakage} summarizes the leakage mechanisms that motivate the package. Section~\ref{sec:overview} describes the main software components. Section~\ref{sec:workflow} presents a reproducible workflow based on the package functions. Section~\ref{sec:dlsi} introduces the Delta Leakage Sensitivity Index ($\Delta_{\mathrm{LSI}}$) framework for quantifying performance inflation between leaky and guarded pipelines. Section~\ref{sec:simulation} reports simulation results, Section~\ref{sec:casestudy} presents a multi-study transcriptomic case study, and Section~\ref{sec:implementation} discusses the package implementation. Section~\ref{sec:discussion} addresses limitations and future directions.
 
 
 %% -- Manuscript ---------------------------------------------------------------
@@ -245,7 +239,7 @@ preprocessing independently within each fold, trains one or more learners, and
 returns a \code{LeakFit} object. The fit object stores per-fold metrics,
 aggregated summaries, audit metadata, predictions, preprocessing state,
 learners, and information required for later refit-based audits. The function
-accepts data frames, matrices, and \code{SummarizedExperiment} objects (the package vignette demonstrates \code{SummarizedExperiment} input).
+accepts data frames, matrices, and \code{SummarizedExperiment} objects.
 Learners may be specified through \pkg{parsnip}, \pkg{workflows}, legacy
 character interfaces, or custom fit/predict pairs.
 
@@ -263,7 +257,7 @@ association tests for batch or study metadata, target-leakage scans on a
 reference feature matrix, duplicate detection, and a compact mechanism-level
 summary stored in the object metadata. \code{audit\_report()} renders these
 results to a self-contained HTML report based on a bundled \proglang{R} Markdown template.
-For direct inflation comparisons between a naive and a guarded pipeline, the
+For direct inflation comparisons between a leaky and a guarded pipeline, the
 package also provides \code{delta\_lsi()}, which returns a
 \code{LeakDeltaLSI} object summarizing repeat-level performance differences,
 robust point estimates, confidence intervals, and sign-flip randomization
@@ -274,11 +268,11 @@ roles in the workflow.
 
 \begin{table}[tbp]
 \centering
-\caption{Primary software components in \pkg{bioLeak}.}
+\caption{Primary functions in \pkg{bioLeak}.}
 \label{tab:components}
 \begin{tabular}{|p{0.24\linewidth}|p{0.23\linewidth}|p{0.41\linewidth}|}
 \hline
-\textbf{Stage} & \textbf{Primary function(s)} & \textbf{Main output or role} \\
+\textbf{Stage} & \textbf{Function} & \textbf{Main output or role} \\
 \hline
 Split construction & \code{make\_split\_plan()} & Leakage-aware split plans for subject, batch, study, or time-ordered resampling. \\
 \hline
@@ -290,7 +284,7 @@ Leakage auditing & \code{audit\_leakage()} & Permutation-gap summaries, batch or
 \hline
 Audit reporting & \code{audit\_report()} & Self-contained HTML summaries suitable for documentation and sharing. \\
 \hline
-Inflation quantification & \code{delta\_lsi()} & Repeat-level comparison of naive and guarded pipelines, including robust inflation estimates and randomization-based inference. \\
+$\Delta_{\mathrm{LSI}}$ comparison & \code{delta\_lsi()} & Repeat-level comparison of leaky and guarded pipelines, including robust inflation estimates and randomization-based inference. \\
 \hline
 Interoperability & \code{guard\_to\_recipe()}, \code{as\_rsample()} & Bridges to \pkg{recipes} and \pkg{rsample} workflows. \\
 \hline
@@ -303,13 +297,14 @@ This section illustrates a typical workflow using a small synthetic binary class
 
 \subsection{Constructing a split plan}
 
-The first step is to define the dependence structure that the resampling design should respect. In the example below, repeated measurements are nested within subject, so a subject-grouped split plan is used. The code mirrors the current package API and can be adapted to \code{batch\_blocked}, \code{study\_loocv}, or \code{time\_series} settings by changing the resampling mode and the corresponding grouping or time-index columns.
+The first step is to define the dependence structure that the resampling design should respect. In the example below, repeated measurements are nested within subject, so a subject-grouped split plan is used. The code mirrors the current package interface and can be adapted to \code{batch\_blocked}, \code{study\_loocv}, or \code{time\_series} settings by changing the resampling mode and the corresponding grouping or time-index columns.
 
 
 \begin{CodeInput}
 library(bioLeak)
 library(parsnip)
 
+## Simulate 40 subjects with 3 repeated measurements each
 set.seed(1)
 n_subject <- 40
 rep_per_subject <- 3
@@ -328,6 +323,7 @@ outcome <- factor(
 
 df <- data.frame(subject, batch, outcome, x1, x2, x3)
 
+## Build a subject-grouped 5-fold split plan
 splits <- make_split_plan(
   df,
   outcome = "outcome",
@@ -357,7 +353,7 @@ Total folds: 5 | Hash: a1b2c3d4e5f6
 \noindent
 The split plan is created successfully and yields five subject-grouped folds of equal size. Because all repeated measurements from a given subject are assigned to the same fold, the resampling design prevents subject overlap between training and test sets. In this synthetic example, the object serves as the common evaluation structure for both the guarded and intentionally leaky fits considered below.
 
-The resulting split object stores fold assignments together with the resampling settings used to generate them, including the split mode, outcome, and stratification status. For large datasets, \code{compact = TRUE} stores fold assignments as a per-row fold vector rather than retaining explicit index lists for each fold, reducing memory use by roughly $v$-fold (e.g., from five copies of row indices to one integer vector).
+For large datasets, \code{compact = TRUE} stores fold assignments as a per-row fold vector rather than retaining explicit index lists for each fold, reducing memory use by roughly $v$-fold (e.g., from five copies of row indices to one integer vector).
 
 \subsection{Defining guarded preprocessing}
 
@@ -409,13 +405,13 @@ Cross-validated metrics (mean +/- SD):
 \end{CodeOutput}
 
 \noindent
-The guarded fit completes successfully across all five folds and yields only modest discrimination (mean AUC 0.54). In this synthetic example, that result is expected because the predictors are mostly noise and no label-derived feature has been introduced. This fitted object therefore serves as the guarded baseline for the leaky comparator examined in the following subsection.
+The guarded fit completes successfully across all five folds and yields near-chance discrimination (mean AUC 0.54), which is expected in this synthetic example because the predictors are mostly noise and no label-derived feature has been introduced. This fitted object therefore serves as the guarded baseline for the leaky comparator examined in the following subsection.
 
-The same interface extends to multiclass classification, regression, and survival settings, although the available metrics and supported options differ by task type. For survival analysis, the outcome is specified using time and event columns, and concordance-based evaluation is supported. For continuous regression, common metrics include \code{rmse}, \code{mae}, and $R^2$. Survival support in the current version covers \code{fit\_resample()} and \code{delta\_lsi()} with concordance metrics; however, nested tuning, target scanning, and permutation-refit audits are not yet available for survival tasks. Because the simulation study and case study both use binary classification, survival workflows are not demonstrated in this paper.
+For survival analysis, the outcome is specified using time and event columns, and concordance-based evaluation is supported. For regression, common metrics include \code{rmse}, \code{mae}, and $R^2$. Survival support in the current version covers \code{fit\_resample()} and \code{delta\_lsi()} with concordance metrics; however, nested tuning, target scanning, and permutation-refit audits are not yet available for survival tasks. The worked example, simulation study, and case study in this paper all use binary classification; multiclass, regression, and survival workflows are not demonstrated here.
 
-\subsection{Training naive and guarded comparators}
+\subsection{Training leaky and guarded comparators}
 
-The package is most informative when a guarded analysis is compared with a plausible naive workflow or with a deliberately constructed leakage scenario. Such comparisons are useful for sensitivity analysis and provide the basis for the \code{delta\_lsi()} procedure described in Section~\ref{sec:dlsi}. In the example below, a label-derived subject-level feature is added to create an intentionally leaky comparator while keeping the same grouped split structure. The resulting fitted object is used in the following subsection to quantify performance inflation relative to the guarded analysis.
+The package is most informative when a guarded analysis is compared with a plausible naive workflow or with a deliberately constructed leakage scenario. Such comparisons are useful for sensitivity analysis and provide the basis for the $\Delta_{\mathrm{LSI}}$ procedure described in Section~\ref{sec:dlsi}. In the example below, a label-derived subject-level feature is added to create an intentionally leaky comparator while keeping the same grouped split structure. The resulting fitted object is used in the following subsection to quantify performance inflation relative to the guarded analysis.
 
 \begin{CodeInput}
 df_leaky <- within(df, {
@@ -466,11 +462,13 @@ Audit overview:
 \end{CodeOutput}
 
 \noindent
-The intentionally leaky comparator yields a markedly higher cross-validated AUC than the guarded fit shown earlier. Because the grouped split structure is unchanged, this increase is attributable to the label-derived subject-level feature rather than to a change in resampling design. The example therefore illustrates how leakage can inflate apparent predictive performance even when fold construction itself is appropriate.
+The intentionally leaky comparator yields a markedly higher cross-validated AUC (0.92) than the guarded fit shown earlier (0.54). Because the grouped split structure is unchanged, this inflation is attributable to the label-derived subject-level feature rather than to a change in resampling design. The example therefore illustrates how leakage can inflate apparent predictive performance even when fold construction itself is appropriate.
 
 \subsection{Auditing a fitted workflow}
 
 After cross-validated predictions have been generated, \code{audit\_leakage()} can be used to summarize multiple forms of audit evidence from the fitted workflow and, optionally, from an aligned reference matrix \code{X\_ref}. The reference matrix enables target-leakage scans and near-duplicate detection. In grouped designs, the same interface can also be used to assess whether performance remains above chance under label permutation and whether fold assignments are associated with batch or study structure.
+
+The call below requests $B = 50$ label permutations and sets \code{perm\_stratify = TRUE} so that the grouped split structure is respected when labels are shuffled. \code{X\_ref} receives only the three numeric predictor columns (excluding \code{subject}, \code{batch}, and \code{outcome}) to enable the target-leakage and duplicate scans; \code{batch\_cols} names the column tested for batch--outcome association; and \code{return\_perm = TRUE} retains the full permutation distribution in the returned object for further inspection.
 
 \begin{CodeInput}
 audit_guarded <- audit_leakage(
@@ -522,9 +520,9 @@ Interpretation:
 \end{CodeOutput}
 
 \noindent
-In this example, the audit detects modest predictive signal but does not flag subject overlap, batch-related structure, target leakage, or near-duplicate samples. The guarded fit therefore appears consistent with non-random but not obviously leakage-driven discrimination.
+In this example, the audit detects a near-chance signal in the guarded fit (observed AUC $0.54$, permutation gap $0.04$ above the shuffled null) and finds no evidence of leakage: the batch--outcome $\chi^2$ test is non-significant ($p = 0.39$), no predictor exceeds the target-leakage threshold, and no near-duplicate samples are detected. The \emph{Multivariate Target Scan} is skipped because the synthetic example has too few predictors to build a meaningful principal-component model; it is enabled by default on richer feature matrices. The final \emph{Mechanism Risk Assessment} block consolidates the individual diagnostics into a per-mechanism verdict: each row corresponds to a leakage mechanism class (subject overlap, batch confounding, preprocessing leakage, target leakage) and is flagged only when at least one associated diagnostic crosses its decision threshold. None of the four classes are flagged, which is consistent with the clean guarded design.
 
-The resulting \code{LeakAudit} object stores permutation summaries, feature-level target-association results, duplicate-detection output, and the audit settings used to generate them. The permutation module is diagnostic rather than dispositive: a positive gap suggests predictive signal beyond chance, but the remaining audit components are needed to judge whether that signal may be inflated by leakage.
+The resulting \code{LeakAudit} object stores permutation summaries, feature-level target-association results, duplicate-detection output, and the audit settings used to generate them. The permutation module is diagnostic rather than dispositive: a positive gap suggests predictive signal beyond chance, but the remaining audit components are needed to judge whether that signal may be inflated by leakage. The audit object can additionally be rendered as a standalone HTML report via \code{audit\_report()}, which summarizes all components above for documentation or sharing.
 
 \paragraph{Practical guidance on permutation calibration.}
 By default, \code{fit\_resample()} stores the original data and learner
@@ -536,27 +534,11 @@ under each label permutation. This yields a well-calibrated null
 distribution with type~I error at the nominal level. The fixed-prediction
 alternative (\code{perm\_refit = FALSE}), which the simulations in
 Section~\ref{sec:simulation} use for computational reasons, is faster
-but slightly liberal (empirical type~I error of $6$--$10\%$ depending
-on feature dimension). Users who set \code{perm\_refit = FALSE} or
+but slightly liberal (empirical type~I error of $6$--$10.5\%$ depending
+on $(n, p)$). Users who set \code{perm\_refit = FALSE} or
 \code{store\_refit\_data = FALSE} should be aware of this trade-off;
 the package emits an informational message when auto mode falls back to
 fixed predictions.
-
-\subsection{Generating an HTML audit report}
-
-The audit can be rendered as a standalone HTML report for documentation or sharing. The report summarizes all audit components described above.
-
-\begin{CodeInput}
-report_file <- audit_report(
-  audit_guarded,
-  output_file = "bioLeak_audit_report.html",
-  output_dir = tempdir(),
-  quiet = TRUE
-)
-\end{CodeInput}
-
-\noindent
-The returned value is the path to the generated HTML file, which can then be opened in a browser or archived alongside other analysis outputs.
 
 \subsection{Putting the workflow together}
 
@@ -566,9 +548,10 @@ reuses the simulated data frame \code{df} from Section~\ref{sec:workflow} and
 chains every stage into one end-to-end sequence.
 
 \begin{CodeInput}
-## Assumes df and spec from Sections 4.1-4.2 are in scope
+## Assumes df from Section 4.1 is in scope
 dat <- df
 
+## 1. Subject-grouped 5-fold split plan
 plan <- make_split_plan(
   dat,
   outcome = "outcome",
@@ -579,9 +562,11 @@ plan <- make_split_plan(
   seed = 1
 )
 
+## 2. Learner specification
 spec <- logistic_reg(mode = "classification") |>
   set_engine("glm")
 
+## 3. Guarded fit
 fit_guarded <- fit_resample(
   dat,
   outcome = "outcome",
@@ -592,12 +577,13 @@ fit_guarded <- fit_resample(
   seed = 1
 )
 
-dat_naive <- within(dat, {
+## 4. Leaky comparator (label-derived subject-level feature)
+dat_leaky <- within(dat, {
   leak_subject <- ave(as.numeric(outcome == "case"), subject, FUN = mean)
 })
 
 fit_leaky <- fit_resample(
-  dat_naive,
+  dat_leaky,
   outcome = "outcome",
   splits = plan,
   learner = spec,
@@ -606,6 +592,7 @@ fit_leaky <- fit_resample(
   seed = 1
 )
 
+## 5. Audit the guarded fit
 audit <- audit_leakage(
   fit_guarded,
   metric = "auc",
@@ -615,6 +602,7 @@ audit <- audit_leakage(
   X_ref = dat[, c("x1", "x2", "x3")]
 )
 
+## 6. Quantify performance inflation (leaky vs guarded)
 delta <- delta_lsi(
   fit_leaky = fit_leaky,
   fit_guarded = fit_guarded,
@@ -622,6 +610,7 @@ delta <- delta_lsi(
   seed = 1
 )
 
+## 7. Render HTML audit report
 report_file <- audit_report(
   audit,
   output_file = "bioLeak_audit_report.html",
@@ -631,16 +620,20 @@ report_file <- audit_report(
 \end{CodeInput}
 
 \noindent
-The split plan defines the dependence structure, \code{fit\_resample()} trains the guarded and intentionally leaky pipelines under that design, \code{audit} stores diagnostic evidence for the guarded fit, \code{delta} summarizes performance inflation between the two analyses, and \code{audit\_report()} produces a shareable HTML summary. This end-to-end pattern extends to multiclass, regression, and survival settings with task-appropriate learners and metrics.
+The split plan defines the dependence structure, \code{fit\_resample()} trains the guarded and intentionally leaky pipelines under that design, \code{audit} stores diagnostic evidence for the guarded fit, \code{delta} summarizes performance inflation between the two analyses, and \code{audit\_report()} produces a shareable HTML summary.
 
 \subsection{Leakage-safe hyperparameter tuning}
 
 \code{tune\_resample()} performs nested cross-validation so that hyperparameter selection remains inside the outer resampling loop. The example below uses a tunable \pkg{glmnet} specification together with a nested split plan. This design avoids tuning on the same assessment data used for outer-loop evaluation.
 
+The split plan is built with \code{nested = TRUE}, which attaches an inner resampling loop inside each of the three outer folds for hyperparameter search. In the \code{tune\_resample()} call, \code{grid = 5} requests five candidate penalty values explored by the inner loop, \code{selection = "one\_std\_err"} applies the one-standard-error rule to favor more parsimonious models when inner-fold performance differences are small, and \code{refit = TRUE} fits a final model on the full dataset using hyperparameters aggregated across all outer folds (median for numeric parameters, majority vote for categorical) rather than a single fold's optimum, so that the returned object carries a deployable model without introducing nested-CV selection bias.
+
 \begin{CodeInput}
 library(recipes)
 library(tune)
 
+## Nested subject-grouped split plan (inner loop for tuning,
+## outer loop for evaluation)
 nested_splits <- make_split_plan(
   df,
   outcome = "outcome",
@@ -651,10 +644,12 @@ nested_splits <- make_split_plan(
   seed = 14
 )
 
+## Preprocessing recipe (applied inside each training fold)
 rec <- recipe(outcome ~ x1 + x2 + x3, data = df) |>
   step_impute_median(all_numeric_predictors()) |>
   step_normalize(all_numeric_predictors())
 
+## Tunable lasso specification
 spec_tune <- logistic_reg(
   penalty = tune(),
   mixture = 1,
@@ -662,6 +657,8 @@ spec_tune <- logistic_reg(
 ) |>
   set_engine("glmnet")
 
+## Nested tuning: penalty is selected on inner folds,
+## evaluated on outer folds
 tuned <- tune_resample(
   df,
   outcome = "outcome",
@@ -674,10 +671,38 @@ tuned <- tune_resample(
   refit = TRUE,
   seed = 14
 )
+
+summary(tuned)
 \end{CodeInput}
+\begin{CodeOutput}
+============================
+ bioLeak Tuning Summary
+============================
+
+Task: binomial
+Outcome: outcome
+Positive class: case
+Tuning Grid: 5
+Selection Rule: one_std_err (Metric: roc_auc)
+Fold status: 3 success, 0 skipped, 0 failed
+Refit performed: Yes
+Outer Folds: 3 successful / 3 total
+
+Outer Loop Metrics (mean +/- SD):
+              learner accuracy_mean accuracy_sd roc_auc_mean roc_auc_sd
+1 logistic_reg/glmnet         0.424       0.024        0.454      0.079
+  accuracy_ci_lo accuracy_ci_hi roc_auc_ci_lo roc_auc_ci_hi
+1          0.364          0.485         0.257         0.651
+
+Best Parameters (First 5 Folds):
+ penalty fold
+   0.928    1
+   0.838    2
+   0.003    3
+\end{CodeOutput}
 
 \noindent
-The resulting object stores outer-fold performance summaries together with the tuning results needed to identify the selected hyperparameter values under nested resampling.
+The resulting object stores outer-fold performance summaries together with the tuning results needed to identify the selected hyperparameter values under nested resampling. As expected on the synthetic noise predictors, the outer-fold \code{roc\_auc} is near chance (mean $0.45$, CI $0.26$--$0.65$), consistent with the guarded fit shown earlier (AUC $0.54$). The selected penalty also fluctuates across folds ($0.93$, $0.84$, $0.003$), which is typical when no real signal is present and illustrates why the nested design is needed: tuning on the same folds used for evaluation would lock in these fold-specific optima and report optimistic performance.
 
 When a \code{recipe} or \code{workflow} is supplied, \pkg{bioLeak} applies guard checks to reduce the risk of preprocessing steps being estimated outside the intended fold structure. The package also provides \code{guard\_to\_recipe()}, which translates a guarded preprocessing specification into an approximate \pkg{recipes} pipeline so that users who prefer the \pkg{tidymodels} ecosystem can apply the same transformations; the function maps imputation, normalization, and filtering steps to their \pkg{recipes} equivalents. At present, \code{tune\_resample()} supports classification and regression workflows, but not survival outcomes.
 
@@ -687,7 +712,7 @@ The same workflow generalizes to the other supported split modes. With \code{bat
 
 \section[Quantifying Leakage Inflation (Delta LSI)]{Quantifying Leakage Inflation (\code{Delta LSI})}\label{sec:dlsi}
 
-\pkg{bioLeak} provides \code{delta\_lsi()} to compare a naive pipeline
+\pkg{bioLeak} provides \code{delta\_lsi()} to compare a leaky pipeline
 with a guarded one when both are fitted on the same repeated resampling design.
 The goal is not to decide whether one pipeline is ``better'' in a generic
 sense, but to quantify how much apparent performance changes when leakage
@@ -697,13 +722,13 @@ themselves random quantities and that their uncertainty is nontrivial to
 characterize \citep{bengio2004, bates2024}.
 
 Suppose repeated cross-validation yields $R$ repeat-level summaries. Let
-$M_{\mathrm{naive},r}$ and $M_{\mathrm{guarded},r}$ denote the repeat-level
+$M_{\mathrm{leaky},r}$ and $M_{\mathrm{guarded},r}$ denote the repeat-level
 performance estimates for repeat $r$. For higher-is-better metrics such as AUC
 or accuracy, the repeat-level inflation score is
 \[
-\Delta_r = M_{\mathrm{naive},r} - M_{\mathrm{guarded},r}, \qquad r = 1, \ldots, R.
+\Delta_r = M_{\mathrm{leaky},r} - M_{\mathrm{guarded},r}, \qquad r = 1, \ldots, R.
 \]
-Positive values therefore indicate that the naive pipeline appears more optimistic than the guarded one and, under a properly paired comparison, are consistent with leakage-related performance inflation. For lower-is-better metrics such as RMSE or log-loss, \code{delta\_lsi()} applies a sign flip internally through
+Positive values therefore indicate that the leaky pipeline appears more optimistic than the guarded one and, under a properly paired comparison, are consistent with leakage-related performance inflation. For lower-is-better metrics such as RMSE or log-loss, \code{delta\_lsi()} applies a sign flip internally through
 the \code{higher\_is\_better} argument so that positive values still denote
 inflation.
 
@@ -766,11 +791,13 @@ unpaired comparison; point estimates only.
 sign-flip $p$-value.
 \item \code{B\_signflip\_ci}: at least ten paired repeats; point estimates,
 $p$-value, and BCa intervals.
-\item \code{A\_full\_inference}: at least twenty paired repeats with finite
-intervals and $p$-value.
+\item \code{A\_full\_inference}: at least twenty paired repeats; returns point
+estimates, $p$-value, and BCa intervals, and sets \code{inference\_ok = TRUE}
+when these are numerically finite. This is the recommended threshold for
+trustworthy $\Delta_{\mathrm{LSI}}$ inference.
 \end{enumerate}
 
-A typical call compares a naive and a guarded fit built from the same
+A typical call compares a leaky and a guarded fit built from the same
 \code{LeakSplits} object:
 
 \begin{CodeInput}
@@ -816,12 +843,12 @@ Inference valid:   YES (tier A)
 \end{CodeOutput}
 
 \noindent
-In practice, \code{delta\_lsi()} is most useful when an analyst wants to
+In practice, $\Delta_{\mathrm{LSI}}$ is most useful when an analyst wants to
 measure the sensitivity of a result to specific leakage controls, such as
 subject grouping, batch blocking, or removal of explicit leak-prone features.
 Section~\ref{sec:simulation} evaluates the audit framework across a factorial
 simulation design, and Section~\ref{sec:casestudy} demonstrates a paired
-\code{delta\_lsi()} comparison on real data. A small power simulation
+$\Delta_{\mathrm{LSI}}$ comparison on real data. A small power simulation
 (\code{run\_delta\_lsi.R}; $n = 200$, $p = 20$, $50$ seeds, $20$-repeat
 $5$-fold CV with a \code{peek\_norm} leakage feature at $\sigma = 0.3$)
 yielded $100\%$ rejection at $\alpha = 0.05$ with a mean
@@ -831,8 +858,9 @@ A complementary null calibration confirmed nominal Type~I error control.
 In each of $50$ replications, $R = 20$ independent datasets were drawn from
 the same population and both arms received their own exchangeable noise
 feature (pure $\mathcal{N}(0,1)$, uncorrelated with the outcome). The
-observed rejection rate was $8.0\%$ at $\alpha = 0.05$ ($p = 0.24$ by a
-binomial test against the nominal $5\%$, non-significant), with a mean
+observed rejection rate was $8.0\%$ at $\alpha = 0.05$ (one-sided exact
+binomial test against the nominal $5\%$, $H_1$: rate $> 0.05$; $p = 0.24$,
+non-significant), with a mean
 $\widehat{\Delta}_{\mathrm{metric}}$ of $0.0001$ and balanced sign
 proportions across repeats (replication script: \code{run\_delta\_lsi.R},
 Part~C).
@@ -867,7 +895,7 @@ linear predictor when $s > 0$. Readers who wish to reproduce the manuscript
 results exactly should use the paper script rather than the package helper.
 
 The main simulation follows a full factorial design with five leakage
-settings (none, subject overlap, batch confounded, peek normalization, and
+settings (none, subject overlap, batch confounding, peek normalization, and
 look-ahead), four sample sizes ($n \in \{100, 250, 500, 1000\}$), three
 feature dimensions ($p \in \{10, 50, 100\}$), three signal levels
 ($s \in \{0, 0.5, 2.0\}$), and fifty seeds per configuration, yielding
@@ -890,10 +918,10 @@ isolated as a controlled factor. A dedicated simulation comparing fold-wise and
 global normalization on correlated-feature designs would be a valuable extension
 but is beyond the scope of the present study.
 
-All main-simulation analyses used the same five-fold subject-grouped cross-validation design in order to hold the evaluation structure fixed while varying the injected leakage mechanism. The learner was \pkg{glmnet}, with median imputation, z-score normalization, no feature selection, and a permutation-gap audit using $B = 200$ and \code{perm\_refit = FALSE}. The reported summaries include the observed AUC, the permutation-null mean, the
+All main-simulation analyses used the same five-fold subject-grouped cross-validation design in order to hold the evaluation structure fixed while varying the injected leakage mechanism. The learner was \pkg{glmnet}-penalized logistic regression (elastic net with $\alpha = 0.9$ and cross-validated penalty), with median imputation, z-score normalization, no feature selection, and a permutation-gap audit using $B = 200$ and \code{perm\_refit = FALSE}. The reported summaries include the observed AUC, the permutation-null mean, the
 permutation gap, and the permutation $p$-value.
 
-Two supplementary analyses refine this design. One evaluates the same general leakage mechanisms under four split modes (\code{subject\_grouped}, \code{batch\_blocked}, \code{study\_loocv}, and \code{time\_series}) at a fixed setting $(n = 500, p = 20, s = 1.0)$. A second supplementary analysis evaluates the target-scanning components at the same fixed setting.
+Two supplementary analyses, generated by \code{run\_supplementary.R}, refine this design. The first evaluates the same general leakage mechanisms under four split modes (\code{subject\_grouped}, \code{batch\_blocked}, \code{study\_loocv}, and \code{time\_series}) at a fixed setting $(n = 500, p = 20, s = 1.0)$. The second evaluates the target-scanning components at the same fixed setting.
 
 \subsection{Main simulation summaries}
 
@@ -902,12 +930,12 @@ are summarized in Tables~\ref{tab:sim-power} and \ref{tab:sim-s0}. The two
 tables separate signal-bearing settings ($s > 0$) from the null setting
 ($s = 0$) where leakage-specific detection can be interpreted more directly.
 
-Figure~\ref{fig:sim-main}(c) shows rejection rates at $s = 0$ (no real signal)
+Figure~\ref{fig:sim-main}(a) shows rejection rates at $s = 0$ (no real signal)
 for all mechanisms across feature dimensions. This isolates leakage detection
 from genuine predictive signal. Peek normalization is detected at $100\%$
 regardless of $p$, while subject overlap and batch confounding are detected at
 $92$--$99\%$. In contrast, look-ahead and the clean baseline both remain near
-the nominal level ($6$--$10\%$), confirming that look-ahead carries no outcome
+the nominal level ($6$--$10.5\%$), confirming that look-ahead carries no outcome
 information at $s = 0$ by design.
 
 \paragraph{Null calibration of the fixed-prediction permutation test.}
@@ -928,9 +956,9 @@ guidance in Section~\ref{sec:overview}. The simulations in this paper
 use explicit \code{perm\_refit = FALSE} because the goal is to
 characterize the permutation-gap statistic as a fast association test
 under controlled leakage, not to perform full refit-based null
-calibration. A refit-based evaluation with $B = 500$ would require
-$500$ full model fits per task, increasing the total runtime from
-roughly three hours to several hundred hours---prohibitive for a
+calibration. A refit-based evaluation at the same $B = 200$ would require $200$ full
+model fits per task, multiplying the runtime by roughly 100-fold---from
+about 75 minutes to over 100 hours on four cores---prohibitive for a
 $9{,}000$-task factorial design.
 
 For leakage-injected settings with $s > 0$, the permutation-gap statistic was
@@ -942,8 +970,10 @@ sits at chance ($\approx 0.50$), while \code{peek\_norm} already reaches
 $0.99$ --- demonstrating that this leakage mechanism creates apparent
 performance from nothing. Subject overlap and batch confounding similarly
 inflate AUC above chance at $s = 0$ ($\approx 0.72$--$0.73$), whereas
-look-ahead is indistinguishable from clean. As $s$ increases, all mechanisms
-converge because genuine signal dominates.
+look-ahead is indistinguishable from clean. As $s$ increases, the mechanisms
+move toward the clean baseline as genuine signal dominates, though
+\code{peek\_norm} retains a small residual inflation from its direct outcome
+encoding.
 
 Turning to rejection rates, the clean baseline (\code{none}) also rejects at
 high rates when real signal is present: 84.2\% overall at $s > 0$,
@@ -952,8 +982,9 @@ Table~\ref{tab:sim-power} includes this baseline alongside the leakage-injected
 runs so that the increment attributable to leakage is visible. Pooled over
 feature dimension and the two positive signal levels, the weakest leaky setting
 is \code{lookahead} at $n = 100$ ($0.65$), which is close to the clean
-baseline at the same $n$ ($0.57$). All other mechanisms exceed the clean
-baseline by a larger margin at $n = 100$ and converge to $1.00$ by $n = 500$.
+baseline at the same $n$ ($0.57$). Subject overlap, batch confounding, and
+\code{peek\_norm} exceed the clean baseline by a larger margin at $n = 100$
+and reach $1.00$ by $n = 250$.
 Each cell in Table~\ref{tab:sim-power} pools $300$ runs
 ($3$ feature dimensions $\times$ $2$ signal levels $\times$ $50$ seeds);
 standard errors are binomial and shown in parentheses. Cells at $1.00$
@@ -973,7 +1004,7 @@ None (clean baseline) & 0.57 (.03) & 0.82 (.02) & 0.98 (.01) & 1.00 \\
 \hline
 Subject overlap & 0.93 (.01) & 1.00 & 1.00 & 1.00 \\
 \hline
-Batch confounded & 0.95 (.01) & 1.00 & 1.00 & 1.00 \\
+Batch confounding & 0.95 (.01) & 1.00 & 1.00 & 1.00 \\
 \hline
 Peek normalization & 1.00 & 1.00 & 1.00 & 1.00 \\
 \hline
@@ -1012,7 +1043,7 @@ None (clean baseline) & 0.08 (.02) & 0.09 (.02) & 0.08 (.02) & 0.06 (.02) \\
 \hline
 Subject overlap & 0.85 (.03) & 1.00 & 1.00 & 1.00 \\
 \hline
-Batch confounded & 0.89 (.03) & 1.00 & 1.00 & 1.00 \\
+Batch confounding & 0.89 (.03) & 1.00 & 1.00 & 1.00 \\
 \hline
 Peek normalization & 1.00 & 1.00 & 1.00 & 1.00 \\
 \hline
@@ -1022,11 +1053,9 @@ Look-ahead & 0.09 (.02) & 0.09 (.02) & 0.09 (.02) & 0.06 (.02) \\
 \end{table}
 
 \noindent
-The clean-baseline rejection rates of $6$--$10\%$ at $s = 0$ exceed the nominal
-$5\%$ level. This is consistent with the known liberal calibration of the
-fixed-prediction permutation test (\code{perm\_refit = FALSE}); under
-refit-based permutation, these rates would be closer to the nominal level
-(Section~\ref{sec:workflow}).
+The $6$--$9\%$ clean-baseline rates in Table~\ref{tab:sim-s0} reflect the
+same mild liberality discussed in the null calibration paragraph above; see
+Section~\ref{sec:workflow} for the refit-based alternative.
 
 This two-table presentation separates the permutation test's role as a general
 performance check ($s > 0$) from its role as a leakage detector ($s = 0$). The
@@ -1034,7 +1063,7 @@ package combines the permutation module with targeted diagnostics for
 confounding, duplicates, and target leakage precisely because no single
 component is leakage-specific in all settings.
 
-Figure~\ref{fig:sim-main}(a) shows the observed AUC for each mechanism across
+Figure~\ref{fig:sim-main}(c) shows the observed AUC for each mechanism across
 sample sizes (averaged over $s > 0$ conditions). Peek normalization inflates
 AUC to near~$1.0$ regardless of $n$, while subject overlap and batch
 confounding produce moderate inflation that narrows as $n$ grows and genuine
@@ -1042,11 +1071,11 @@ signal dominates. Look-ahead leakage sits only slightly above the clean
 baseline, consistent with the weak temporal correlation in this simulation
 design. To quantify inflation directly, panel~(d) compares each leakage
 mechanism with the clean baseline at matched $(n, s)$ values. Averaged over the
-stored configurations with $s > 0$, the mean observed AUC in clean settings was
+simulation configurations with $s > 0$, the mean observed AUC in clean settings was
 $0.75$. Relative to that clean baseline, the mean inflation in observed AUC was
 $0.089$ for \code{subject\_overlap}, $0.093$ for
 \code{batch\_confounded}, $0.244$ for \code{peek\_norm}, and $0.028$ for
-\code{lookahead}. In these stored results, explicit global peek-type leakage
+\code{lookahead}. In these simulations, explicit global peek-type leakage
 produces the largest inflation, whereas the look-ahead construction yields the
 smallest average AUC increase. This difference is attributable to the
 particular manuscript design in \code{run\_simulation.R}; it should not
@@ -1055,12 +1084,12 @@ be read as a universal ranking of leakage severity.
 \begin{figure}[tbp]
 \centering
 \includegraphics[width=\textwidth]{fig_sim_main.pdf}
-\caption{Simulation results across leakage mechanisms. (a) Observed AUC
-across sample sizes ($s > 0$). (b) AUC across signal strengths (all $s$).
-(c) Rejection rate across feature dimensions ($s = 0$). (d) AUC inflation
+\caption{Simulation results across leakage mechanisms. (a) Rejection rate
+across feature dimensions ($s = 0$). (b) AUC across signal strengths (all $s$).
+(c) Observed AUC across sample sizes ($s > 0$). (d) AUC inflation
 relative to clean baseline ($s > 0$). Error bars are $95\%$ confidence
-intervals: Student-$t$ for the AUC panels (a, b, d); Wilson for the
-binomial rejection rate in panel (c). Intervals may be too narrow to be
+intervals: Wilson for the binomial rejection rate in panel (a); Student-$t$
+for the AUC panels (b, c, d). Intervals may be too narrow to be
 visible at highly precise points. Points are horizontally jittered to
 avoid overlap.}
 \label{fig:sim-main}
@@ -1075,9 +1104,9 @@ and $s = 1.0$ (signal present). At $s = 1.0$, the clean baseline rejects in all
 $50/50$ runs for every split mode, so the $s = 1.0$ results cannot isolate
 leakage. Table~\ref{tab:sim-modes} therefore reports the $s = 0$ condition,
 where the only source of above-chance performance is the injected leakage.
-Under all four split modes, \code{subject\_overlap},
-\code{batch\_confounded}, and \code{peek\_norm} are detected with high
-power, with the notable exception of \code{batch\_confounded} under
+Across all four split modes, the \code{subject\_overlap},
+\code{batch\_confounded}, and \code{peek\_norm} mechanisms are detected with
+high power, with the notable exception of \code{batch\_confounded} under
 \code{batch\_blocked} mode ($0.02$), where the blocking variable aligns
 with the confounding structure. Look-ahead leakage is largely undetectable at
 $s = 0$ (rejection rates $0.02$--$0.04$ across modes), which is
@@ -1113,7 +1142,7 @@ contains samples from a single batch, confounding between batch and outcome is
 inherently difficult to detect via permutation because the batch structure is
 held constant. This illustrates a key design lesson: the permutation-gap test's
 sensitivity depends on the interplay between the leakage mechanism and the
-resampling geometry. The exercise reinforces the main software point of
+resampling geometry. The exercise reinforces the core design principle of
 \pkg{bioLeak}: the choice of split design is part of the model
 specification, and combining permutation tests with targeted diagnostics
 (such as the target scan) provides more robust detection.
@@ -1132,8 +1161,9 @@ a 6\% false-positive rate in the clean baseline
 (Figure~\ref{fig:sim-target})---consistent with
 the nominal $\alpha = 0.05$ level. This contrasts with the $s = 1.0$
 evaluation, where the multivariate scan rejects in all conditions (including
-the clean control) because the real signal features dominate the PCA--GLM
-statistic. The $s = 0$ results confirm that the multivariate scan has genuine
+the clean control) because the real signal features dominate the multivariate
+scan's test statistic, which is the cross-validated predictive score of a
+GLM fitted on principal components of \code{X\_ref}. The $s = 0$ results confirm that the multivariate scan has genuine
 leakage-detection power when confounding with real signal is removed.
 Nonetheless, the univariate and multivariate scans should be interpreted
 jointly, and with knowledge of the reference matrix supplied to
@@ -1152,19 +1182,19 @@ jointly, and with knowledge of the reference matrix supplied to
 
 The case study is based on \code{run\_casestudy.R} in the replication
 materials. The script draws data
-from the \pkg{curatedOvarianData} Bioconductor package and constructs a
+from the \pkg{curatedOvarianData} Bioconductor package \citep{ganzfried2013} and constructs a
 binary three-year overall survival endpoint from studies containing both
 \code{days\_to\_death} and \code{vital\_status}. After intersecting feature
 sets across eligible studies and retaining the $2{,}000$ most variable common
 genes, the final analysis dataset contains $N = 2{,}015$ samples from $S = 14$
 studies and $G = 2{,}000$ genes. Study sizes range from 50 to 376 samples, with a
-median of 125. Multi-study gene-expression prediction has long served as a
+median of 125. Gene-expression prediction has long served as a
 test case for both high-dimensional classifiers and evaluation pitfalls in
 biomedical machine learning \citep{golub1999, simon2003, tarca2007}.
 
 Four workflows were evaluated to permit a clean decomposition of the
 performance gap. The \emph{guarded} workflow used \code{study\_loocv}, median
-imputation, z-score normalization, t-test feature selection with the top 100
+imputation, z-score normalization, t-test feature selection (FS) with the top 100
 genes per fold, and a \pkg{glmnet} learner. The \emph{leaky} comparator used
 standard five-fold row-wise evaluation implemented via a
 \code{subject\_grouped} split on a dummy row identifier, the same learner,
@@ -1180,7 +1210,7 @@ pipelines bridge the extremes:
 \item \textbf{Guarded (no FS)}: same study-LOOCV splits and clean data as the
   guarded pipeline, but no feature selection---isolates the feature-selection
   effect.
-\item \textbf{Naive clean}: same row-wise 5-fold split as the leaky pipeline,
+\item \textbf{Naive (no leaks)}: same row-wise 5-fold split as the leaky pipeline,
   but with clean data and no feature selection---isolates the split-design
   effect from the leakage-feature effect.
 \end{enumerate}
@@ -1202,12 +1232,12 @@ decomposes this gap into three additive components:
   \pkg{glmnet}'s built-in $L_1$ regularization selects relevant features more
   flexibly across all $2{,}000$ genes than a rigid top-100 univariate filter.
 \item \textbf{Split-design effect} ($+0.035$): guarded (no FS) $\to$ naive
-  clean, both with clean data and no feature selection. Switching from
+  (no leaks), both with clean data and no feature selection. Switching from
   study-LOOCV to row-wise 5-fold CV raises the AUC from $0.682$ to $0.717$.
   The increase represents optimistic bias: row-wise splitting allows samples
   from the same study to appear in both training and test sets, so
   study-specific expression patterns inflate the estimate.
-\item \textbf{Leakage-feature effect} ($+0.093$): naive clean $\to$ leaky,
+\item \textbf{Leakage-feature effect} ($+0.093$): naive (no leaks) $\to$ leaky,
   both with row-wise 5-fold CV. Adding three leak-prone features raises the
   AUC from $0.717$ to $0.810$. Even with substantial noise ($\sigma = 1.0$),
   the outcome-derived feature provides the model with direct label information,
@@ -1221,7 +1251,7 @@ the three factors would redistribute the attributions. The chosen order
 (feature selection $\to$ split design $\to$ leakage features) moves from the
 most methodological choice to the most explicit data contamination, which we
 consider the most interpretable progression.  The permutation gap is
-$0.101$ (guarded), $0.173$ (guarded, no FS), $0.208$ (naive clean), and
+$0.101$ (guarded), $0.173$ (guarded, no FS), $0.208$ (naive, no leaks), and
 $0.301$ (leaky). All four permutation null distributions center near $0.5$
 by construction (global label shuffle), and all $p$-values equal $0.002$
 (the floor at $B = 500$).
@@ -1230,12 +1260,14 @@ by construction (global label shuffle), and all $p$-values equal $0.002$
 \centering
 \caption{Case-study summary. The four columns form a decomposition chain:
 each successive pipeline changes exactly one factor (feature selection, split
-design, or leakage features), isolating its contribution to the AUC gap.}
+design, or leakage features), isolating its contribution to the AUC gap.
+Study-fold $V$ is Cram\'er's $V$ between outer fold assignment and study
+identity; the multivariate scan $p$ is from the target-scan audit.}
 \label{tab:case-study}
 \small
 \begin{tabular}{|l|c|c|c|c|}
 \hline
- & \textbf{Guarded} & \textbf{Guarded (no FS)} & \textbf{Naive clean} & \textbf{Leaky} \\
+ & \textbf{Guarded} & \textbf{Guarded (no FS)} & \textbf{Naive (no leaks)} & \textbf{Leaky} \\
 \hline
 Split design & Study LOOCV & Study LOOCV & 5-fold CV & 5-fold CV \\
 Feature selection & t-test top 100 & None & None & None \\
@@ -1255,13 +1287,12 @@ Multivar.\ scan $p$ & 0.2673 & ---\textsuperscript{$\S$} & ---\textsuperscript{$
 \end{table}
 
 The study-fold association results deserve explicit interpretation. In the
-guarded workflow, Cramer's $V$ is exactly $1.000$ with a vanishingly small
-$p$-value because each outer fold is defined by study. This is not evidence of
-an implementation error; it is a property of the intended external-validation
-design. In the leaky comparator, the association is weak ($V = 0.079$,
-$p = 0.5302$) because the row-wise split ignores study boundaries. This
-contrast illustrates why association tables must be interpreted against the
-chosen resampling policy rather than in isolation.
+guarded workflow, Cram\'er's $V$ is exactly $1.000$ because each outer fold is
+defined by study. This is not evidence of an implementation error; it is a
+property of the intended external-validation design. In the leaky comparator,
+the association is weak ($V = 0.079$) because the row-wise split ignores study
+boundaries. This contrast illustrates why association tables must be
+interpreted against the chosen resampling policy rather than in isolation.
 
 The target-scan results illustrate the complementary value of multiple audit
 components (Figure~\ref{fig:case-study}(a)). In the guarded workflow,
@@ -1307,16 +1338,15 @@ captured by the resampling policy itself.
 (rescaled AUC, $|\text{AUC} - 0.5| \times 2$) for the leaky pipeline feature
 matrix; asterisks mark injected synthetic leakage features. (b) Repeat-level
 inflation scores $\Delta_r$ (leaky minus guarded AUC) from
-\code{delta\_lsi()} with 20 paired repeats; the solid line is the robust
+$\Delta_{\mathrm{LSI}}$ with 20 paired repeats; the solid line is the robust
 Huber estimate $\widehat{\Delta}_{\mathrm{LSI}}$, the dashed line is the
 arithmetic mean, and the shaded band is the $95\%$ BCa bootstrap interval.}
 \label{fig:case-study}
 \end{figure}
 
-To quantify the AUC difference more formally, we applied \code{delta\_lsi()}
-to the paired fits (both evaluated on the same batch-blocked fold structure with
-20 repeats, as documented in \code{run\_delta\_lsi.R};
-Figure~\ref{fig:case-study}(b)).
+To quantify the AUC gap formally, we applied $\Delta_{\mathrm{LSI}}$ to the
+paired fits on the same batch-blocked folds with 20 repeats
+(\code{run\_delta\_lsi.R}; Figure~\ref{fig:case-study}(b)).
 The arithmetic mean inflation was $\widehat{\Delta}_{\mathrm{metric}}
 = 0.180$ AUC, and the robust Huber estimate was
 $\widehat{\Delta}_{\mathrm{LSI}} = 0.181$ AUC, with a $95\%$ BCa
@@ -1325,9 +1355,9 @@ Figure~\ref{fig:case-study}(b) shows, all $20$ repeat-level deltas are
 positive and tightly clustered between $0.14$ and $0.21$, with no outlying
 repeats---consistent with the near-identical robust and arithmetic estimates.
 The sign-flip randomization test yielded $p < 0.001$, supporting the
-conclusion that the naive pipeline exhibits systematic performance inflation
+conclusion that the leaky pipeline exhibits systematic performance inflation
 relative to the guarded one. This pairing is
-important: because the naive and guarded pipelines share the same fold
+important: because the leaky and guarded pipelines share the same fold
 assignments, the repeat-level differences isolate the effect of leakage
 controls from the variance of fold sampling. The full \code{summary()}
 output for this \code{LeakDeltaLSI} object is shown in the code block in
@@ -1350,25 +1380,23 @@ not leakage per se but still affect the conservativeness of the estimate.
 The exercise also illustrates that some audit components, such as study-fold
 association, depend on the evaluation design and must be interpreted in context.
 
-\section{Software Design and Implementation}\label{sec:implementation}
+\section{Implementation}\label{sec:implementation}
 
-\subsection{Object structure}
+\subsection{Object structure and pipeline components}
 
 The package uses S4 classes (\code{LeakSplits}, \code{LeakFit},
 \code{LeakAudit}, \code{LeakDeltaLSI}; see Section~\ref{sec:overview})
 to maintain explicit state across the workflow. Because fits and audits are
-self-contained objects, downstream summaries do not need to recompute the
-full model pipeline, and auditing can be decoupled from fitting---useful
+self-contained objects, auditing can be decoupled from fitting---useful
 when model fitting is computationally expensive.
-
-\subsection{Pipeline components}
 
 Guarded preprocessing estimates all transformation parameters on the training
 fold and stores a transform function for applying them to the test fold.
 Supported operations include imputation (median, kNN, random-forest-based),
 normalization (z-score, robust scaling), variance and IQR filtering, and
-several univariate and model-based feature-selection methods. Character and
-factor levels are carried from training to test fold automatically.
+feature selection (t-test filter, lasso-based selection, or
+principal-component projection). Character and factor levels are carried
+from training to test fold automatically.
 
 Split construction encodes design decisions explicitly. Each mode uses the
 appropriate grouping or ordering column; \code{time\_series} additionally
@@ -1379,31 +1407,13 @@ index lists.
 \subsection{Reproducibility features}
 
 Several implementation details support reproducible analysis. Split objects
-store seeds and a content hash. Fit objects can retain sufficient information
-for refit-based permutation tests through \code{store\_refit\_data = TRUE}.
-Audit objects store both the parameters used and, optionally, the permutation
-draws themselves. This design is consistent with the principle that
+store seeds and a content hash. Fit objects store the original data and
+learner configuration by default (\code{store\_refit\_data = TRUE}),
+enabling refit-based permutation tests without manual setup. Audit objects
+store both the parameters used and, optionally, the permutation draws
+themselves. This design is consistent with the principle that
 computational claims should remain inspectable at the level of code, data
 products, and derived summaries \citep{gentleman2007, peng2011, sandve2013}.
-
-\subsection{Reproducing the paper artifacts}
-
-All results reported in this manuscript are drawn from stored,
-seed-deterministic outputs. The main simulation comprises $9{,}000$ tasks
-($180$ configurations $\times$ $50$ seeds), with a total sequential runtime
-of roughly three hours (${\sim}45$~minutes on four cores). Because routine
-re-execution during review is impractical, results are distributed as stored
-\code{.rds} files in the replication materials.
-
-Four self-contained generating scripts each set a deterministic seed and
-write per-task checkpoints. A compilation script
-(\code{compile\_results.R}) derives every number in the manuscript from
-these stored objects, so a reader can audit the full chain from raw outputs
-to reported values. The checkpoint mechanism allows partial reruns of
-individual scripts. The stored artifacts total approximately $2$\,MB;
-per-task checkpoints add ${\sim}35$\,MB. These materials are not included
-in the CRAN source tarball; they are distributed as replication files with
-this manuscript and in the GitHub repository.
 
 \subsection{Dependency structure}
 
@@ -1424,13 +1434,18 @@ focuses specifically on leakage-aware split construction, guarded preprocessing,
 post hoc leakage diagnostics, and structured reporting. While \pkg{mlr3pipelines} \citep{lang2019, bischl2024} can encapsulate preprocessing
 within resampling, \pkg{bioLeak} adds a diagnostic layer---permutation-gap
 testing, target scans, duplicate detection, and structured reporting---that
-is not provided by general-purpose pipeline frameworks. The package can be used
+is not provided by general-purpose pipeline frameworks. The \pkg{fastml}
+package \citep{korkmaz2026} provides guarded resampling workflows for
+automated machine learning, re-estimating preprocessing within each resample
+to prevent leakage-induced performance inflation; \pkg{bioLeak} is
+complementary, focusing on the evaluation design and post hoc audit layer
+rather than the model-search and training loop. The package can be used
 independently, but it is designed to coexist with existing modeling tools
 rather than to supersede them \citep{kuhn2008, kuhn2020, lang2019, bischl2024}.
 
 \section{Discussion}\label{sec:discussion}
 
-\subsection{Software perspective}
+\subsection{Design perspective}
 
 \pkg{bioLeak} addresses a practical gap in biomedical machine-learning
 workflows by pairing leakage-aware prevention mechanisms with post hoc
@@ -1444,7 +1459,7 @@ The package has several strengths. First, it makes the resampling geometry
 explicit. Users must choose whether the relevant independence unit is subject,
 batch, study, or time. Second, train-fold-only preprocessing is built into the
 central fitting interface. Third, the auditing framework creates a record of
-what was checked and how. Fourth, \code{delta\_lsi()} offers a direct way to
+what was checked and how. Fourth, $\Delta_{\mathrm{LSI}}$ offers a direct way to
 quantify how much reported performance changes when leakage controls are
 introduced. Taken together, these components support a style of model
 assessment that is more transparent than a single cross-validated AUC or
@@ -1466,10 +1481,10 @@ time, and related grouped constraints rather than on arbitrary dependency
 graphs.
 
 The modeling interface supports binary classification, multiclass
-classification, continuous regression, and survival analysis, but function-level
+classification, regression, and survival analysis, but function-level
 coverage varies by task type. Table~\ref{tab:task-coverage} summarizes the
 current state. The audit diagnostics and simulation study presented here focus
-on binary classification. The permutation-gap test and \code{delta\_lsi()}
+on binary classification. The permutation-gap test and $\Delta_{\mathrm{LSI}}$
 extend naturally to regression and survival metrics, but have not been
 evaluated empirically beyond classification in this manuscript.
 
@@ -1509,7 +1524,7 @@ for these structures are not yet implemented.
 
 \subsection{Future extensions}
 
-These restrictions are software design choices rather than conceptual
+These restrictions are implementation choices rather than conceptual
 impossibilities, and they define concrete directions for further development.
 Future work could expand the leakage taxonomy to include external-knowledge
 leakage, improve multivariate target-leakage calibration, extend nested tuning
@@ -1524,8 +1539,8 @@ linked automatically in literate-analysis pipelines.
 and diagnosing data leakage in biomedical machine learning. The package pairs
 leakage-aware resampling and guarded preprocessing with post hoc permutation
 tests, batch-association diagnostics, target-leakage scans, and duplicate
-detection. The \code{delta\_lsi()} framework offers formal inference for
-comparing naive and guarded pipelines. The simulation study shows that the
+detection. The $\Delta_{\mathrm{LSI}}$ framework offers formal inference for
+comparing leaky and guarded pipelines. The simulation study shows that the
 permutation-gap test reliably detects several leakage mechanisms at moderate
 sample sizes, while the case study demonstrates how audit components interact
 on real multi-study transcriptomic data. Together, these tools make leakage
@@ -1533,13 +1548,34 @@ assessment a documented, reproducible part of the modeling record.
 
 \section{Availability}\label{sec:availability}
 
-As of April 2026, \pkg{bioLeak} is available on CRAN as version 0.3.5.
-The development source repository is hosted at
-\url{https://github.com/selcukorkmaz/bioLeak}. Package documentation includes a
-README, a long-form vignette (\code{bioLeak-intro}), and function-level
-help pages installed with the package. The replication materials accompanying this paper contain all generating
-scripts, stored result objects, and compilation code. The package is
+\pkg{bioLeak} is available on CRAN, with a long-form tutorial as the
+package vignette (\code{bioLeak-intro}). The development source repository
+is hosted at \url{https://github.com/selcukorkmaz/bioLeak}. The package is
 released under the MIT license.
+
+\subsection*{Replication materials}
+
+All results reported in this manuscript are drawn from stored,
+seed-deterministic outputs. The main simulation comprises $9{,}000$ tasks
+($180$ configurations $\times$ $50$ seeds), with a total runtime of about
+$75$~minutes on four cores. Because routine re-execution during review is
+impractical, results are distributed as stored \code{.rds} files in the
+replication materials.
+
+Four self-contained generating scripts each set a deterministic seed and
+write per-task checkpoints: \code{run\_simulation.R} runs the main
+factorial simulation of Section~\ref{sec:simulation},
+\code{run\_supplementary.R} runs the splitting-mode robustness and
+target-scan analyses also reported in that section,
+\code{run\_casestudy.R} runs the \pkg{curatedOvarianData} case study of
+Section~\ref{sec:casestudy}, and \code{run\_delta\_lsi.R} runs the
+$\Delta_{\mathrm{LSI}}$ case-study and power analyses. A compilation script
+(\code{compile\_results.R}) derives every number in the manuscript from
+these stored objects, so a reader can audit the full chain from raw outputs
+to reported values. The checkpoint mechanism allows partial reruns of
+individual scripts. Replication materials are distributed as
+supplementary files with this manuscript and through the GitHub repository,
+separately from the CRAN source tarball.
 
 \section*{Computational details}
 
@@ -1547,11 +1583,11 @@ The results in this paper were obtained using
 \proglang{R}~4.5.2 \citep{R}. \proglang{R} itself
 and all packages used are available from the Comprehensive
 \proglang{R} Archive Network (CRAN) at
-\url{https://CRAN.R-project.org/}.
+\url{https://CRAN.R-project.org/} and Bioconductor at
+\url{https://bioconductor.org/}.
 
-The package requires \proglang{R}~$\geq$~4.1.0 (for the native pipe
-operator \code{|>} used in some examples).
-The principal package is \pkg{bioLeak}~0.3.5. Key dependencies include
+The package requires \proglang{R}~$\geq$~4.3.
+The principal package is \pkg{bioLeak}~0.3.6. Key dependencies include
 \pkg{parsnip} for model specification,
 \pkg{recipes} for preprocessing pipelines,
 \pkg{glmnet} for regularized regression,
