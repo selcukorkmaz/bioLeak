@@ -78,7 +78,31 @@ of a warning.}
 \code{fit_naive}.}
 }
 \value{
-A \code{\linkS4class{LeakDeltaLSI}} object.
+A \code{\linkS4class{LeakDeltaLSI}} object. Use
+  \code{summary()} to print a formatted report. For programmatic
+  access to inflation estimates, confidence intervals, p-values,
+  tier labels, and the per-repeat fold-level deltas, use the S4
+  accessor methods registered for \code{LeakDeltaLSI}:
+  \itemize{
+    \item \code{\link{dlsi_metric}(dlsi)} -- raw mean of
+      per-repeat metric differences (the \code{delta_metric} slot).
+    \item \code{\link{dlsi_robust}(dlsi)} -- Huber-robust point
+      estimate (the \code{delta_lsi} slot).
+    \item \code{\link{dlsi_ci}(dlsi, which = "robust" | "metric")} --
+      BCa bootstrap confidence interval for either the robust or
+      the raw estimate.
+    \item \code{\link{dlsi_p_value}(dlsi)} -- sign-flip
+      randomization-test p-value.
+    \item \code{\link{dlsi_tier}(dlsi)} -- inference-tier label
+      (\code{"A_full_inference"}, \code{"B_signflip_ci"},
+      \code{"C_signflip"}, or \code{"D_insufficient"}).
+    \item \code{\link{dlsi_R_eff}(dlsi)} -- effective number of
+      paired repeats contributing to the inference.
+    \item \code{\link{dlsi_repeats}(dlsi, which = "naive" | "guarded")}
+      -- per-repeat metric data frame for the requested pipeline.
+  }
+  The full list of accessor methods for the class is available
+  through \code{methods(class = "LeakDeltaLSI")}.
 }
 \description{
 Compares a naive (potentially leaky) cross-validation pipeline against a
@@ -127,5 +151,6 @@ BCa bootstrap confidence intervals (Efron, 1987) require
 }}
 }
 \seealso{
-\code{\link{audit_leakage}}, \code{\link{fit_resample}}
+\code{\link{audit_leakage}}, \code{\link{fit_resample}},
+  \code{\linkS4class{LeakDeltaLSI}}
 }

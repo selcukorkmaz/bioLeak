@@ -236,8 +236,10 @@
 #'       (nested inner splits if \code{nested = TRUE}), and \code{coldata}
 #'       (sample metadata).}
 #'   }
-#'   Use the \code{show} method to print a summary, or access slots directly
-#'   with \code{@}.
+#'   Use the \code{show} method to print a summary; downstream access
+#'   to the indices and metadata is normally done through the
+#'   functions that consume a \code{LeakSplits} (for example
+#'   \code{\link{fit_resample}}) rather than by reading slots directly.
 #' @examples
 #' set.seed(1)
 #' df <- data.frame(

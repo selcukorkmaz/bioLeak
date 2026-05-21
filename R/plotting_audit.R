@@ -688,3 +688,183 @@ plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
   if (interactive()) print(p)
   invisible(list(data = df, plot = p))
 }
+
+
+# =============================================================================
+# Delta-LSI repeat-level diagnostic (matches manuscript Figure 4 panel b)
+# =============================================================================
+
+#' Plot per-repeat \eqn{\Delta_r} values from a LeakDeltaLSI object
+#'
+#' Visualises the per-repeat metric differences (leaky minus guarded) for a
+#' \code{\linkS4class{LeakDeltaLSI}} object, overlaid with the robust Huber
+#' point estimate, the arithmetic mean, and the BCa bootstrap confidence
+#' interval. This is the diagnostic shown as Figure 4 panel (b) of the
+#' manuscript. Requires ggplot2.
+#'
+#' @param dlsi A \code{\linkS4class{LeakDeltaLSI}} object produced by
+#'   \code{\link{delta_lsi}}.
+#' @return A list with the per-repeat deltas, the robust and arithmetic-mean
+#'   estimates, the BCa confidence interval, and the ggplot object.
+#' @seealso \code{\link{delta_lsi}}, \code{\link{dlsi_repeats}}
+#' @export
+plot_dlsi_repeats <- function(dlsi) {
+  stopifnot(inherits(dlsi, "LeakDeltaLSI"))
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' is required for plotting. Install it to use plot_dlsi_repeats().",
+         call. = FALSE)
+  }
+  rn <- dlsi_repeats(dlsi, "naive")
+  rg <- dlsi_repeats(dlsi, "guarded")
+  if (is.null(rn) || is.null(rg) ||
+      nrow(rn) == 0L || nrow(rg) == 0L ||
+      !"metric" %in% names(rn) || !"metric" %in% names(rg)) {
+    stop("No per-repeat metric data available for plotting.", call. = FALSE)
+  }
+  R_eff   <- min(nrow(rn), nrow(rg))
+  deltas  <- rn$metric[seq_len(R_eff)] - rg$metric[seq_len(R_eff)]
+  delta_robust <- dlsi_robust(dlsi)
+  delta_mean   <- dlsi_metric(dlsi)
+  ci           <- dlsi_ci(dlsi, which = "robust")
+
+  df <- data.frame(repeat_idx = seq_len(R_eff), delta = deltas)
+  ci_lo <- if (length(ci) == 2L && all(is.finite(ci))) ci[1] else NA_real_
+  ci_hi <- if (length(ci) == 2L && all(is.finite(ci))) ci[2] else NA_real_
+
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = repeat_idx, y = delta))
+  if (is.finite(ci_lo) && is.finite(ci_hi)) {
+    p <- p + ggplot2::annotate("rect",
+      xmin = 0.5, xmax = R_eff + 0.5,
+      ymin = ci_lo, ymax = ci_hi,
+      fill = "#0072B2", alpha = 0.12)
+  }
+  p <- p +
+    ggplot2::geom_hline(yintercept = 0, color = "gray70", linetype = "dotted") +
+    ggplot2::geom_hline(yintercept = delta_robust, color = "#0072B2",
+                        linewidth = 0.9) +
+    ggplot2::geom_hline(yintercept = delta_mean, color = "#0072B2",
+                        linewidth = 0.6, linetype = "dashed") +
+    ggplot2::geom_point(color = "gray40", size = 2) +
+    ggplot2::labs(
+      title = expression("Per-repeat" ~ Delta[italic(r)] ~
+                         "(leaky " * minus * " guarded)"),
+      subtitle = sprintf(
+        "R_eff = %d   |   Delta_LSI = %.3f   |   Delta_metric = %.3f",
+        R_eff, delta_robust, delta_mean),
+      x = "Repeat", y = expression(Delta[italic(r)])) +
+    ggplot2::theme_minimal()
+
+  if (interactive()) print(p)
+  invisible(list(
+    deltas         = deltas,
+    delta_robust   = delta_robust,
+    delta_mean     = delta_mean,
+    bca_ci         = c(ci_lo, ci_hi),
+    R_eff          = R_eff,
+    plot           = p
+  ))
+}
+
+
+# =============================================================================
+# S4 plot() methods for the bioLeak result classes
+# =============================================================================
+#
+# Each method dispatches plot() on the class to the canonical diagnostic
+# helper, so that users can call `plot(audit)`, `plot(fit)`, or `plot(dlsi)`
+# without remembering the helper name. The helpers themselves are kept
+# exported so power users can call them by name and pass additional
+# arguments.
+#
+# Method signatures match base::plot(x, y, ...) so they integrate cleanly
+# with the standard R plotting idiom.
+
+#' @include classes.R accessors.R
+NULL
+
+#' Plot method for LeakAudit
+#'
+#' Diagnostic plot for a [`LeakAudit`] object. The default diagnostic is the
+#' permutation-distribution histogram produced by
+#' \code{\link{plot_perm_distribution}}.
+#'
+#' @param x A [`LeakAudit`] object.
+#' @param y Unused; present for S4 compatibility with \code{base::plot}.
+#' @param ... Additional arguments passed to \code{\link{plot_perm_distribution}}.
+#' @return Invisibly returns the list produced by
+#'   \code{\link{plot_perm_distribution}} (observed value, permuted mean,
+#'   permutation values, ggplot object).
+#' @seealso \code{\link{plot_perm_distribution}},
+#'   \code{\linkS4class{LeakAudit}}
+#' @docType methods
+#' @aliases plot,LeakAudit-method
+#' @export
+setMethod("plot", signature(x = "LeakAudit", y = "missing"),
+          function(x, y, ...) {
+            plot_perm_distribution(x, ...)
+          })
+
+#' Plot method for LeakFit
+#'
+#' Diagnostic plot for a [`LeakFit`] object. The default diagnostic is the
+#' fold-balance check produced by \code{\link{plot_fold_balance}}, which
+#' works for any classification task. Use the \code{which} argument to
+#' switch to one of the other diagnostics in the package:
+#' \code{"overlap"} (\code{\link{plot_overlap_checks}}),
+#' \code{"calibration"} (\code{\link{plot_calibration}}; binary outcomes
+#' only), \code{"time_acf"} (\code{\link{plot_time_acf}}; time-ordered
+#' splits), or \code{"confounder_sensitivity"}
+#' (\code{\link{plot_confounder_sensitivity}}).
+#'
+#' @param x A [`LeakFit`] object.
+#' @param y Unused; present for S4 compatibility with \code{base::plot}.
+#' @param which One of \code{"fold_balance"} (default),
+#'   \code{"overlap"}, \code{"calibration"}, \code{"time_acf"},
+#'   \code{"confounder_sensitivity"}.
+#' @param ... Additional arguments passed to the selected helper.
+#' @return Invisibly returns the list produced by the selected helper.
+#' @seealso \code{\link{plot_fold_balance}}, \code{\link{plot_overlap_checks}},
+#'   \code{\link{plot_calibration}}, \code{\link{plot_time_acf}},
+#'   \code{\link{plot_confounder_sensitivity}},
+#'   \code{\linkS4class{LeakFit}}
+#' @docType methods
+#' @aliases plot,LeakFit-method
+#' @export
+setMethod("plot", signature(x = "LeakFit", y = "missing"),
+          function(x, y,
+                   which = c("fold_balance", "overlap",
+                             "calibration", "time_acf",
+                             "confounder_sensitivity"),
+                   ...) {
+            which <- match.arg(which)
+            switch(which,
+              fold_balance           = plot_fold_balance(x, ...),
+              overlap                = plot_overlap_checks(x, ...),
+              calibration            = plot_calibration(x, ...),
+              time_acf               = plot_time_acf(x, ...),
+              confounder_sensitivity = plot_confounder_sensitivity(x, ...)
+            )
+          })
+
+#' Plot method for LeakDeltaLSI
+#'
+#' Diagnostic plot for a [`LeakDeltaLSI`] object: per-repeat \eqn{\Delta_r}
+#' scatter with the Huber-robust point estimate, the arithmetic mean,
+#' and the BCa bootstrap confidence interval band. This is the diagnostic
+#' shown as Figure 4 panel (b) of the manuscript.
+#'
+#' @param x A [`LeakDeltaLSI`] object.
+#' @param y Unused; present for S4 compatibility with \code{base::plot}.
+#' @param ... Additional arguments (currently unused).
+#' @return Invisibly returns the list produced by
+#'   \code{\link{plot_dlsi_repeats}}: per-repeat deltas, the robust and
+#'   arithmetic-mean estimates, the BCa interval, and the ggplot object.
+#' @seealso \code{\link{plot_dlsi_repeats}},
+#'   \code{\linkS4class{LeakDeltaLSI}}
+#' @docType methods
+#' @aliases plot,LeakDeltaLSI-method
+#' @export
+setMethod("plot", signature(x = "LeakDeltaLSI", y = "missing"),
+          function(x, y, ...) {
+            plot_dlsi_repeats(x, ...)
+          })

@@ -2,22 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{audit_duplicates}
 \alias{audit_duplicates}
-\title{Near-duplicate sample pairs from a LeakAudit}
+\alias{audit_duplicates,LeakAudit-method}
+\title{Near-duplicate pairs from a LeakAudit}
 \usage{
 audit_duplicates(audit)
+
+\S4method{audit_duplicates}{LeakAudit}(audit)
 }
 \arguments{
-\item{audit}{A `LeakAudit` object returned by [audit_leakage()].}
+\item{audit}{A [`LeakAudit`] object returned by [audit_leakage()].}
 }
 \value{
-A `data.frame` (possibly empty) with one row per detected
-  near-duplicate pair.
+A `data.frame` with one row per detected near-duplicate pair.
 }
 \description{
-Returns the near-duplicate detection data frame stored in a
-`LeakAudit` object. Each row is one (i, j) sample pair whose
-similarity exceeds the configured threshold.
+Returns the near-duplicate sample pairs data frame stored in a
+[`LeakAudit`] object. Each row is a unique (row_a, row_b) pair above
+the configured cosine-similarity threshold that crossed train/test
+partitions in at least one fold.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakAudit`]; visible
+via `methods(class = "LeakAudit")`.
 }
 \seealso{
-[audit_leakage()]
+[LeakClasses], [audit_leakage()]
 }

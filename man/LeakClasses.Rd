@@ -3,6 +3,7 @@
 \docType{class}
 \name{LeakSplits-class}
 \alias{LeakSplits-class}
+\alias{LeakClasses}
 \alias{LeakFit-class}
 \alias{LeakAudit-class}
 \alias{LeakDeltaLSI-class}
@@ -102,12 +103,60 @@ These classes capture splits, model fits, and audit diagnostics produced by
 \item{\code{info}}{(LeakDeltaLSI) Metadata including R_naive, R_guarded, paired status, and block details}
 }}
 
+\section{Accessors (LeakFit)}{
+ The S4 accessor method
+  [fit_metrics()] returns the per-fold metric data frame. It is
+  listed under \code{methods(class = "LeakFit")} alongside the
+  \code{show} and \code{summary} methods.
+}
+
+\section{Plot method (LeakFit)}{
+ \code{plot(<LeakFit>)} dispatches
+  to [plot_fold_balance()] by default. Use the \code{which}
+  argument to switch to one of \code{"overlap"},
+  \code{"calibration"} (binary outcomes only), \code{"time_acf"}
+  (time-ordered splits), or \code{"confounder_sensitivity"}.
+}
+
+\section{Accessors (LeakAudit)}{
+ The S4 accessor methods
+  [audit_perm_gap()], [audit_batch_assoc()], [audit_target_assoc()],
+  [audit_duplicates()], and [audit_info()] return the corresponding
+  slots. They are listed under \code{methods(class = "LeakAudit")}
+  alongside the \code{show} and \code{summary} methods.
+}
+
+\section{Plot method (LeakAudit)}{
+ \code{plot(<LeakAudit>)}
+  dispatches to [plot_perm_distribution()], rendering the
+  permutation-null distribution with the observed metric and
+  permuted mean marked.
+}
+
+\section{Accessors (LeakDeltaLSI)}{
+ The S4 accessor methods
+  [dlsi_metric()], [dlsi_robust()], [dlsi_ci()], [dlsi_p_value()],
+  [dlsi_tier()], [dlsi_R_eff()], and [dlsi_repeats()] return the
+  corresponding components. They are listed under
+  \code{methods(class = "LeakDeltaLSI")} alongside the \code{show}
+  and \code{summary} methods.
+}
+
+\section{Plot method (LeakDeltaLSI)}{
+ \code{plot(<LeakDeltaLSI>)}
+  dispatches to [plot_dlsi_repeats()], rendering the per-repeat
+  \eqn{\Delta_r} scatter with the Huber-robust point estimate, the
+  arithmetic mean, and the BCa bootstrap confidence interval band.
+}
+
 \seealso{
 [make_split_plan()], [fit_resample()], [audit_leakage()]
 
-[fit_resample()]
+[fit_resample()], [fit_metrics()], [plot_fold_balance()]
 
-[audit_leakage()], [audit_report()]
+[audit_leakage()], [audit_report()], [audit_perm_gap()],
+  [plot_perm_distribution()]
 
-[delta_lsi()]
+[delta_lsi()], [dlsi_metric()], [dlsi_ci()],
+  [plot_dlsi_repeats()]
 }

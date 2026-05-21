@@ -2,20 +2,27 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_metric}
 \alias{dlsi_metric}
+\alias{dlsi_metric,LeakDeltaLSI-method}
 \title{Raw delta-metric estimate from a LeakDeltaLSI}
 \usage{
 dlsi_metric(dlsi)
+
+\S4method{dlsi_metric}{LeakDeltaLSI}(dlsi)
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 }
 \value{
 A length-one numeric scalar.
 }
 \description{
 Returns the arithmetic mean of the per-repeat raw metric differences
-(leaky minus guarded) stored in a `LeakDeltaLSI` object.
+(leaky minus guarded) stored in a [`LeakDeltaLSI`] object.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
 }
 \seealso{
-[delta_lsi()], [dlsi_robust()], [dlsi_ci()]
+[LeakClasses], [delta_lsi()], [dlsi_robust()], [dlsi_ci()]
 }

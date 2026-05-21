@@ -2,22 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{fit_metrics}
 \alias{fit_metrics}
+\alias{fit_metrics,LeakFit-method}
 \title{Per-fold metric data frame from a LeakFit}
 \usage{
 fit_metrics(fit)
+
+\S4method{fit_metrics}{LeakFit}(fit)
 }
 \arguments{
-\item{fit}{A `LeakFit` object returned by [fit_resample()].}
+\item{fit}{A [`LeakFit`] object returned by [fit_resample()].}
 }
 \value{
 A `data.frame` with one row per (fold, repeat, learner)
   combination.
 }
 \description{
-Returns the per-fold metric data frame stored in a `LeakFit` object.
+Returns the per-fold metric data frame stored in a [`LeakFit`] object.
 Each row is one (fold, repeat, learner) combination; columns include
 the requested metric values such as `auc` and any task-specific
 performance scores.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakFit`]; visible
+via `methods(class = "LeakFit")`.
 }
 \examples{
 set.seed(1)
@@ -37,5 +44,5 @@ splits <- make_split_plan(df, outcome = "outcome",
 }
 }
 \seealso{
-[fit_resample()], [audit_perm_gap()]
+[LeakClasses], [fit_resample()], [audit_perm_gap()]
 }

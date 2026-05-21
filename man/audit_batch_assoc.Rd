@@ -2,22 +2,28 @@
 % Please edit documentation in R/accessors.R
 \name{audit_batch_assoc}
 \alias{audit_batch_assoc}
+\alias{audit_batch_assoc,LeakAudit-method}
 \title{Batch / study association results from a LeakAudit}
 \usage{
 audit_batch_assoc(audit)
+
+\S4method{audit_batch_assoc}{LeakAudit}(audit)
 }
 \arguments{
-\item{audit}{A `LeakAudit` object returned by [audit_leakage()].}
+\item{audit}{A [`LeakAudit`] object returned by [audit_leakage()].}
 }
 \value{
-A `data.frame` (possibly empty) with one row per
-  (metadata column, repeat).
+A `data.frame` with one row per (metadata column, repeat).
 }
 \description{
 Returns the batch/study chi-squared association data frame stored in
-a `LeakAudit` object. Columns include the metadata column, repeat,
+a [`LeakAudit`] object. Columns include the metadata column, repeat,
 chi-squared statistic, degrees of freedom, p-value, and Cramer's V.
 }
+\details{
+Implemented as an S4 generic with a method for [`LeakAudit`]; visible
+via `methods(class = "LeakAudit")`.
+}
 \seealso{
-[audit_leakage()], [audit_perm_gap()]
+[LeakClasses], [audit_leakage()]
 }

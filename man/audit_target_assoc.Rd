@@ -2,23 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{audit_target_assoc}
 \alias{audit_target_assoc}
-\title{Target leakage scan results from a LeakAudit}
+\alias{audit_target_assoc,LeakAudit-method}
+\title{Target-leakage scan results from a LeakAudit}
 \usage{
 audit_target_assoc(audit)
+
+\S4method{audit_target_assoc}{LeakAudit}(audit)
 }
 \arguments{
-\item{audit}{A `LeakAudit` object returned by [audit_leakage()].}
+\item{audit}{A [`LeakAudit`] object returned by [audit_leakage()].}
 }
 \value{
-A `data.frame` (possibly empty) with one row per scanned
-  feature.
+A `data.frame` with one row per predictor.
 }
 \description{
-Returns the per-feature target-association data frame stored in a
-`LeakAudit` object. Columns include the feature name, association
-value, score, and a logical flag indicating whether the feature
-exceeded the configured `target_threshold`.
+Returns the target-association data frame stored in a [`LeakAudit`]
+object. Each row is one predictor with its association score
+(rescaled AUC; `|AUC - 0.5| * 2`), threshold-based flag, and
+(where applicable) p-value.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakAudit`]; visible
+via `methods(class = "LeakAudit")`.
 }
 \seealso{
-[audit_leakage()], [audit_perm_gap()]
+[LeakClasses], [audit_leakage()]
 }

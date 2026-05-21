@@ -2,22 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_tier}
 \alias{dlsi_tier}
+\alias{dlsi_tier,LeakDeltaLSI-method}
 \title{Inference tier from a LeakDeltaLSI}
 \usage{
 dlsi_tier(dlsi)
+
+\S4method{dlsi_tier}{LeakDeltaLSI}(dlsi)
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 }
 \value{
 A length-one character string giving the tier label.
 }
 \description{
-Returns the inference tier label stored in a `LeakDeltaLSI` object.
+Returns the inference tier label stored in a [`LeakDeltaLSI`] object.
 Possible values are `"A_full_inference"` (`R_eff >= 20`),
-`"B_signflip_ci"` (`R_eff >= 10`), `"C_signflip"`
-(`R_eff >= 5`), or `"D_insufficient"` (`R_eff < 5`).
+`"B_signflip_ci"` (`R_eff >= 10`), `"C_signflip"` (`R_eff >= 5`),
+or `"D_insufficient"` (`R_eff < 5`).
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
 }
 \seealso{
-[delta_lsi()], [dlsi_R_eff()]
+[LeakClasses], [delta_lsi()], [dlsi_R_eff()]
 }

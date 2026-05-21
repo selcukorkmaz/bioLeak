@@ -893,8 +893,26 @@
 #'     \item{\code{info}}{List with additional metadata including multivariate
 #'       scan results when \code{target_scan_multivariate = TRUE}.}
 #'   }
-#'   Use \code{summary()} to print a human-readable report, or access slots
-#'   directly with \code{@}.
+#'   Use \code{summary()} to print a human-readable report. For
+#'   programmatic access to slot contents, the recommended interface
+#'   is the set of S4 accessor methods registered for \code{LeakAudit}:
+#'   \itemize{
+#'     \item \code{\link{audit_perm_gap}(audit)} -- permutation-gap
+#'       test data frame (the \code{permutation_gap} slot).
+#'     \item \code{\link{audit_batch_assoc}(audit)} -- batch / study
+#'       chi-squared association data frame (\code{batch_assoc}).
+#'     \item \code{\link{audit_target_assoc}(audit)} -- per-predictor
+#'       target-association scan results (\code{target_assoc}).
+#'     \item \code{\link{audit_duplicates}(audit)} -- near-duplicate
+#'       sample-pair data frame (\code{duplicates}).
+#'     \item \code{\link{audit_info}(audit)} -- auxiliary information
+#'       list including the multivariate target-scan results
+#'       (\code{info}).
+#'   }
+#'   The remaining slots (\code{fit}, \code{perm_values},
+#'   \code{trail}) do not have dedicated accessors; the full list of
+#'   accessor methods for the class is available through
+#'   \code{methods(class = "LeakAudit")}.
 #' @details
 #' The `permutation_gap` slot reports `metric_obs`, `perm_mean`, `perm_sd`,
 #' `gap`, `z`, `p_value`, and `n_perm`. The gap is defined as

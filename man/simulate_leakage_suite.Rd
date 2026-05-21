@@ -136,7 +136,8 @@ does not change results.
 \note{
 This function is a general-purpose utility and its data-generation logic
 intentionally differs from the custom simulation used in the bioLeak
-manuscript (\file{paper/run_simulation.R}). Specific differences:
+manuscript (the manuscript's \code{replication.R} script, distributed
+with the manuscript supplementary materials). Specific differences:
 \itemize{
   \item \strong{peek_norm leakage}: this function uses a z-scored binary
     outcome as the leak feature; the manuscript uses a noisy continuous
@@ -152,8 +153,9 @@ manuscript (\file{paper/run_simulation.R}). Specific differences:
     this function uses \code{perm_refit = "auto"} and the
     \code{perm_stratify} default (\code{FALSE}).
 }
-Users wishing to reproduce manuscript figures should run
-\file{paper/run_simulation.R} directly rather than calling this function.
+Users wishing to reproduce manuscript figures should run the
+manuscript-specific \code{replication.R} script directly rather
+than calling this function.
 }
 \examples{
 \donttest{

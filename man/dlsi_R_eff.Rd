@@ -2,22 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_R_eff}
 \alias{dlsi_R_eff}
+\alias{dlsi_R_eff,LeakDeltaLSI-method}
 \title{Effective number of paired repeats from a LeakDeltaLSI}
 \usage{
 dlsi_R_eff(dlsi)
+
+\S4method{dlsi_R_eff}{LeakDeltaLSI}(dlsi)
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 }
 \value{
 A length-one integer.
 }
 \description{
 Returns the effective number of paired repeats `R_eff` stored in a
-`LeakDeltaLSI` object. This is the count of repeats that contribute
-to the inference; it equals the smaller of the leaky and guarded
-fits' repeat counts when the comparison is paired.
+[`LeakDeltaLSI`] object. This is the count of repeats that
+contribute to the inference; it equals the smaller of the leaky and
+guarded fits' repeat counts when the comparison is paired.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
 }
 \seealso{
-[delta_lsi()], [dlsi_tier()]
+[LeakClasses], [delta_lsi()], [dlsi_tier()]
 }

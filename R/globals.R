@@ -3,6 +3,7 @@ if (getRversion() >= "2.15.1") {
   utils::globalVariables(c(
     "acf",
     "count",
+    "delta",
     "fold",
     "lag",
     "metric",
@@ -13,6 +14,7 @@ if (getRversion() >= "2.15.1") {
     ".pred",
     ".pred_class",
     "prop_scaled",
+    "repeat_idx",
     "series",
     "truth",
     "type",

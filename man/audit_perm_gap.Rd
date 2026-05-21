@@ -2,22 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{audit_perm_gap}
 \alias{audit_perm_gap}
+\alias{audit_perm_gap,LeakAudit-method}
 \title{Permutation-gap test results from a LeakAudit}
 \usage{
 audit_perm_gap(audit)
+
+\S4method{audit_perm_gap}{LeakAudit}(audit)
 }
 \arguments{
-\item{audit}{A `LeakAudit` object returned by [audit_leakage()].}
+\item{audit}{A [`LeakAudit`] object returned by [audit_leakage()].}
 }
 \value{
 A `data.frame` with one row per (mechanism class, repeat),
   summarising the permutation-gap test.
 }
 \description{
-Returns the permutation-gap test data frame stored in a `LeakAudit`
+Returns the permutation-gap test data frame stored in a [`LeakAudit`]
 object. Columns include the observed metric, permuted-null mean and
 SD, gap, z-score, and permutation p-value.
 }
+\details{
+Implemented as an S4 generic with a method for [`LeakAudit`]; visible
+via `methods(class = "LeakAudit")`.
+}
 \seealso{
-[audit_leakage()], [audit_target_assoc()]
+[LeakClasses], [audit_leakage()], [audit_target_assoc()]
 }

@@ -2,12 +2,15 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_ci}
 \alias{dlsi_ci}
+\alias{dlsi_ci,LeakDeltaLSI-method}
 \title{BCa confidence interval from a LeakDeltaLSI}
 \usage{
 dlsi_ci(dlsi, which = c("robust", "metric"))
+
+\S4method{dlsi_ci}{LeakDeltaLSI}(dlsi, which = c("robust", "metric"))
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 
 \item{which}{Either `"robust"` (default) for the Huber estimate's
 confidence interval, or `"metric"` for the raw arithmetic mean's
@@ -15,16 +18,21 @@ confidence interval.}
 }
 \value{
 A length-two numeric vector `c(lower, upper)`. Returns
-  `c(NA_real_, NA_real_)` when the interval is not computed (e.g.,
-  the inference tier did not include CIs).
+  `c(NA_real_, NA_real_)` when the interval is not computed (for
+  example, when the inference tier did not include CIs).
 }
 \description{
-Returns the bias-corrected and accelerated (BCa) bootstrap confidence
-interval stored in a `LeakDeltaLSI` object. By default returns the
-interval for the Huber-robust delta estimate; set
+Returns the bias-corrected and accelerated (BCa) bootstrap
+confidence interval stored in a [`LeakDeltaLSI`] object. By default
+returns the interval for the Huber-robust delta estimate; set
 `which = "metric"` to return the interval for the raw metric
 difference instead.
 }
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
+}
 \seealso{
-[delta_lsi()], [dlsi_robust()], [dlsi_metric()]
+[LeakClasses], [delta_lsi()], [dlsi_robust()],
+  [dlsi_metric()]
 }

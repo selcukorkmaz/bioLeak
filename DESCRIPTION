@@ -1,7 +1,7 @@
 Package: bioLeak
 Type: Package
 Title: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data
-Version: 0.3.7
+Version: 0.3.8
 Authors@R: c(
     person("Selcuk", "Korkmaz", role = c("aut","cre"), email = "selcukorkmaz@gmail.com",
            comment = c(ORCID = "0000-0003-4632-6850"))
@@ -59,3 +59,34 @@ Suggests:
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3
+Collate: 
+    'classes.R'
+    'accessors.R'
+    'audit.R'
+    'audit_report.R'
+    'benchmark_suite.R'
+    'ci_delta.R'
+    'conditions.R'
+    'cv_uncertainty.R'
+    'cvauc_if.R'
+    'delta_lsi.R'
+    'diagnostics_extra.R'
+    'fit_resample.R'
+    'globals.R'
+    'guard_to_recipe.R'
+    'guards.R'
+    'imports.R'
+    'impute_guarded.R'
+    'make_split_plan.R'
+    'permute_labels.R'
+    'plotting_audit.R'
+    'provenance.R'
+    'simulate_suite.R'
+    'splitgraph_adapter.R'
+    'summary.R'
+    'tidymodels.R'
+    'time_series_blocks.R'
+    'tune_resample.R'
+    'utils_metrics.R'
+    'utils_print.R'
+    'utils_se.R'

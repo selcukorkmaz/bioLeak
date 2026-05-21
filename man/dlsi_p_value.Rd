@@ -2,12 +2,15 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_p_value}
 \alias{dlsi_p_value}
+\alias{dlsi_p_value,LeakDeltaLSI-method}
 \title{Sign-flip p-value from a LeakDeltaLSI}
 \usage{
 dlsi_p_value(dlsi)
+
+\S4method{dlsi_p_value}{LeakDeltaLSI}(dlsi)
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 }
 \value{
 A length-one numeric scalar in `[0, 1]`, or `NA_real_` when
@@ -15,8 +18,12 @@ A length-one numeric scalar in `[0, 1]`, or `NA_real_` when
 }
 \description{
 Returns the paired sign-flip randomization-test p-value stored in a
-`LeakDeltaLSI` object.
+[`LeakDeltaLSI`] object.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
 }
 \seealso{
-[delta_lsi()], [dlsi_tier()]
+[LeakClasses], [delta_lsi()], [dlsi_tier()]
 }

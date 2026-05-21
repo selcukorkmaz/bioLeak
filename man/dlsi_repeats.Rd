@@ -2,12 +2,15 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_repeats}
 \alias{dlsi_repeats}
+\alias{dlsi_repeats,LeakDeltaLSI-method}
 \title{Per-repeat metric data frames from a LeakDeltaLSI}
 \usage{
 dlsi_repeats(dlsi, which = c("naive", "guarded"))
+
+\S4method{dlsi_repeats}{LeakDeltaLSI}(dlsi, which = c("naive", "guarded"))
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 
 \item{which}{Either `"naive"` (default) for the naive/leaky
 pipeline's per-repeat data frame, or `"guarded"` for the guarded
@@ -18,10 +21,14 @@ A `data.frame` with one row per repeat.
 }
 \description{
 Returns the per-repeat metric data frame for one of the two
-pipelines stored in a `LeakDeltaLSI` object. The naive (or leaky)
+pipelines stored in a [`LeakDeltaLSI`] object. The naive (or leaky)
 pipeline's repeats are returned by default; set
 `which = "guarded"` to return the guarded pipeline's repeats.
 }
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
+}
 \seealso{
-[delta_lsi()]
+[LeakClasses], [delta_lsi()]
 }

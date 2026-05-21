@@ -2,20 +2,27 @@
 % Please edit documentation in R/accessors.R
 \name{dlsi_robust}
 \alias{dlsi_robust}
+\alias{dlsi_robust,LeakDeltaLSI-method}
 \title{Huber-robust delta_lsi point estimate from a LeakDeltaLSI}
 \usage{
 dlsi_robust(dlsi)
+
+\S4method{dlsi_robust}{LeakDeltaLSI}(dlsi)
 }
 \arguments{
-\item{dlsi}{A `LeakDeltaLSI` object returned by [delta_lsi()].}
+\item{dlsi}{A [`LeakDeltaLSI`] object returned by [delta_lsi()].}
 }
 \value{
 A length-one numeric scalar.
 }
 \description{
 Returns the Huber-robust point estimate of the per-repeat delta
-values stored in a `LeakDeltaLSI` object.
+values stored in a [`LeakDeltaLSI`] object.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
+visible via `methods(class = "LeakDeltaLSI")`.
 }
 \seealso{
-[delta_lsi()], [dlsi_metric()], [dlsi_ci()]
+[LeakClasses], [delta_lsi()], [dlsi_metric()], [dlsi_ci()]
 }

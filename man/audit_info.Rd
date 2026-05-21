@@ -2,22 +2,29 @@
 % Please edit documentation in R/accessors.R
 \name{audit_info}
 \alias{audit_info}
-\title{Auxiliary information list from a LeakAudit}
+\alias{audit_info,LeakAudit-method}
+\title{Auxiliary information from a LeakAudit}
 \usage{
 audit_info(audit)
+
+\S4method{audit_info}{LeakAudit}(audit)
 }
 \arguments{
-\item{audit}{A `LeakAudit` object returned by [audit_leakage()].}
+\item{audit}{A [`LeakAudit`] object returned by [audit_leakage()].}
 }
 \value{
-A named list of supplementary audit components.
+A named `list`.
 }
 \description{
-Returns the auxiliary `info` list stored in a `LeakAudit` object.
-This list carries non-tabular audit components such as
-multivariate-target-scan results, configuration flags, and
-permutation-test diagnostics.
+Returns the auxiliary information list stored in a [`LeakAudit`]
+object. The list typically contains multivariate-target-scan
+results, configuration flags, permutation-test diagnostics, and
+provenance metadata.
+}
+\details{
+Implemented as an S4 generic with a method for [`LeakAudit`]; visible
+via `methods(class = "LeakAudit")`.
 }
 \seealso{
-[audit_leakage()]
+[LeakClasses], [audit_leakage()]
 }

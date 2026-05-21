@@ -121,8 +121,20 @@ A \code{\linkS4class{LeakFit}} S4 object containing:
       \code{refit = TRUE}), \code{final_preprocess}, \code{learner_names},
       and \code{perm_refit_spec} (for permutation-based audits).}
   }
-  Use \code{summary()} to print a formatted report, or access slots directly
-  with \code{@}.
+  Use \code{summary()} to print a formatted report. For
+  programmatic access to slot contents, the recommended interface
+  is the S4 accessor method registered for \code{LeakFit}:
+  \itemize{
+    \item \code{\link{fit_metrics}(fit)} -- per-fold metric
+      data frame (the \code{metrics} slot).
+  }
+  Slots without dedicated accessors (\code{predictions},
+  \code{info}, \code{audit}, \code{learners}, \code{preprocess},
+  \code{feature_names}, \code{outcome}, \code{task},
+  \code{splits}, \code{metric_summary}) are read directly via
+  the standard \code{@} operator when needed; the list of all
+  accessor methods for the class is available through
+  \code{methods(class = "LeakFit")}.
 }
 \description{
 Performs cross-validated model training and evaluation using

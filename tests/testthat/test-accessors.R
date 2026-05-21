@@ -153,13 +153,13 @@ test_that("fit_metrics() returns the @metrics slot for a LeakFit", {
 })
 
 test_that("fit_metrics() rejects non-LeakFit input", {
-  expect_error(fit_metrics(NULL),
-               "must be a LeakFit object")
-  expect_error(fit_metrics(data.frame(x = 1)),
-               "must be a LeakFit object")
+  # In bioLeak 0.3.8 fit_metrics is an S4 generic; calling it on a
+  # non-LeakFit signature raises an "unable to find an inherited method"
+  # error instead of the custom message used in 0.3.7.
+  expect_error(fit_metrics(NULL))
+  expect_error(fit_metrics(data.frame(x = 1)))
   audit <- make_leakaudit_fixture()
-  expect_error(fit_metrics(audit),
-               "must be a LeakFit object")
+  expect_error(fit_metrics(audit))
 })
 
 
@@ -172,9 +172,10 @@ test_that("audit_perm_gap() returns the @permutation_gap slot", {
 })
 
 test_that("audit_perm_gap() rejects non-LeakAudit input", {
-  expect_error(audit_perm_gap(NULL), "must be a LeakAudit object")
+  # S4 dispatch error in 0.3.8; see fit_metrics test comment above.
+  expect_error(audit_perm_gap(NULL))
   fit <- make_leakfit_fixture()
-  expect_error(audit_perm_gap(fit), "must be a LeakAudit object")
+  expect_error(audit_perm_gap(fit))
 })
 
 test_that("audit_batch_assoc() returns the @batch_assoc slot", {
@@ -184,8 +185,7 @@ test_that("audit_batch_assoc() returns the @batch_assoc slot", {
 })
 
 test_that("audit_batch_assoc() rejects non-LeakAudit input", {
-  expect_error(audit_batch_assoc("not an audit"),
-               "must be a LeakAudit object")
+  expect_error(audit_batch_assoc("not an audit"))
 })
 
 test_that("audit_target_assoc() returns the @target_assoc slot", {
@@ -195,8 +195,7 @@ test_that("audit_target_assoc() returns the @target_assoc slot", {
 })
 
 test_that("audit_target_assoc() rejects non-LeakAudit input", {
-  expect_error(audit_target_assoc(list(target_assoc = data.frame())),
-               "must be a LeakAudit object")
+  expect_error(audit_target_assoc(list(target_assoc = data.frame())))
 })
 
 test_that("audit_duplicates() returns the @duplicates slot", {
@@ -206,8 +205,7 @@ test_that("audit_duplicates() returns the @duplicates slot", {
 })
 
 test_that("audit_duplicates() rejects non-LeakAudit input", {
-  expect_error(audit_duplicates(1L),
-               "must be a LeakAudit object")
+  expect_error(audit_duplicates(1L))
 })
 
 test_that("audit_info() returns the @info slot", {
@@ -219,7 +217,7 @@ test_that("audit_info() returns the @info slot", {
 })
 
 test_that("audit_info() rejects non-LeakAudit input", {
-  expect_error(audit_info(list()), "must be a LeakAudit object")
+  expect_error(audit_info(list()))
 })
 
 
@@ -294,14 +292,15 @@ test_that("dlsi_repeats() rejects unknown `which` values", {
 })
 
 test_that("LeakDeltaLSI accessors all reject non-LeakDeltaLSI input", {
+  # S4 dispatch error in 0.3.8; see fit_metrics test comment above.
   not_dlsi <- list(delta_lsi = 1, delta_metric = 1)   # mimic-y but wrong class
-  expect_error(dlsi_metric(not_dlsi),   "must be a LeakDeltaLSI object")
-  expect_error(dlsi_robust(not_dlsi),   "must be a LeakDeltaLSI object")
-  expect_error(dlsi_ci(not_dlsi),       "must be a LeakDeltaLSI object")
-  expect_error(dlsi_p_value(not_dlsi),  "must be a LeakDeltaLSI object")
-  expect_error(dlsi_tier(not_dlsi),     "must be a LeakDeltaLSI object")
-  expect_error(dlsi_R_eff(not_dlsi),    "must be a LeakDeltaLSI object")
-  expect_error(dlsi_repeats(not_dlsi),  "must be a LeakDeltaLSI object")
+  expect_error(dlsi_metric(not_dlsi))
+  expect_error(dlsi_robust(not_dlsi))
+  expect_error(dlsi_ci(not_dlsi))
+  expect_error(dlsi_p_value(not_dlsi))
+  expect_error(dlsi_tier(not_dlsi))
+  expect_error(dlsi_R_eff(not_dlsi))
+  expect_error(dlsi_repeats(not_dlsi))
 })
 
 
