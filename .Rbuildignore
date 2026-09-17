@@ -8,3 +8,6 @@
 ^Meta$
 ^\.claude$
 ^paper$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

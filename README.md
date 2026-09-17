@@ -15,12 +15,14 @@
 ## Purpose and scope
 
 **In scope:**
+
 - **Preprocessing leakage:** global imputation, scaling, filtering, or feature selection applied before resampling.
 - **Dependence leakage:** repeated measures, subject-level grouping, batch/site/study effects, and near-duplicate samples.
 - **Resampling violations:** group overlap, study holdout, time-ordered evaluation, and multi-axis split constraints.
 - **Diagnostic evidence:** permutation-based performance gaps, batch/fold association tests, target leakage scans, duplicate detection, and mechanism-level risk summaries.
 
 **Out of scope:**
+
 - Proving the absence of leakage or guaranteeing unbiased performance.
 - Production deployment tooling.
 - Unsupervised learning.
@@ -95,6 +97,7 @@ remotes::install_github("selcukorkmaz/bioLeak")
 ```
 
 Non-obvious dependencies:
+
 - `SummarizedExperiment` and `BiocGenerics` are Bioconductor packages (installed automatically by `remotes`, but can be installed manually with `BiocManager::install()` if needed).
 - Optional packages enable specific features: `glmnet`, `ranger`, `pROC`, `PRROC`, `survival`, `future.apply`, `RANN`, `rmarkdown`, `tune`, `dials`.
 
@@ -198,6 +201,7 @@ summary(audit_leaky)
 ```
 
 Interpretation notes:
+
 - If the leaky comparator shows higher AUC and `leak_subject` ranks near the top of the target leakage scan, the performance gap is likely inflated by leakage.
 - Similar guarded and leaky results do not prove the absence of leakage; they only reduce specific risks tested by the audit.
 
@@ -237,6 +241,7 @@ if (requireNamespace("rsample", quietly = TRUE) &&
 ## Supported tasks and learners
 
 `bioLeak` supports four task types:
+
 - **Binomial classification**: built-in character metrics are `auc`, `pr_auc`, and `accuracy`; additional metrics can be supplied via `yardstick::metric_set` when supported by the learner outputs.
 - **Multiclass classification**: built-in character metrics are `accuracy`, `macro_f1`, and `log_loss`.
 - **Regression**: built-in character metrics are `rmse` and `cindex`.
@@ -263,6 +268,7 @@ Survival outcomes are supported in `fit_resample()`, but support is less complet
 - **Mechanism risk summary** (`audit@info$mechanism_summary`) provides a compact mechanism-level risk view across permutation, confounding, target-proxy, duplicate, and temporal signals.
 
 Common misinterpretations:
+
 - "Non-significant permutation test means no leakage": false.
 - "High AUC implies good generalization": false if resampling is violated.
 - "No flagged features means no leakage": false; audits are limited to available metadata and `X_ref`.

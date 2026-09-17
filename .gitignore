@@ -22,3 +22,6 @@
 ^Meta$
 ^\.claude$
 paper/
+
+# pkgdown site (built by CI, deployed to the gh-pages branch)
+docs/

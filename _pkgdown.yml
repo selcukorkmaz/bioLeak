@@ -1,0 +1,129 @@
+url: https://selcukorkmaz.github.io/bioLeak/
+
+# Shared palette, typography, and footer come from the leakdown template
+# package; only this package's accent and navigation are declared locally.
+template:
+  package: leakdown
+  bslib:
+    primary: "#2A7F62"
+
+home:
+  title: "bioLeak: leakage-safe modeling and auditing for genomic and clinical data"
+  description: >
+    Leakage-resistant split policies, guarded preprocessing, cross-validated
+    fitting, and permutation-based auditing for biomedical machine learning.
+
+navbar:
+  structure:
+    # No `articles` entry: bioLeak-intro.Rmd is the only vignette and it is
+    # already the `intro` link, so a dropdown would just repeat it. Add
+    # `articles` back as soon as a second vignette exists.
+    left: [intro, reference, news]
+    right: [guardedverse, search, github, lightswitch]
+  components:
+    guardedverse:
+      text: guardedverse
+      href: https://selcukorkmaz.github.io/guardedverse/
+      aria-label: The guardedverse package family
+    intro:
+      text: Get started
+      href: articles/bioLeak-intro.html
+
+reference:
+  - title: Splits
+    desc: >
+      Leakage-resistant split policies, the splitGraph handoff, and the checks
+      that confirm a split actually respects the grouping axes it claims to.
+    contents:
+      - as_leaksplits
+      - make_split_plan
+      - check_split_overlap
+      - as_rsample
+      - LeakSplits-class
+      - show,LeakSplits-method
+
+  - title: Guarded preprocessing and fitting
+    desc: >
+      Imputation, normalization, filtering, and feature selection re-estimated
+      inside each resampling split rather than once over the whole dataset.
+    contents:
+      - fit_resample
+      - tune_resample
+      - impute_guarded
+      - guard_to_recipe
+      - guard_fit
+      - guard_ensure_levels
+      - predict.GuardFit
+
+  - title: Auditing
+    desc: >
+      Post-hoc evidence: permutation gaps, batch and fold association tests,
+      target-leakage scans, and mechanism-level risk summaries.
+    contents:
+      - audit_leakage
+      - audit_leakage_by_learner
+      - audit_report
+      - calibration_summary
+      - confounder_sensitivity
+      - cv_ci
+      - delta_lsi
+
+  - title: Audit accessors
+    desc: Pull individual results out of a fitted or audited object.
+    contents:
+      - audit_info
+      - audit_perm_gap
+      - audit_batch_assoc
+      - audit_target_assoc
+      - audit_duplicates
+      - fit_metrics
+
+  - title: Leakage severity index
+    desc: Accessors for the `delta_lsi()` result.
+    contents:
+      - dlsi_metric
+      - dlsi_ci
+      - dlsi_p_value
+      - dlsi_tier
+      - dlsi_robust
+      - dlsi_repeats
+      - dlsi_R_eff
+
+  - title: Plots
+    desc: Visual counterparts to the audit and split diagnostics.
+    contents:
+      - plot,LeakAudit,missing-method
+      - plot,LeakDeltaLSI,missing-method
+      - plot,LeakFit,missing-method
+      - plot_calibration
+      - plot_confounder_sensitivity
+      - plot_dlsi_repeats
+      - plot_fold_balance
+      - plot_overlap_checks
+      - plot_perm_distribution
+      - plot_time_acf
+
+  - title: Simulation and benchmarking
+    desc: Synthetic leakage scenarios for calibrating expectations and tests.
+    contents:
+      - benchmark_leakage_suite
+      - simulate_leakage_suite
+
+  - title: Summaries
+    contents:
+      - summary.LeakAudit
+      - summary.LeakDeltaLSI
+      - summary.LeakFit
+      - summary.LeakTune
+      - print.LeakTune
+      - show,LeakAudit-method
+      - show,LeakFit-method
+
+  - title: internal
+    contents:
+      - .bio_capture_provenance
+      - .circular_block_permute
+      - .nb_corrected_var
+      - .permute_labels_factory
+      - .quantile_break_cache
+      - .stationary_bootstrap
