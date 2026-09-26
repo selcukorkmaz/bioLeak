@@ -121,6 +121,15 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
         nzchar(object@info$perm_refit_reason)) {
       cat(sprintf("  Auto mode: %s\n", object@info$perm_refit_reason))
     }
+    if (identical(perm_method, "refit")) {
+      folds_label <- switch(object@info$perm_folds %||% "fixed",
+                            redrawn = "re-drawn per permutation",
+                            "observed folds reused")
+      cat(sprintf("  Null: %s | Permutation: %s | Summary: %s\n",
+                  folds_label,
+                  object@info$perm_scheme %||% "unknown",
+                  object@info$perm_summary %||% "pooled"))
+    }
     cat(sprintf("  Observed metric: %s\n",
                 formatC(pg$metric_obs, digits = digits, format = "f")))
     cat(sprintf("  Permuted mean %s SD: %s %s %s\n",

@@ -1425,6 +1425,50 @@ if (!is.null(du) && nrow(du) > 0) {
 
 The permutation table reports the observed metric, the mean under random label permutation, the gap (difference), and a permutation *p*-value. For metrics where higher values indicate better performance, larger gaps reflect stronger non-random signal.
 
+**Which permutation null was used?**
+
+With refit-based permutations, two design choices decide whether the null is
+calibrated for grouped, stratified plans such as `safe_splits`.
+
+1. *Restricted permutation.* Labels should be permuted in a way that respects
+   the grouping. For `subject_grouped` plans, whole outcome vectors are swapped
+   between groups of equal size. This needs the outcome and the group column
+   in `perm_refit_spec$coldata`, or in `perm_refit_spec$x` when it is a
+   data.frame. If the group column is missing, the null falls back to an
+   unrestricted shuffle, and `audit_leakage()` raises a
+   `bioLeak_permutation_warning`.
+2. *Fold construction.* `make_split_plan(stratify = TRUE)` balances each fold
+   on the observed labels. If those folds are reused for permuted labels, the
+   permuted class balance varies between folds. Each fold model's baseline
+   follows its training balance, which moves opposite to its test balance, so
+   AUC pooled across folds is biased below 0.5 under the null. This is the
+   stratification bias of Parker, Günter and Bedo (2007, *BMC Bioinformatics*
+   8:326). It inflates the gap and makes the p-value anti-conservative. In a
+   pure-noise grouped design (40 families of six plus 24 singletons), the
+   fixed-fold pooled null centred between about 0.40 and 0.46, and roughly two-thirds
+   of the draws fell below 0.5.
+
+By default (`perm_folds = "auto"`), a stratified plan is re-drawn with
+`make_split_plan()` on every permuted outcome. The call reuses the plan's
+mode, grouping, `v`, `stratify` and constraints, with seed
+`splits@info$seed + b`. Observed and permuted statistics then come from the
+same fold construction. Use `perm_folds = "fixed"` to keep the observed folds,
+or `perm_folds = "redraw"` to insist on re-drawing (this errors if the plan
+cannot be rebuilt). `perm_summary = "fold_mean"` scores each draw by the mean of
+per-fold AUCs instead of the pooled AUC. The fold mean never compares
+predictions from different fold models, so between-fold baseline shifts
+cannot bias it. Refit audits report both summaries in
+`audit_info(audit)$perm_gap_summaries`.
+
+```{r audit-perm-null}
+info <- audit_info(audit)
+# Null used, fold handling, permutation scheme and summary statistic
+info[c("perm_null", "perm_folds", "perm_scheme", "perm_summary")]
+info$perm_folds_reason
+# Pooled and per-fold-mean permutation gaps (refit nulls only)
+info$perm_gap_summaries
+```
+
 The batch association table reports chi-square statistics and Cramer's V. Large
 p-values and small V values indicate that folds are not aligned with batch or
 study labels (which is the desired outcome when these should be independent).

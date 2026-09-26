@@ -39,7 +39,9 @@ audit_leakage(
   max_pairs = 5000,
   duplicate_scope = c("train_test", "all"),
   learner = NULL,
-  strict_align = FALSE
+  strict_align = FALSE,
+  perm_folds = c("auto", "fixed", "redraw"),
+  perm_summary = c("pooled", "fold_mean")
 )
 }
 \arguments{
@@ -208,6 +210,31 @@ argument is ignored with a warning. Default is NULL.}
 names or IDs and would otherwise fall back to row-order matching. Default
 is FALSE for backward compatibility. Set to TRUE in production pipelines to
 catch silent misalignment.}
+
+\item{perm_folds}{Character scalar, `"auto"`, `"fixed"`, or `"redraw"`.
+Controls the folds used by refit-based permutations (`perm_refit = TRUE`);
+ignored for fixed-prediction permutations. `"fixed"` reuses the observed
+folds for every permutation. `"redraw"` re-draws the split plan for each
+permutation by calling [make_split_plan()] on the permuted outcome with
+the observed plan's mode, grouping columns, constraints, `v`, `repeats`,
+and `stratify`, and seed `splits@info$seed + b` for permutation `b`, so
+the null reproduces the design's own fold construction. It requires a
+plan built by [make_split_plan()] whose stored metadata aligns with
+`perm_refit_spec$x`, and errors otherwise. `"auto"` (default) re-draws
+when the observed plan is stratified (`splits@info$stratify = TRUE`) and
+can be re-drawn, and keeps the observed folds otherwise (with a message
+when a stratified plan cannot be re-drawn). See Details.}
+
+\item{perm_summary}{Character scalar, `"pooled"` (default) or
+`"fold_mean"`. How out-of-fold predictions are summarised into the
+observed metric and each permutation value. `"pooled"` computes the metric
+on predictions pooled across folds (the historical behaviour).
+`"fold_mean"` averages the per-fold metric values (unweighted, over all
+folds and repeats; folds where the metric is undefined, such as
+single-class test folds for AUC, are dropped). The fold mean does not
+compare predictions from different fold models, so it is insensitive to
+between-fold baseline shifts. Refit-based audits report both summaries in
+`audit_info(audit)$perm_gap_summaries` whichever is chosen.}
 }
 \value{
 A \code{\linkS4class{LeakAudit}} S4 object containing:
@@ -244,7 +271,10 @@ A \code{\linkS4class{LeakAudit}} S4 object containing:
       results for reproducibility, including \code{metric}, \code{B},
       \code{seed}, \code{perm_stratify}, \code{perm_refit}, and timing info.}
     \item{\code{info}}{List with additional metadata including multivariate
-      scan results when \code{target_scan_multivariate = TRUE}.}
+      scan results when \code{target_scan_multivariate = TRUE} and the
+      permutation-null descriptors \code{perm_null},
+      \code{perm_folds}, \code{perm_folds_reason}, \code{perm_scheme},
+      \code{perm_summary}, and \code{perm_gap_summaries} (see Details).}
   }
   Use \code{summary()} to print a human-readable report. For
   programmatic access to slot contents, the recommended interface
@@ -295,12 +325,50 @@ labels. Fixed-prediction permutations quantify prediction-label association
 rather than a full refit null. They pool the out-of-fold predictions and
 shuffle labels globally (not within folds, which would preserve fold-level
 class balance and inflate the null), so `perm_stratify`, `time_block`, and
-`block_len` do not apply to them; `info$perm_null` records which null was
-used (`"global_shuffle"` or `"refit"`). AUC is always oriented so that
+`block_len` do not apply to them. AUC is always oriented so that
 higher predictions indicate the positive class (the second outcome level),
 so anti-correlated predictions give AUC below 0.5 and the permutation null
 centres at 0.5. Set `perm_refit = FALSE` to force fixed
 predictions, or `perm_refit = TRUE` (with `perm_refit_spec`) to always refit.
+
+\strong{Refit nulls, restricted permutations, and fold construction.}
+Refit-based permutations refit the whole pipeline on permuted outcomes. For
+grouped, blocked, study, and time-series plans the permutation is restricted
+to the design (for `subject_grouped` plans, whole outcome vectors are
+swapped between groups of equal size) when the outcome and the design column
+are available in `perm_refit_spec$coldata` (or in `perm_refit_spec$x` when it
+is a data.frame). Otherwise the refit null is an unrestricted label shuffle
+that ignores the grouping; a `bioLeak_permutation_warning` is raised in that
+case, because breaking the within-group outcome correlation makes the null
+too narrow.
+
+Stratified plans (`make_split_plan(stratify = TRUE)`) balance each fold on
+the observed labels. If the observed folds are reused under permuted
+labels, especially with group-restricted permutations, the permuted class
+balance varies from fold to fold. Each fold model's baseline prediction
+follows its training-set class balance, which is anti-correlated with the
+class balance of its test fold, so AUC computed on predictions pooled
+across folds is biased below 0.5 under the null (Parker, Gunter and Bedo,
+2007). The observed statistic does not suffer this imbalance, so the gap is
+inflated and the p-value is anti-conservative. With `perm_folds = "auto"`
+(the default) a stratified plan is therefore re-drawn on each permuted
+outcome, so that observed and permuted statistics come from the same fold
+construction. `perm_summary = "fold_mean"` additionally removes the
+between-fold baseline component from the statistic itself. In a pure-noise
+simulation (40 families of six plus 24 singletons, stratified five-fold
+grouped CV, logistic regression) the fixed-fold pooled null centred near
+about 0.40 to 0.46, and the re-drawn fold-mean null near 0.5.
+
+`info$perm_null` records the null used: `"global_shuffle"` (fixed
+predictions), `"refit_fixed_folds"`, or `"refit_redrawn_folds"`.
+`info$perm_folds` (`"fixed"` or `"redrawn"`, `NA` for fixed predictions)
+and `info$perm_folds_reason` explain the fold choice; `info$perm_scheme`
+is the label permutation (`"global_shuffle"`, `"group_restricted"`,
+`"within_batch"`, `"within_study"`, `"time_block"`, or `"unrestricted"`);
+`info$perm_summary` is the summary used in `permutation_gap`; and, for
+refit nulls, `info$perm_gap_summaries` is a data.frame with the observed
+value, null mean and SD, gap, and p-value for both the pooled and the
+fold-mean summary.
 
 `batch_assoc` contains chi-square tests between fold assignment and each
 `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`), one row per
@@ -364,4 +432,9 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 audit <- audit_leakage(fit, metric = "auc", B = 10,
                        X_ref = df[, c("x1", "x2")])
 
+}
+\references{
+Parker, B. J., \enc{Günter}{Gunter}, S. and Bedo, J. (2007). Stratification bias in low
+signal microarray studies. \emph{BMC Bioinformatics}, 8, 326.
+\doi{10.1186/1471-2105-8-326}
 }

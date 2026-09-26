@@ -862,6 +862,29 @@
 #'   names or IDs and would otherwise fall back to row-order matching. Default
 #'   is FALSE for backward compatibility. Set to TRUE in production pipelines to
 #'   catch silent misalignment.
+#' @param perm_folds Character scalar, `"auto"`, `"fixed"`, or `"redraw"`.
+#'   Controls the folds used by refit-based permutations (`perm_refit = TRUE`);
+#'   ignored for fixed-prediction permutations. `"fixed"` reuses the observed
+#'   folds for every permutation. `"redraw"` re-draws the split plan for each
+#'   permutation by calling [make_split_plan()] on the permuted outcome with
+#'   the observed plan's mode, grouping columns, constraints, `v`, `repeats`,
+#'   and `stratify`, and seed `splits@info$seed + b` for permutation `b`, so
+#'   the null reproduces the design's own fold construction. It requires a
+#'   plan built by [make_split_plan()] whose stored metadata aligns with
+#'   `perm_refit_spec$x`, and errors otherwise. `"auto"` (default) re-draws
+#'   when the observed plan is stratified (`splits@info$stratify = TRUE`) and
+#'   can be re-drawn, and keeps the observed folds otherwise (with a message
+#'   when a stratified plan cannot be re-drawn). See Details.
+#' @param perm_summary Character scalar, `"pooled"` (default) or
+#'   `"fold_mean"`. How out-of-fold predictions are summarised into the
+#'   observed metric and each permutation value. `"pooled"` computes the metric
+#'   on predictions pooled across folds (the historical behaviour).
+#'   `"fold_mean"` averages the per-fold metric values (unweighted, over all
+#'   folds and repeats; folds where the metric is undefined, such as
+#'   single-class test folds for AUC, are dropped). The fold mean does not
+#'   compare predictions from different fold models, so it is insensitive to
+#'   between-fold baseline shifts. Refit-based audits report both summaries in
+#'   `audit_info(audit)$perm_gap_summaries` whichever is chosen.
 #' @return A \code{\linkS4class{LeakAudit}} S4 object containing:
 #'   \describe{
 #'     \item{\code{fit}}{The \code{LeakFit} object that was audited.}
@@ -896,7 +919,10 @@
 #'       results for reproducibility, including \code{metric}, \code{B},
 #'       \code{seed}, \code{perm_stratify}, \code{perm_refit}, and timing info.}
 #'     \item{\code{info}}{List with additional metadata including multivariate
-#'       scan results when \code{target_scan_multivariate = TRUE}.}
+#'       scan results when \code{target_scan_multivariate = TRUE} and the
+#'       permutation-null descriptors \code{perm_null},
+#'       \code{perm_folds}, \code{perm_folds_reason}, \code{perm_scheme},
+#'       \code{perm_summary}, and \code{perm_gap_summaries} (see Details).}
 #'   }
 #'   Use \code{summary()} to print a human-readable report. For
 #'   programmatic access to slot contents, the recommended interface
@@ -930,12 +956,50 @@
 #' rather than a full refit null. They pool the out-of-fold predictions and
 #' shuffle labels globally (not within folds, which would preserve fold-level
 #' class balance and inflate the null), so `perm_stratify`, `time_block`, and
-#' `block_len` do not apply to them; `info$perm_null` records which null was
-#' used (`"global_shuffle"` or `"refit"`). AUC is always oriented so that
+#' `block_len` do not apply to them. AUC is always oriented so that
 #' higher predictions indicate the positive class (the second outcome level),
 #' so anti-correlated predictions give AUC below 0.5 and the permutation null
 #' centres at 0.5. Set `perm_refit = FALSE` to force fixed
 #' predictions, or `perm_refit = TRUE` (with `perm_refit_spec`) to always refit.
+#'
+#' \strong{Refit nulls, restricted permutations, and fold construction.}
+#' Refit-based permutations refit the whole pipeline on permuted outcomes. For
+#' grouped, blocked, study, and time-series plans the permutation is restricted
+#' to the design (for `subject_grouped` plans, whole outcome vectors are
+#' swapped between groups of equal size) when the outcome and the design column
+#' are available in `perm_refit_spec$coldata` (or in `perm_refit_spec$x` when it
+#' is a data.frame). Otherwise the refit null is an unrestricted label shuffle
+#' that ignores the grouping; a `bioLeak_permutation_warning` is raised in that
+#' case, because breaking the within-group outcome correlation makes the null
+#' too narrow.
+#'
+#' Stratified plans (`make_split_plan(stratify = TRUE)`) balance each fold on
+#' the observed labels. If the observed folds are reused under permuted
+#' labels, especially with group-restricted permutations, the permuted class
+#' balance varies from fold to fold. Each fold model's baseline prediction
+#' follows its training-set class balance, which is anti-correlated with the
+#' class balance of its test fold, so AUC computed on predictions pooled
+#' across folds is biased below 0.5 under the null (Parker, Gunter and Bedo,
+#' 2007). The observed statistic does not suffer this imbalance, so the gap is
+#' inflated and the p-value is anti-conservative. With `perm_folds = "auto"`
+#' (the default) a stratified plan is therefore re-drawn on each permuted
+#' outcome, so that observed and permuted statistics come from the same fold
+#' construction. `perm_summary = "fold_mean"` additionally removes the
+#' between-fold baseline component from the statistic itself. In a pure-noise
+#' simulation (40 families of six plus 24 singletons, stratified five-fold
+#' grouped CV, logistic regression) the fixed-fold pooled null centred near
+#' about 0.40 to 0.46, and the re-drawn fold-mean null near 0.5.
+#'
+#' `info$perm_null` records the null used: `"global_shuffle"` (fixed
+#' predictions), `"refit_fixed_folds"`, or `"refit_redrawn_folds"`.
+#' `info$perm_folds` (`"fixed"` or `"redrawn"`, `NA` for fixed predictions)
+#' and `info$perm_folds_reason` explain the fold choice; `info$perm_scheme`
+#' is the label permutation (`"global_shuffle"`, `"group_restricted"`,
+#' `"within_batch"`, `"within_study"`, `"time_block"`, or `"unrestricted"`);
+#' `info$perm_summary` is the summary used in `permutation_gap`; and, for
+#' refit nulls, `info$perm_gap_summaries` is a data.frame with the observed
+#' value, null mean and SD, gap, and p-value for both the pooled and the
+#' fold-mean summary.
 #'
 #' `batch_assoc` contains chi-square tests between fold assignment and each
 #' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`), one row per
@@ -964,6 +1028,10 @@
 #' duplicates. The `duplicates` slot returns index pairs and similarity values
 #' for near-duplicate samples. Only duplicates present in `X_ref` can be
 #' detected, and checks are skipped if inputs cannot be aligned to splits.
+#' @references
+#' Parker, B. J., \enc{Günter}{Gunter}, S. and Bedo, J. (2007). Stratification bias in low
+#' signal microarray studies. \emph{BMC Bioinformatics}, 8, 326.
+#' \doi{10.1186/1471-2105-8-326}
 #' @examples
 #' set.seed(1)
 #' df <- data.frame(
@@ -1033,7 +1101,9 @@ audit_leakage <- function(fit,
                           max_pairs = 5000,
                           duplicate_scope = c("train_test", "all"),
                           learner = NULL,
-                          strict_align = FALSE) {
+                          strict_align = FALSE,
+                          perm_folds = c("auto", "fixed", "redraw"),
+                          perm_summary = c("pooled", "fold_mean")) {
 
   # --- CRITICAL PATCH: Support LeakTune objects (via tune_resample) ---
   if (inherits(fit, "LeakTune")) {
@@ -1116,6 +1186,8 @@ audit_leakage <- function(fit,
   time_block <- match.arg(time_block)
   ci_method <- match.arg(ci_method)
   target_p_adjust <- match.arg(target_p_adjust)
+  perm_folds <- match.arg(perm_folds)
+  perm_summary <- match.arg(perm_summary)
 
   if (!is.numeric(target_threshold) || length(target_threshold) != 1L ||
       !is.finite(target_threshold) || target_threshold <= 0 || target_threshold >= 1) {
@@ -1482,8 +1554,12 @@ audit_leakage <- function(fit,
   }
 
   all_pred <- do.call(rbind, pred_list)
+  # Fold membership of each pooled prediction, used by perm_summary = "fold_mean".
+  obs_fold_key <- rep(seq_along(pred_list), vapply(pred_list, nrow, integer(1)))
 
-  metric_obs <- .metric_value(metric, task, all_pred$truth, all_pred$pred, pred_df = all_pred)
+  metric_obs_by <- .perm_metric_summaries(metric, task, all_pred, obs_fold_key,
+                                          summaries = c("pooled", "fold_mean"))
+  metric_obs <- metric_obs_by[[perm_summary]]
 
   delta <- NA_real_
   perm_mean <- NA_real_
@@ -1514,6 +1590,10 @@ audit_leakage <- function(fit,
 
   # --- Permutations ----------------------------------------------------------
   perm_vals <- numeric(0)
+  perm_mat <- NULL
+  perm_scheme <- "global_shuffle"
+  perm_folds_used <- NA_character_
+  perm_folds_reason <- NULL
   if (perm_refit) {
     if (identical(task, "survival")) {
       stop("perm_refit=TRUE is not supported for survival tasks.", call. = FALSE)
@@ -1590,18 +1670,133 @@ audit_leakage <- function(fit,
     }
 
     perm_full_source <- NULL
-    if (!is.null(refit_coldata) &&
-        refit_outcome %in% names(refit_coldata) &&
-        perm_mode_use %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
+    split_info <- fit@splits@info
+    split_cd <- split_info$coldata
+    restricted_modes <- c("subject_grouped", "batch_blocked", "study_loocv", "time_series")
+    design_col <- switch(perm_mode_use,
+                         subject_grouped = split_info$group %||% "group",
+                         batch_blocked = split_info$batch %||% "batch",
+                         study_loocv = split_info$study %||% "study",
+                         time_series = split_info$time %||% "time",
+                         NULL)
+    perm_scheme <- "unrestricted"
+    perm_scheme_reason <- NULL
+    if (!perm_mode_use %in% restricted_modes) {
+      perm_scheme_reason <- sprintf(
+        "restricted permutations are not implemented for split mode '%s'; pass perm_mode= to choose one",
+        perm_mode_use)
+    } else if (is.null(refit_coldata) || !refit_outcome %in% names(refit_coldata)) {
+      perm_scheme_reason <- sprintf(
+        "no refit metadata carries the outcome; supply perm_refit_spec$coldata with columns '%s' and '%s', aligned to perm_refit_spec$x",
+        refit_outcome, design_col)
+    } else {
       folds_perm <- list(list(test = seq_len(n_refit), fold = 1L, repeat_id = 1L))
       perm_full_source <- .permute_labels_factory(
         cd = refit_coldata, outcome = refit_outcome, mode = perm_mode_use,
         folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
         block_len = block_len, seed = seed,
-        group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-        study_col = fit@splits@info$study, time_col = fit@splits@info$time,
+        group_col = split_info$group, batch_col = split_info$batch,
+        study_col = split_info$study, time_col = split_info$time,
         perm_refit = TRUE
       )
+      perm_scheme <- switch(perm_mode_use,
+                            subject_grouped = "group_restricted",
+                            batch_blocked = "within_batch",
+                            study_loocv = "within_study",
+                            time_series = "time_block")
+      # .permute_subject_grouped() treats every sample as its own group when
+      # the grouping column is absent, which is an unrestricted shuffle.
+      if (identical(perm_mode_use, "subject_grouped") &&
+          !design_col %in% names(refit_coldata) &&
+          !"group" %in% names(refit_coldata)) {
+        perm_scheme <- "unrestricted"
+        perm_scheme_reason <- sprintf(
+          "the refit metadata has no grouping column '%s'; supply perm_refit_spec$coldata with columns '%s' and '%s', aligned to perm_refit_spec$x",
+          design_col, refit_outcome, design_col)
+      }
+    }
+    if (identical(perm_scheme, "unrestricted")) {
+      # Warn only when the splits declare a design. Custom splits carry no
+      # grouping, and a grouping column that is unique per sample (e.g.
+      # group = "row_id") has no structure to preserve, so an unrestricted
+      # shuffle is then the design-respecting null.
+      has_design <- perm_mode_use %in% c(restricted_modes, "combined")
+      trivial_design <- identical(perm_mode_use, "subject_grouped") &&
+        is.data.frame(split_cd) && design_col %in% names(split_cd) &&
+        !anyDuplicated(split_cd[[design_col]])
+      if (has_design && !trivial_design) {
+        .bio_warn(sprintf(paste0(
+          "audit_leakage(): the refit permutation null is an unrestricted label ",
+          "shuffle that ignores the split design (mode = '%s'): %s. Permuting ",
+          "labels across groups breaks the within-group outcome correlation, so ",
+          "the null can be too narrow and the p-value anti-conservative."),
+          fit@splits@mode, perm_scheme_reason),
+          "bioLeak_permutation_warning")
+      }
+    }
+
+    # Fold construction under the null. Stratified plans balance each fold on
+    # the TRUE labels; refitting on permuted labels while keeping those folds
+    # leaves the permuted class balance to vary across folds, and each fold
+    # model's baseline then tracks its training balance, which is
+    # anti-correlated with its test fold's balance. Pooled AUC under the null
+    # is then biased below 0.5 (Parker, Gunter & Bedo, 2007), which inflates
+    # the gap. Re-drawing the plan on each permuted outcome removes this.
+    redraw_modes <- c("subject_grouped", "batch_blocked", "study_loocv", "time_series", "combined")
+    split_outcome <- split_info$outcome
+    split_stratified <- isTRUE(split_info$stratify)
+    redraw_problem <- NULL
+    if (!fit@splits@mode %in% redraw_modes) {
+      redraw_problem <- sprintf("split mode '%s' was not built by make_split_plan()", fit@splits@mode)
+    } else if (!is.data.frame(split_cd) || nrow(split_cd) != n_refit) {
+      redraw_problem <- "split metadata (splits@info$coldata) is missing or has a different number of rows than perm_refit_spec$x"
+    } else if (is.null(split_outcome) || length(split_outcome) != 1L ||
+               !split_outcome %in% names(split_cd)) {
+      redraw_problem <- "the split outcome column is not recorded in the split metadata"
+    } else if (is.null(split_info$v) || is.null(split_info$seed)) {
+      redraw_problem <- "the split plan settings (v, seed) are not recorded"
+    }
+    if (identical(perm_folds, "redraw")) {
+      if (!is.null(redraw_problem)) {
+        stop(sprintf("perm_folds = \"redraw\" is not possible: %s.", redraw_problem), call. = FALSE)
+      }
+      perm_folds_used <- "redrawn"
+      perm_folds_reason <- "perm_folds = \"redraw\": split plan re-drawn on each permuted outcome."
+    } else if (identical(perm_folds, "fixed")) {
+      perm_folds_used <- "fixed"
+      perm_folds_reason <- "perm_folds = \"fixed\": observed folds reused for every permutation."
+    } else if (!split_stratified) {
+      perm_folds_used <- "fixed"
+      perm_folds_reason <- "auto: splits are not stratified, so the observed folds do not depend on the outcome."
+    } else if (!is.null(redraw_problem)) {
+      perm_folds_used <- "fixed"
+      perm_folds_reason <- sprintf("auto: stratified splits but folds cannot be re-drawn (%s).", redraw_problem)
+      message("audit_leakage(): the splits are stratified on the observed outcome but cannot ",
+              "be re-drawn for each permutation (", redraw_problem, "). The refit null ",
+              "keeps the observed folds, which can bias pooled AUC below 0.5; consider ",
+              "perm_summary = \"fold_mean\".")
+    } else {
+      perm_folds_used <- "redrawn"
+      perm_folds_reason <- "auto: stratified splits, so the split plan is re-drawn on each permuted outcome."
+    }
+
+    redraw_splits <- function(b, y_perm) {
+      cd_b <- split_cd
+      cd_b[[split_outcome]] <- .coerce_truth_like(split_cd[[split_outcome]], y_perm)
+      is_combined <- identical(fit@splits@mode, "combined")
+      # Warnings repeat those already raised when the observed plan was built.
+      suppressWarnings(make_split_plan(
+        cd_b, outcome = split_outcome, mode = fit@splits@mode,
+        group = split_info$group, batch = split_info$batch,
+        study = split_info$study, time = split_info$time,
+        constraints = if (is_combined) split_info$constraints else NULL,
+        v = split_info$v, repeats = split_info$repeats %||% 1L,
+        stratify = split_stratified, nested = isTRUE(split_info$nested),
+        seed = split_info$seed + b,
+        horizon = split_info$horizon %||% 0, purge = split_info$purge %||% 0,
+        embargo = split_info$embargo %||% 0,
+        progress = FALSE, compact = isTRUE(split_info$compact)
+      ))
     }
 
     permute_outcome <- function(b) {
@@ -1640,14 +1835,26 @@ audit_leakage <- function(fit,
       stop("perm_refit_spec$x must be a SummarizedExperiment, data.frame, or matrix.", call. = FALSE)
     }
 
+    refit_summaries <- c("pooled", "fold_mean")
+    na_summaries <- stats::setNames(rep(NA_real_, length(refit_summaries)), refit_summaries)
     perm_eval_refit <- function(b) {
       set.seed(seed + b)
       y_perm <- permute_outcome(b)
       x_perm <- apply_outcome(refit_x, refit_outcome, y_perm)
+      splits_b <- fit@splits
+      if (identical(perm_folds_used, "redrawn")) {
+        splits_b <- try(redraw_splits(b, y_perm), silent = TRUE)
+        if (inherits(splits_b, "try-error")) {
+          warning(sprintf("Permutation %d: re-drawing the split plan failed: %s",
+                          b, conditionMessage(attr(splits_b, "condition"))),
+                  call. = FALSE)
+          return(na_summaries)
+        }
+      }
       fit_perm <- try(fit_resample(
         x_perm,
         outcome = refit_outcome,
-        splits = fit@splits,
+        splits = splits_b,
         preprocess = refit_preprocess,
         learner = refit_learner,
         learner_args = refit_learner_args,
@@ -1663,22 +1870,25 @@ audit_leakage <- function(fit,
       if (inherits(fit_perm, "try-error")) {
         warning(sprintf("Permutation refit %d failed: %s", b, attr(fit_perm, "condition")$message),
                 call. = FALSE)
-        return(NA_real_)
+        return(na_summaries)
       }
       perm_pred <- if (length(fit_perm@predictions)) {
         do.call(rbind, lapply(fit_perm@predictions, function(df) data.frame(df, stringsAsFactors = FALSE)))
       } else {
         NULL
       }
-      if (is.null(perm_pred) || !nrow(perm_pred)) return(NA_real_)
-      .metric_value(metric, task, perm_pred$truth, perm_pred$pred, pred_df = perm_pred)
+      if (is.null(perm_pred) || !nrow(perm_pred)) return(na_summaries)
+      .perm_metric_summaries(metric, task, perm_pred, perm_pred$fold,
+                             summaries = refit_summaries)
     }
 
-    if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
-      perm_vals <- future.apply::future_sapply(seq_len(B), perm_eval_refit, future.seed = TRUE)
+    perm_list <- if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
+      future.apply::future_lapply(seq_len(B), perm_eval_refit, future.seed = TRUE)
     } else {
-      perm_vals <- sapply(seq_len(B), perm_eval_refit)
+      lapply(seq_len(B), perm_eval_refit)
     }
+    perm_mat <- do.call(rbind, perm_list)
+    perm_vals <- as.numeric(perm_mat[, perm_summary])
   } else {
     # Fixed-prediction permutations always use a global label shuffle (see
     # below), so the restricted-permutation arguments cannot shape this null.
@@ -1717,7 +1927,8 @@ audit_leakage <- function(fit,
       } else {
         agg$truth <- agg$truth[perm_idx]
       }
-      .metric_value(metric, task, agg$truth, agg$pred, pred_df = agg)
+      .perm_metric_summaries(metric, task, agg, obs_fold_key,
+                             summaries = perm_summary)[[1]]
     }
 
     if (parallel && requireNamespace("future.apply", quietly = TRUE)) {
@@ -1729,25 +1940,24 @@ audit_leakage <- function(fit,
     }
   }
 
-  if (!is.na(metric_obs) && is.finite(metric_obs)) {
-    if (!any(is.finite(perm_vals))) {
-      perm_mean <- NA_real_
-      perm_sd <- NA_real_
-      pval <- NA_real_
-      p_se <- NA_real_
-      delta <- NA_real_
-    } else {
-      perm_mean <- mean(perm_vals, na.rm = TRUE)
-      perm_sd <- stats::sd(perm_vals, na.rm = TRUE)
-      finite_perm <- is.finite(perm_vals)
-      pval <- if (higher_better) {
-        (1 + sum(perm_vals[finite_perm] >= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
-      } else {
-        (1 + sum(perm_vals[finite_perm] <= metric_obs, na.rm = TRUE)) / (1 + sum(finite_perm))
-      }
-      p_se <- sqrt(pval * (1 - pval) / (sum(finite_perm) + 1))
-      delta <- if (higher_better) metric_obs - perm_mean else perm_mean - metric_obs
-    }
+  gap_stats <- .perm_gap_stats(metric_obs, perm_vals, higher_better)
+  perm_mean <- gap_stats$perm_mean
+  perm_sd <- gap_stats$perm_sd
+  pval <- gap_stats$p_value
+  p_se <- gap_stats$p_se
+  delta <- gap_stats$gap
+
+  # Both summaries of the refit null, so the pooled and fold-mean gaps can be
+  # compared (the fold mean is insensitive to between-fold baseline shifts).
+  perm_gap_summaries <- NULL
+  if (!is.null(perm_mat)) {
+    perm_gap_summaries <- do.call(rbind, lapply(colnames(perm_mat), function(nm) {
+      st <- .perm_gap_stats(metric_obs_by[[nm]], as.numeric(perm_mat[, nm]), higher_better)
+      data.frame(summary = nm, metric_obs = metric_obs_by[[nm]],
+                 perm_mean = st$perm_mean, perm_sd = st$perm_sd, gap = st$gap,
+                 p_value = st$p_value, n_perm = sum(is.finite(perm_mat[, nm])),
+                 stringsAsFactors = FALSE)
+    }))
   }
 
   seci <- list(se = NA_real_, ci = c(NA_real_, NA_real_), z = NA_real_)
@@ -2403,7 +2613,16 @@ audit_leakage <- function(fit,
         perm_stratify = perm_stratify,
         perm_method = perm_method,
         perm_mode = perm_mode_use,
-        perm_null = if (isTRUE(perm_refit)) "refit" else "global_shuffle",
+        perm_null = if (isTRUE(perm_refit)) {
+          paste0("refit_", perm_folds_used, "_folds")
+        } else {
+          "global_shuffle"
+        },
+        perm_folds = perm_folds_used,
+        perm_folds_reason = perm_folds_reason,
+        perm_scheme = perm_scheme,
+        perm_summary = perm_summary,
+        perm_gap_summaries = perm_gap_summaries,
         perm_refit_mode = perm_refit_mode,
         perm_refit_reason = perm_refit_reason,
         perm_refit_auto_max = perm_refit_auto_max,
@@ -2707,3 +2926,52 @@ print.LeakAuditList <- function(x, digits = 3, ...) {
   }
 }
 
+
+# Mean of the per-fold metric values (folds where the metric is undefined,
+# e.g. a single-class test fold for AUC, are dropped). Unlike the pooled
+# metric, it does not compare predictions across fold models, so it is
+# insensitive to between-fold shifts in the models' baselines.
+.fold_mean_metric <- function(metric, task, pred_df, fold) {
+  if (is.null(pred_df) || !nrow(pred_df) || is.null(fold) || length(fold) != nrow(pred_df)) {
+    return(NA_real_)
+  }
+  vals <- vapply(split(seq_len(nrow(pred_df)), fold), function(ix) {
+    d <- pred_df[ix, , drop = FALSE]
+    v <- tryCatch(.metric_value(metric, task, d$truth, d$pred, pred_df = d),
+                  error = function(e) NA_real_)
+    if (length(v) != 1L || !is.finite(v)) NA_real_ else as.numeric(v)
+  }, numeric(1))
+  if (!any(is.finite(vals))) return(NA_real_)
+  mean(vals, na.rm = TRUE)
+}
+
+# Named vector of the requested summaries ("pooled" and/or "fold_mean") of
+# out-of-fold predictions.
+.perm_metric_summaries <- function(metric, task, pred_df, fold,
+                                   summaries = c("pooled", "fold_mean")) {
+  out <- stats::setNames(rep(NA_real_, length(summaries)), summaries)
+  if (is.null(pred_df) || !nrow(pred_df)) return(out)
+  if ("pooled" %in% summaries) {
+    out[["pooled"]] <- .metric_value(metric, task, pred_df$truth, pred_df$pred,
+                                     pred_df = pred_df)
+  }
+  if ("fold_mean" %in% summaries) {
+    out[["fold_mean"]] <- .fold_mean_metric(metric, task, pred_df, fold)
+  }
+  out
+}
+
+# Permutation-gap statistics for one observed value and its null draws.
+.perm_gap_stats <- function(obs, vals, higher_better) {
+  out <- list(perm_mean = NA_real_, perm_sd = NA_real_, p_value = NA_real_,
+              p_se = NA_real_, gap = NA_real_)
+  finite_perm <- is.finite(vals)
+  if (length(obs) != 1L || !is.finite(obs) || !any(finite_perm)) return(out)
+  out$perm_mean <- mean(vals, na.rm = TRUE)
+  out$perm_sd <- stats::sd(vals, na.rm = TRUE)
+  exceed <- if (higher_better) vals[finite_perm] >= obs else vals[finite_perm] <= obs
+  out$p_value <- (1 + sum(exceed)) / (1 + sum(finite_perm))
+  out$p_se <- sqrt(out$p_value * (1 - out$p_value) / (sum(finite_perm) + 1))
+  out$gap <- if (higher_better) obs - out$perm_mean else out$perm_mean - obs
+  out
+}
