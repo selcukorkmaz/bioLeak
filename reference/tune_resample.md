@@ -238,6 +238,9 @@ A list of class \`"LeakTune"\` with components:
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #>   |                                                                              |======================================================================| 100%
 #> → A | warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> There were issues with some computations   A: x1
+#> There were issues with some computations   A: x3
+#> 
 #>   |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
 #>               learner accuracy_mean accuracy_sd roc_auc_mean roc_auc_sd
 #> 1 logistic_reg/glmnet           0.5           0          0.5          0

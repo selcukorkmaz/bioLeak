@@ -114,6 +114,7 @@ summary(audit) # prints the audit report and returns `audit` invisibly
 #> 
 #> Label-Permutation Association Test:
 #>   Method: refit per permutation (auto)
+#>   Null: observed folds reused | Permutation: group_restricted | Summary: pooled
 #>   Observed metric: 0.611
 #>   Permuted mean ± SD: 0.294 ± 0.131
 #>   Gap: 0.317 (larger gap = stronger non-random signal)

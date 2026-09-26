@@ -73,7 +73,63 @@ CRAN release: 2026-05-21
   normalization. The pipeline order and the default (`var_thresh = 0`,
   `iqr_thresh = 0`, no filtering) are unchanged.
 
+- **Refit permutation null for stratified plans (results can change).**
+  `audit_leakage(perm_refit = TRUE)` refitted on permuted outcomes but
+  kept the observed folds, which `make_split_plan(stratify = TRUE)` had
+  balanced on the true labels. Under permuted labels, and especially
+  under group-restricted permutations, the fold class balance then
+  varied widely. Each fold model’s baseline tracks its training balance,
+  which is anti-correlated with its test balance, so pooled AUC under
+  the null was biased below 0.5. This is the stratification bias of
+  Parker, Günter and Bedo (2007, *BMC Bioinformatics* 8:326). The result
+  was an inflated gap and an anti-conservative p-value. In a pure-noise
+  grouped design (40 families of six plus 24 singletons), the fixed-fold
+  null centred at 0.40-0.46, with about two-thirds of draws below 0.5.
+  On one simulated design, using re-drawn folds and fold-mean AUC cut
+  the gap from 0.235 to 0.158 and raised p from 0.0099 to 0.050. New
+  argument `perm_folds = c("auto", "fixed", "redraw")`: `"redraw"`
+  re-draws the split plan for each permutation with
+  [`make_split_plan()`](https://selcukorkmaz.github.io/bioLeak/reference/make_split_plan.md)
+  on the permuted outcome. It uses the same mode, grouping columns,
+  constraints, `v`, `repeats` and `stratify`, with seed
+  `splits@info$seed + b`. The default, `"auto"`, re-draws whenever the
+  plan is stratified and can be rebuilt. Unstratified plans keep their
+  observed folds, so their results are unchanged.
+
+- **Unrestricted refit nulls are no longer silent.** When the refit
+  metadata lacks the outcome or the design column, the refit null is an
+  unrestricted label shuffle that ignores the grouping. The common
+  trigger is `perm_refit_spec$x` without the group column and no
+  `perm_refit_spec$coldata`, which includes the refit data that
+  [`fit_resample()`](https://selcukorkmaz.github.io/bioLeak/reference/fit_resample.md)
+  stores by default.
+  [`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md)
+  now raises a `bioLeak_permutation_warning` in that case, naming the
+  missing column. No warning is raised when the grouping has one sample
+  per group (for example `group = "row_id"`).
+
 ### Behaviour changes and new arguments
+
+- [`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md)
+  gains `perm_summary = c("pooled", "fold_mean")`. `"fold_mean"` scores
+  the observed fit and each permutation by the mean of per-fold metric
+  values instead of the metric on predictions pooled across folds.
+  Between-fold baseline shifts cannot bias it, and Parker et al.
+
+  2007. recommend it for AUC. Refit audits report both summaries in
+        `audit_info(aud)$perm_gap_summaries`. The default, `"pooled"`,
+        keeps the previous behaviour.
+
+- `audit_info(aud)` now records the null used: `perm_null` is
+  `"global_shuffle"`, `"refit_fixed_folds"` or `"refit_redrawn_folds"`
+  (previously `"refit"` for every refit null). It also records
+  `perm_folds`, `perm_folds_reason`, `perm_scheme`
+  (`"group_restricted"`, `"within_batch"`, `"within_study"`,
+  `"time_block"`, `"unrestricted"` or `"global_shuffle"`),
+  `perm_summary` and `perm_gap_summaries`.
+  [`summary()`](https://rdrr.io/r/base/summary.html) prints the fold
+  handling, the permutation scheme and the summary statistic for refit
+  nulls.
 
 - [`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md)
   with `perm_refit = FALSE`: the permutation-gap null is, by design, a
@@ -83,8 +139,7 @@ CRAN release: 2026-05-21
   effect. The dead code is removed, a warning is now raised when any of
   these is set on the fixed-prediction path, the documentation says
   which null each argument affects, and `info$perm_null` records the
-  null used (`"global_shuffle"` or `"refit"`). Refit-based permutations
-  are unchanged.
+  null used (see the entry above for its values).
 
 - [`fit_resample()`](https://selcukorkmaz.github.io/bioLeak/reference/fit_resample.md)
   gains `id_cols`, a character vector of identifier or metadata columns

@@ -149,5 +149,5 @@ if (requireNamespace("rmarkdown", quietly = TRUE) &&
   out_file <- audit_report(audit, output_dir = tempdir(), quiet = TRUE)
   out_file
 }
-#> [1] "/tmp/RtmpWE7Q3a/bioLeak_audit_report.html"
+#> [1] "/tmp/RtmpwYsGcD/bioLeak_audit_report.html"
 ```

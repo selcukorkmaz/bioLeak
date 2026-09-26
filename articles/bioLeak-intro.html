@@ -1184,11 +1184,11 @@ permutations. When multiple learners are passed,
 <code class="sourceCode R"><span><span class="co"># Fold-level diagnostics for reproducible troubleshooting</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">info</span><span class="op">$</span><span class="va">fold_status</span>, <span class="fl">5</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   fold    stage  status reason                    notes elapsed_sec</span></span>
-<span><span class="co">#&gt; 1    1 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.016</span></span>
-<span><span class="co">#&gt; 2    2 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.014</span></span>
-<span><span class="co">#&gt; 3    3 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.014</span></span>
-<span><span class="co">#&gt; 4    4 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.014</span></span>
-<span><span class="co">#&gt; 5    5 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.014</span></span></code></pre></div>
+<span><span class="co">#&gt; 1    1 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.025</span></span>
+<span><span class="co">#&gt; 2    2 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.023</span></span>
+<span><span class="co">#&gt; 3    3 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.022</span></span>
+<span><span class="co">#&gt; 4    4 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.022</span></span>
+<span><span class="co">#&gt; 5    5 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.022</span></span></code></pre></div>
 <p>Interpretation of <code>fold_status</code>:</p>
 <ul>
 <li>
@@ -2099,9 +2099,10 @@ outcomes support it.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Label-Permutation Association Test:</span></span>
 <span><span class="co">#&gt;   Method: refit per permutation (auto)</span></span>
+<span><span class="co">#&gt;   Null: re-drawn per permutation | Permutation: group_restricted | Summary: pooled</span></span>
 <span><span class="co">#&gt;   Observed metric: 0.614</span></span>
-<span><span class="co">#&gt;   Permuted mean ± SD: 0.497 ± 0.084</span></span>
-<span><span class="co">#&gt;   Gap: 0.117 (larger gap = stronger non-random signal)</span></span>
+<span><span class="co">#&gt;   Permuted mean ± SD: 0.515 ± 0.067</span></span>
+<span><span class="co">#&gt;   Gap: 0.099 (larger gap = stronger non-random signal)</span></span>
 <span><span class="co">#&gt;   This test does NOT diagnose information leakage. Use the Batch Association,</span></span>
 <span><span class="co">#&gt;   Target Leakage Scan, and Duplicate Detection sections to check for leakage.</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -2130,7 +2131,7 @@ outcomes support it.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Mechanism Risk Assessment:</span></span>
 <span><span class="co">#&gt;        mechanism_class flagged        evidence statistic  p_value</span></span>
-<span><span class="co">#&gt;      non_random_signal   FALSE permutation_gap 0.1172160 0.142857</span></span>
+<span><span class="co">#&gt;      non_random_signal    TRUE permutation_gap 0.0988852 0.047619</span></span>
 <span><span class="co">#&gt;  confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000</span></span>
 <span><span class="co">#&gt;   proxy_target_leakage   FALSE    target_assoc 0.3556299       NA</span></span>
 <span><span class="co">#&gt;      duplicate_overlap    TRUE      duplicates 1.0000000       NA</span></span>
@@ -2143,8 +2144,8 @@ outcomes support it.</p>
 <span>  <span class="co"># Permutation significance results</span></span>
 <span>  <span class="va">pg</span></span>
 <span><span class="op">}</span></span>
-<span><span class="co">#&gt;     mechanism_class metric_obs perm_mean   perm_sd      gap       z  p_value</span></span>
-<span><span class="co">#&gt; 1 non_random_signal   0.614111  0.496894 0.0843666 0.117216 2.49283 0.142857</span></span>
+<span><span class="co">#&gt;     mechanism_class metric_obs perm_mean   perm_sd       gap       z  p_value</span></span>
+<span><span class="co">#&gt; 1 non_random_signal   0.614111  0.515225 0.0674816 0.0988852 2.16674 0.047619</span></span>
 <span><span class="co">#&gt;   n_perm</span></span>
 <span><span class="co">#&gt; 1     20</span></span>
 <span><span class="va">ba</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_batch_assoc.html">audit_batch_assoc</a></span><span class="op">(</span><span class="va">audit</span><span class="op">)</span></span>
@@ -2193,6 +2194,69 @@ outcomes support it.</p>
 random label permutation, the gap (difference), and a permutation
 <em>p</em>-value. For metrics where higher values indicate better
 performance, larger gaps reflect stronger non-random signal.</p>
+<p><strong>Which permutation null was used?</strong></p>
+<p>With refit-based permutations, two design choices decide whether the
+null is calibrated for grouped, stratified plans such as
+<code>safe_splits</code>.</p>
+<ol style="list-style-type: decimal">
+<li>
+<em>Restricted permutation.</em> Labels should be permuted in a way
+that respects the grouping. For <code>subject_grouped</code> plans,
+whole outcome vectors are swapped between groups of equal size. This
+needs the outcome and the group column in
+<code>perm_refit_spec$coldata</code>, or in
+<code>perm_refit_spec$x</code> when it is a data.frame. If the group
+column is missing, the null falls back to an unrestricted shuffle, and
+<code><a href="../reference/audit_leakage.html">audit_leakage()</a></code> raises a
+<code>bioLeak_permutation_warning</code>.</li>
+<li>
+<em>Fold construction.</em>
+<code>make_split_plan(stratify = TRUE)</code> balances each fold on the
+observed labels. If those folds are reused for permuted labels, the
+permuted class balance varies between folds. Each fold model’s baseline
+follows its training balance, which moves opposite to its test balance,
+so AUC pooled across folds is biased below 0.5 under the null. This is
+the stratification bias of Parker, Günter and Bedo (2007, <em>BMC
+Bioinformatics</em> 8:326). It inflates the gap and makes the p-value
+anti-conservative. In a pure-noise grouped design (40 families of six
+plus 24 singletons), the fixed-fold pooled null centred between about
+0.40 and 0.46, and roughly two-thirds of the draws fell below 0.5.</li>
+</ol>
+<p>By default (<code>perm_folds = "auto"</code>), a stratified plan is
+re-drawn with <code><a href="../reference/make_split_plan.html">make_split_plan()</a></code> on every permuted outcome.
+The call reuses the plan’s mode, grouping, <code>v</code>,
+<code>stratify</code> and constraints, with seed
+<code>splits@info$seed + b</code>. Observed and permuted statistics then
+come from the same fold construction. Use
+<code>perm_folds = "fixed"</code> to keep the observed folds, or
+<code>perm_folds = "redraw"</code> to insist on re-drawing (this errors
+if the plan cannot be rebuilt). <code>perm_summary = "fold_mean"</code>
+scores each draw by the mean of per-fold AUCs instead of the pooled AUC.
+The fold mean never compares predictions from different fold models, so
+between-fold baseline shifts cannot bias it. Refit audits report both
+summaries in <code>audit_info(audit)$perm_gap_summaries</code>.</p>
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">info</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_info.html">audit_info</a></span><span class="op">(</span><span class="va">audit</span><span class="op">)</span></span>
+<span><span class="co"># Null used, fold handling, permutation scheme and summary statistic</span></span>
+<span><span class="va">info</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"perm_null"</span>, <span class="st">"perm_folds"</span>, <span class="st">"perm_scheme"</span>, <span class="st">"perm_summary"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; $perm_null</span></span>
+<span><span class="co">#&gt; [1] "refit_redrawn_folds"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $perm_folds</span></span>
+<span><span class="co">#&gt; [1] "redrawn"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $perm_scheme</span></span>
+<span><span class="co">#&gt; [1] "group_restricted"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $perm_summary</span></span>
+<span><span class="co">#&gt; [1] "pooled"</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">perm_folds_reason</span></span>
+<span><span class="co">#&gt; [1] "auto: stratified splits, so the split plan is re-drawn on each permuted outcome."</span></span>
+<span><span class="co"># Pooled and per-fold-mean permutation gaps (refit nulls only)</span></span>
+<span><span class="va">info</span><span class="op">$</span><span class="va">perm_gap_summaries</span></span>
+<span><span class="co">#&gt;     summary metric_obs perm_mean    perm_sd        gap    p_value n_perm</span></span>
+<span><span class="co">#&gt; 1    pooled  0.6141105 0.5152254 0.06748161 0.09888517 0.04761905     20</span></span>
+<span><span class="co">#&gt; 2 fold_mean  0.6121717 0.5232547 0.06765256 0.08891695 0.09523810     20</span></span></code></pre></div>
 <p>The batch association table reports chi-square statistics and
 Cramer’s V. Large p-values and small V values indicate that folds are
 not aligned with batch or study labels (which is the desired outcome
@@ -2254,7 +2318,7 @@ mechanism classes:</p>
 </table>
 <p>The summary is stored in <code>audit@info$mechanism_summary</code>
 and can be accessed directly for programmatic triage:</p>
-<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mech</span> <span class="op">&lt;-</span> <span class="va">audit</span><span class="op">@</span><span class="va">info</span><span class="op">$</span><span class="va">mechanism_summary</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">is.data.frame</a></span><span class="op">(</span><span class="va">mech</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">mech</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">mech</span></span>
@@ -2262,7 +2326,7 @@ and can be accessed directly for programmatic triage:</p>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"No mechanism summary available.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span><span class="co">#&gt;         mechanism_class flagged        evidence statistic  p_value</span></span>
-<span><span class="co">#&gt; 1     non_random_signal   FALSE permutation_gap 0.1172160 0.142857</span></span>
+<span><span class="co">#&gt; 1     non_random_signal    TRUE permutation_gap 0.0988852 0.047619</span></span>
 <span><span class="co">#&gt; 2 confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000</span></span>
 <span><span class="co">#&gt; 3  proxy_target_leakage   FALSE    target_assoc 0.3556299       NA</span></span>
 <span><span class="co">#&gt; 4     duplicate_overlap    TRUE      duplicates 1.0000000       NA</span></span>
@@ -2270,7 +2334,7 @@ and can be accessed directly for programmatic triage:</p>
 <p>Each row reports whether the mechanism was flagged, the evidence
 type, and the associated test statistic and p-value. This provides a
 quick triage overview before drilling into individual audit slots.</p>
-<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"ggplot2"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="../reference/plot_perm_distribution.html">plot_perm_distribution</a></span><span class="op">(</span><span class="va">audit</span><span class="op">)</span></span>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
@@ -2289,7 +2353,7 @@ signal.</p>
 flagged mechanisms point you to the specific audit slots that warrant
 deeper investigation.</p>
 <p><strong>Audit per learner</strong></p>
-<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"ranger"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span> </span>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"parsnip"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    </span>
@@ -2391,7 +2455,7 @@ any additional arguments to the audit step. If multiple learners were
 fit, pass <code>learner =</code> via <code>...</code> to select one. Use
 <code>open = TRUE</code> to open the report in a browser after
 rendering.</p>
-<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"rmarkdown"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu">rmarkdown</span><span class="fu">::</span><span class="fu"><a href="https://pkgs.rstudio.com/rmarkdown/reference/pandoc_available.html" class="external-link">pandoc_available</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">report_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_report.html">audit_report</a></span><span class="op">(</span><span class="va">audit</span>, output_dir <span class="op">=</span> <span class="st">"."</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"HTML report written to:\n"</span>, <span class="va">report_path</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -2413,7 +2477,7 @@ information from the future into the past. Use
 <code>block_len</code> is NULL, the audit uses a default block length
 (~10% of the test block size, minimum 5).</p>
 <p><strong>Leaky example: lookahead feature</strong></p>
-<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">time_splits</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/make_split_plan.html">make_split_plan</a></span><span class="op">(</span></span>
 <span>  <span class="va">df_time</span>,</span>
 <span>  outcome <span class="op">=</span> <span class="st">"outcome"</span>,</span>
@@ -2478,7 +2542,7 @@ sets. Regardless of the score, the presence of the
 invalid.</p>
 <p><strong>Leakage-safe alternative: remove lookahead and audit with
 blocks</strong></p>
-<div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_time_safe</span> <span class="op">&lt;-</span> <span class="va">df_time</span></span>
 <span><span class="va">df_time_safe</span><span class="op">$</span><span class="va">leak_future</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
 <span></span>
@@ -2559,6 +2623,7 @@ blocks</strong></p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Label-Permutation Association Test:</span></span>
 <span><span class="co">#&gt;   Method: refit per permutation (auto)</span></span>
+<span><span class="co">#&gt;   Null: observed folds reused | Permutation: time_block | Summary: pooled</span></span>
 <span><span class="co">#&gt;   Observed metric: 0.601</span></span>
 <span><span class="co">#&gt;   Permuted mean ± SD: 0.500 ± 0.055</span></span>
 <span><span class="co">#&gt;   Gap: 0.101 (larger gap = stronger non-random signal)</span></span>
@@ -2636,7 +2701,7 @@ non-negligible.</p></li>
 columns per metric: <code>&lt;metric&gt;_mean</code>,
 <code>&lt;metric&gt;_sd</code>, <code>&lt;metric&gt;_ci_lo</code>, and
 <code>&lt;metric&gt;_ci_hi</code>.</p>
-<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Standard 95% CI from the leakage-safe fit</span></span>
 <span><span class="va">ci_std</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_ci.html">cv_ci</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">metrics</span>, level <span class="op">=</span> <span class="fl">0.95</span>, method <span class="op">=</span> <span class="st">"normal"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Standard 95% CI:\n"</span><span class="op">)</span></span>
@@ -2886,7 +2951,7 @@ single <code>LeakSplits</code> object and pass it to both
 comparing the sorted test-set indices of every fold; if the structures
 differ despite equal repeat counts, a warning is issued and analysis
 falls back to unpaired mode.</p>
-<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span></span>
 <span><span class="va">n_d</span>    <span class="op">&lt;-</span> <span class="fl">120L</span></span>
 <span><span class="va">subj_d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"P"</span>, <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">30L</span><span class="op">)</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">4L</span><span class="op">)</span>   <span class="co"># 30 subjects, 4 obs each</span></span>
@@ -2915,7 +2980,7 @@ falls back to unpaired mode.</p>
 <span>  v       <span class="op">=</span> <span class="fl">5L</span>,</span>
 <span>  repeats <span class="op">=</span> <span class="fl">5L</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb47"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Reuse the parsnip spec (base R glm) defined earlier</span></span>
 <span><span class="co"># Naive fit: uses leaky feature (leak encodes test-subject outcome label)</span></span>
 <span><span class="va">fit_dlsi_naive</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_resample.html">fit_resample</a></span><span class="op">(</span></span>
@@ -2947,7 +3012,7 @@ falls back to unpaired mode.</p>
 <div class="section level3">
 <h3 id="running-delta_lsi">Running <code>delta_lsi()</code><a class="anchor" aria-label="anchor" href="#running-delta_lsi"></a>
 </h3>
-<div class="sourceCode" id="cb47"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb48"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result_dlsi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span></span>
 <span>  fit_leaky   <span class="op">=</span> <span class="va">fit_dlsi_naive</span>,</span>
 <span>  fit_guarded <span class="op">=</span> <span class="va">fit_dlsi_guarded</span>,</span>
@@ -3074,7 +3139,7 @@ Recommended for any published or pre-registered ΔLSI analysis.</li>
 <p>For paired designs <code>R_eff</code> equals the number of matched
 repeats. For unpaired designs <code>R_eff = 0</code> and only the raw
 point estimates are available.</p>
-<div class="sourceCode" id="cb48"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb49"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Tier:          "</span>, <span class="va">result_dlsi</span><span class="op">@</span><span class="va">tier</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Tier:           C_signflip</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"R_eff:         "</span>, <span class="va">result_dlsi</span><span class="op">@</span><span class="va">R_eff</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -3409,7 +3474,7 @@ a finite <code>@p_value</code>, and finite <code>@delta_lsi_ci</code> to
 hold simultaneously.</p>
 <p>The code below shows direct slot access to confirm that the numbers
 correspond exactly to the quantities defined above:</p>
-<div class="sourceCode" id="cb49"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb50"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># delta_metric: arithmetic mean of {Δ_r}</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"delta_metric:  "</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">result_dlsi</span><span class="op">@</span><span class="va">delta_metric</span>, <span class="fl">4</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; delta_metric:   0.2133</span></span>
@@ -3447,7 +3512,7 @@ and all inference is disabled. This mode is appropriate when the
 splitting scheme itself is part of what the comparison is testing — for
 example, evaluating whether subject-grouped splits alone (not a leaky
 feature) account for a performance difference.</p>
-<div class="sourceCode" id="cb50"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb51"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Unpaired: naive uses sample-wise CV, guarded uses subject-grouped splits</span></span>
 <span><span class="va">splits_rand</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/make_split_plan.html">make_split_plan</a></span><span class="op">(</span></span>
 <span>  <span class="va">df_dlsi_naive</span>,</span>
@@ -3498,7 +3563,7 @@ lower-is-better metric names: <code>rmse</code>, <code>mse</code>,
 value still means the naive pipeline is inflated relative to guarded
 (i.e., naive has a <em>lower</em> error, which is paradoxically
 <em>better</em> performance — indicating leakage):</p>
-<div class="sourceCode" id="cb51"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb52"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">r_hib_true</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span><span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span></span>
 <span>  <span class="va">fit_dlsi_naive</span>, <span class="va">fit_dlsi_guarded</span>,</span>
 <span>  metric           <span class="op">=</span> <span class="st">"auc"</span>,</span>
@@ -3520,7 +3585,7 @@ value still means the naive pipeline is inflated relative to guarded
 <span><span class="co">#&gt; hib = FALSE:  delta_metric = -0.2133  (sign flipped)</span></span></code></pre></div>
 <p>The <code>info$higher_is_better</code> slot records the value used
 (after auto-detection), so analyses are fully reproducible:</p>
-<div class="sourceCode" id="cb52"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb53"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"higher_is_better used:"</span>, <span class="va">result_dlsi</span><span class="op">@</span><span class="va">info</span><span class="op">$</span><span class="va">higher_is_better</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; higher_is_better used: TRUE</span></span></code></pre></div>
 </div>
@@ -3657,7 +3722,7 @@ vector) and the original fit objects when
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb53"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb54"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Per-repeat summaries for custom plotting</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">result_dlsi</span><span class="op">@</span><span class="va">repeats_naive</span>,   <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   repeat_id    metric n_folds total_n</span></span>
@@ -3763,7 +3828,7 @@ diagnose which mechanism is responsible.</li>
 inflation the leakage introduced and whether guarding eliminated
 it.</li>
 </ol>
-<div class="sourceCode" id="cb54"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb55"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Step 1: detect and characterise leakage</span></span>
 <span><span class="va">audit_naive_dlsi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_leakage.html">audit_leakage</a></span><span class="op">(</span><span class="va">fit_dlsi_naive</span>, metric <span class="op">=</span> <span class="st">"auc"</span>, B <span class="op">=</span> <span class="fl">20L</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |===                                                                   |   4%  |                                                                              |======                                                                |   8%  |                                                                              |========                                                              |  12%  |                                                                              |===========                                                           |  16%  |                                                                              |==============                                                        |  20%  |                                                                              |=================                                                     |  24%  |                                                                              |====================                                                  |  28%  |                                                                              |======================                                                |  32%  |                                                                              |=========================                                             |  36%  |                                                                              |============================                                          |  40%  |                                                                              |===============================                                       |  44%  |                                                                              |==================================                                    |  48%  |                                                                              |====================================                                  |  52%  |                                                                              |=======================================                               |  56%  |                                                                              |==========================================                            |  60%  |                                                                              |=============================================                         |  64%  |                                                                              |================================================                      |  68%  |                                                                              |==================================================                    |  72%  |                                                                              |=====================================================                 |  76%  |                                                                              |========================================================              |  80%  |                                                                              |===========================================================           |  84%  |                                                                              |==============================================================        |  88%  |                                                                              |================================================================      |  92%  |                                                                              |===================================================================   |  96%  |                                                                              |======================================================================| 100%</span></span>
@@ -3799,6 +3864,7 @@ it.</li>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Label-Permutation Association Test:</span></span>
 <span><span class="co">#&gt;   Method: refit per permutation (auto)</span></span>
+<span><span class="co">#&gt;   Null: observed folds reused | Permutation: group_restricted | Summary: pooled</span></span>
 <span><span class="co">#&gt;   Observed metric: 0.741</span></span>
 <span><span class="co">#&gt;   Permuted mean ± SD: 0.446 ± 0.065</span></span>
 <span><span class="co">#&gt;   Gap: 0.294 (larger gap = stronger non-random signal)</span></span>
@@ -3848,7 +3914,7 @@ parallelism (Windows, macOS, Linux). <code><a href="../reference/fit_resample.ht
 and <code><a href="../reference/simulate_leakage_suite.html">simulate_leakage_suite()</a></code> honor the active plan when
 <code>parallel = TRUE</code> (or
 <code>parallel_learners = TRUE</code>).</p>
-<div class="sourceCode" id="cb55"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb56"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">## future is a Suggests dependency. Install with install.packages("future")</span></span>
 <span><span class="co">## before running this code; otherwise library(future) errors.</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
@@ -3884,7 +3950,7 @@ before applying them to real data. Available leakage types include
 to control the simulation. The output is a <code>LeakSimResults</code>
 data frame with one row per seed. Metrics are selected automatically
 based on outcome type (AUC for binary classification).</p>
-<div class="sourceCode" id="cb56"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb57"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"glmnet"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_leakage_suite.html">simulate_leakage_suite</a></span><span class="op">(</span></span>
 <span>    n <span class="op">=</span> <span class="fl">80</span>,</span>
@@ -3946,8 +4012,8 @@ based on outcome type (AUC for binary classification).</p>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%</span></span>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%</span></span>
 <span><span class="co">#&gt;   seed metric_obs      gap  p_value         leakage            mode</span></span>
-<span><span class="co">#&gt; 1    1   0.828914 0.332734 0.047619 subject_overlap subject_grouped</span></span>
-<span><span class="co">#&gt; 2    2   0.825397 0.419540 0.047619 subject_overlap subject_grouped</span></span></code></pre></div>
+<span><span class="co">#&gt; 1    1   0.828914 0.333128 0.047619 subject_overlap subject_grouped</span></span>
+<span><span class="co">#&gt; 2    2   0.825397 0.348524 0.047619 subject_overlap subject_grouped</span></span></code></pre></div>
 <p>Each row corresponds to one simulation seed.</p>
 <ul>
 <li><p><code>metric_obs</code> is the observed performance (AUC for this

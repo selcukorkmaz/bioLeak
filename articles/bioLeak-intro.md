@@ -1109,11 +1109,11 @@ do not need a final model.
 # Fold-level diagnostics for reproducible troubleshooting
 head(fit_safe@info$fold_status, 5)
 #>   fold    stage  status reason                    notes elapsed_sec
-#> 1    1 fold_run success   <NA> Successful learners: 1/1       0.016
-#> 2    2 fold_run success   <NA> Successful learners: 1/1       0.014
-#> 3    3 fold_run success   <NA> Successful learners: 1/1       0.014
-#> 4    4 fold_run success   <NA> Successful learners: 1/1       0.014
-#> 5    5 fold_run success   <NA> Successful learners: 1/1       0.014
+#> 1    1 fold_run success   <NA> Successful learners: 1/1       0.025
+#> 2    2 fold_run success   <NA> Successful learners: 1/1       0.023
+#> 3    3 fold_run success   <NA> Successful learners: 1/1       0.022
+#> 4    4 fold_run success   <NA> Successful learners: 1/1       0.022
+#> 5    5 fold_run success   <NA> Successful learners: 1/1       0.022
 ```
 
 Interpretation of `fold_status`:
@@ -2051,9 +2051,10 @@ summary(audit)
 #> 
 #> Label-Permutation Association Test:
 #>   Method: refit per permutation (auto)
+#>   Null: re-drawn per permutation | Permutation: group_restricted | Summary: pooled
 #>   Observed metric: 0.614
-#>   Permuted mean ± SD: 0.497 ± 0.084
-#>   Gap: 0.117 (larger gap = stronger non-random signal)
+#>   Permuted mean ± SD: 0.515 ± 0.067
+#>   Gap: 0.099 (larger gap = stronger non-random signal)
 #>   This test does NOT diagnose information leakage. Use the Batch Association,
 #>   Target Leakage Scan, and Duplicate Detection sections to check for leakage.
 #> 
@@ -2082,7 +2083,7 @@ summary(audit)
 #> 
 #> Mechanism Risk Assessment:
 #>        mechanism_class flagged        evidence statistic  p_value
-#>      non_random_signal   FALSE permutation_gap 0.1172160 0.142857
+#>      non_random_signal    TRUE permutation_gap 0.0988852 0.047619
 #>  confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000
 #>   proxy_target_leakage   FALSE    target_assoc 0.3556299       NA
 #>      duplicate_overlap    TRUE      duplicates 1.0000000       NA
@@ -2095,8 +2096,8 @@ if (!is.null(pg) && nrow(pg) > 0) {
   # Permutation significance results
   pg
 }
-#>     mechanism_class metric_obs perm_mean   perm_sd      gap       z  p_value
-#> 1 non_random_signal   0.614111  0.496894 0.0843666 0.117216 2.49283 0.142857
+#>     mechanism_class metric_obs perm_mean   perm_sd       gap       z  p_value
+#> 1 non_random_signal   0.614111  0.515225 0.0674816 0.0988852 2.16674 0.047619
 #>   n_perm
 #> 1     20
 ba <- audit_batch_assoc(audit)
@@ -2148,6 +2149,69 @@ label permutation, the gap (difference), and a permutation *p*-value.
 For metrics where higher values indicate better performance, larger gaps
 reflect stronger non-random signal.
 
+**Which permutation null was used?**
+
+With refit-based permutations, two design choices decide whether the
+null is calibrated for grouped, stratified plans such as `safe_splits`.
+
+1.  *Restricted permutation.* Labels should be permuted in a way that
+    respects the grouping. For `subject_grouped` plans, whole outcome
+    vectors are swapped between groups of equal size. This needs the
+    outcome and the group column in `perm_refit_spec$coldata`, or in
+    `perm_refit_spec$x` when it is a data.frame. If the group column is
+    missing, the null falls back to an unrestricted shuffle, and
+    [`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md)
+    raises a `bioLeak_permutation_warning`.
+2.  *Fold construction.* `make_split_plan(stratify = TRUE)` balances
+    each fold on the observed labels. If those folds are reused for
+    permuted labels, the permuted class balance varies between folds.
+    Each fold model’s baseline follows its training balance, which moves
+    opposite to its test balance, so AUC pooled across folds is biased
+    below 0.5 under the null. This is the stratification bias of Parker,
+    Günter and Bedo (2007, *BMC Bioinformatics* 8:326). It inflates the
+    gap and makes the p-value anti-conservative. In a pure-noise grouped
+    design (40 families of six plus 24 singletons), the fixed-fold
+    pooled null centred between about 0.40 and 0.46, and roughly
+    two-thirds of the draws fell below 0.5.
+
+By default (`perm_folds = "auto"`), a stratified plan is re-drawn with
+[`make_split_plan()`](https://selcukorkmaz.github.io/bioLeak/reference/make_split_plan.md)
+on every permuted outcome. The call reuses the plan’s mode, grouping,
+`v`, `stratify` and constraints, with seed `splits@info$seed + b`.
+Observed and permuted statistics then come from the same fold
+construction. Use `perm_folds = "fixed"` to keep the observed folds, or
+`perm_folds = "redraw"` to insist on re-drawing (this errors if the plan
+cannot be rebuilt). `perm_summary = "fold_mean"` scores each draw by the
+mean of per-fold AUCs instead of the pooled AUC. The fold mean never
+compares predictions from different fold models, so between-fold
+baseline shifts cannot bias it. Refit audits report both summaries in
+`audit_info(audit)$perm_gap_summaries`.
+
+``` r
+
+info <- audit_info(audit)
+# Null used, fold handling, permutation scheme and summary statistic
+info[c("perm_null", "perm_folds", "perm_scheme", "perm_summary")]
+#> $perm_null
+#> [1] "refit_redrawn_folds"
+#> 
+#> $perm_folds
+#> [1] "redrawn"
+#> 
+#> $perm_scheme
+#> [1] "group_restricted"
+#> 
+#> $perm_summary
+#> [1] "pooled"
+info$perm_folds_reason
+#> [1] "auto: stratified splits, so the split plan is re-drawn on each permuted outcome."
+# Pooled and per-fold-mean permutation gaps (refit nulls only)
+info$perm_gap_summaries
+#>     summary metric_obs perm_mean    perm_sd        gap    p_value n_perm
+#> 1    pooled  0.6141105 0.5152254 0.06748161 0.09888517 0.04761905     20
+#> 2 fold_mean  0.6121717 0.5232547 0.06765256 0.08891695 0.09523810     20
+```
+
 The batch association table reports chi-square statistics and Cramer’s
 V. Large p-values and small V values indicate that folds are not aligned
 with batch or study labels (which is the desired outcome when these
@@ -2191,7 +2255,7 @@ if (is.data.frame(mech) && nrow(mech) > 0) {
   cat("No mechanism summary available.\n")
 }
 #>         mechanism_class flagged        evidence statistic  p_value
-#> 1     non_random_signal   FALSE permutation_gap 0.1172160 0.142857
+#> 1     non_random_signal    TRUE permutation_gap 0.0988852 0.047619
 #> 2 confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000
 #> 3  proxy_target_leakage   FALSE    target_assoc 0.3556299       NA
 #> 4     duplicate_overlap    TRUE      duplicates 1.0000000       NA
@@ -2512,6 +2576,7 @@ summary(audit_time)
 #> 
 #> Label-Permutation Association Test:
 #>   Method: refit per permutation (auto)
+#>   Null: observed folds reused | Permutation: time_block | Summary: pooled
 #>   Observed metric: 0.601
 #>   Permuted mean ± SD: 0.500 ± 0.055
 #>   Gap: 0.101 (larger gap = stronger non-random signal)
@@ -3464,6 +3529,7 @@ summary(audit_naive_dlsi)
 #> 
 #> Label-Permutation Association Test:
 #>   Method: refit per permutation (auto)
+#>   Null: observed folds reused | Permutation: group_restricted | Summary: pooled
 #>   Observed metric: 0.741
 #>   Permuted mean ± SD: 0.446 ± 0.065
 #>   Gap: 0.294 (larger gap = stronger non-random signal)
@@ -3617,8 +3683,8 @@ if (requireNamespace("glmnet", quietly = TRUE)) {
 #>   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%
 #>   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%
 #>   seed metric_obs      gap  p_value         leakage            mode
-#> 1    1   0.828914 0.332734 0.047619 subject_overlap subject_grouped
-#> 2    2   0.825397 0.419540 0.047619 subject_overlap subject_grouped
+#> 1    1   0.828914 0.333128 0.047619 subject_overlap subject_grouped
+#> 2    2   0.825397 0.348524 0.047619 subject_overlap subject_grouped
 ```
 
 Each row corresponds to one simulation seed.
