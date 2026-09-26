@@ -557,3 +557,22 @@ test_that("blocked_time stores block_size_used and n_blocks in info", {
   expect_equal(res@info$n_blocks,        5L)   # 10 repeats / block_size=2 = 5 blocks
   expect_true(is.finite(res@p_value))          # 5 blocks >= 5 → p_value available
 })
+
+test_that("tier C at R_eff = 5 cannot reach p < 0.05; R_eff = 6 can", {
+  # Every repeat favours the leaky pipeline: the most extreme possible data.
+  fit_n5 <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
+  fit_g5 <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
+  res5   <- delta_lsi(fit_n5, fit_g5, metric = "auc", seed = 3L)
+  expect_equal(res5@tier, "C_signflip")
+  expect_equal(res5@info$min_p_achievable, 2 / 2^5)
+  expect_equal(res5@p_value, 0.0625)
+  expect_output(summary(res5), "smallest attainable p is 0.0625")
+
+  fit_n6 <- .make_dlsi_fit(rep(0.8, 18L), n_obs = 54L, n_repeats = 6L)
+  fit_g6 <- .make_dlsi_fit(rep(0.6, 18L), n_obs = 54L, n_repeats = 6L)
+  res6   <- delta_lsi(fit_n6, fit_g6, metric = "auc", seed = 3L)
+  expect_equal(res6@tier, "C_signflip")
+  expect_equal(res6@info$min_p_achievable, 2 / 2^6)
+  expect_lt(res6@p_value, 0.05)
+  expect_false(any(grepl("smallest attainable", capture.output(summary(res6)))))
+})

@@ -55,18 +55,23 @@
        pval = unname(cs$p.value), cramer_v = as.numeric(v))
 }
 
+# Oriented rank AUC for a 0/1 outcome (1 = positive class); delegates to the
+# shared .auc_binary() so the target scans use the same orientation as the
+# performance metric.
 .auc_rank <- function(x, y01) {
-  x <- as.numeric(x)
   y01 <- as.numeric(y01)
-  ok <- is.finite(x) & !is.na(y01)
-  x <- x[ok]
-  y01 <- y01[ok]
-  if (!length(x)) return(NA_real_)
-  n_pos <- sum(y01 == 1)
-  n_neg <- sum(y01 == 0)
-  if (n_pos == 0 || n_neg == 0) return(NA_real_)
-  r <- rank(x, ties.method = "average")
-  (sum(r[y01 == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+  ok <- is.finite(as.numeric(x)) & y01 %in% c(0, 1)
+  .auc_binary(factor(y01[ok], levels = c(0, 1)), as.numeric(x)[ok])
+}
+
+# Holm adjustment over the finite p-values; NA entries stay NA and do not
+# count towards the family size.
+.holm_adjust <- function(p) {
+  p <- as.numeric(p)
+  out <- rep(NA_real_, length(p))
+  ok <- is.finite(p)
+  if (any(ok)) out[ok] <- stats::p.adjust(p[ok], method = "holm")
+  out
 }
 
 .cor_pval <- function(r, n) {
@@ -124,21 +129,24 @@
     stringsAsFactors = FALSE
   )
 
-  batch_p <- if (!is.null(batch_df) && nrow(batch_df) && "pval" %in% names(batch_df)) {
-    suppressWarnings(min(batch_df$pval, na.rm = TRUE))
-  } else {
-    NA_real_
+  # One chi-square test is run per batch column and repeat. Taking the raw
+  # minimum p over those rows inflates the false-positive rate, so the rule
+  # uses Holm-adjusted p-values across all rows (family-wise error <= 0.05).
+  batch_p <- NA_real_
+  batch_v <- NA_real_
+  batch_flag <- FALSE
+  if (!is.null(batch_df) && nrow(batch_df) && "pval" %in% names(batch_df)) {
+    p_adj <- if ("pval_adj" %in% names(batch_df)) batch_df$pval_adj else .holm_adjust(batch_df$pval)
+    v_all <- if ("cramer_v" %in% names(batch_df)) batch_df$cramer_v else rep(NA_real_, nrow(batch_df))
+    batch_p <- suppressWarnings(min(p_adj, na.rm = TRUE))
+    batch_v <- suppressWarnings(max(v_all, na.rm = TRUE))
+    batch_flag <- any(is.finite(p_adj) & p_adj <= 0.05 & is.finite(v_all) & v_all >= 0.1)
   }
   if (!is.finite(batch_p)) batch_p <- NA_real_
-  batch_v <- if (!is.null(batch_df) && nrow(batch_df) && "cramer_v" %in% names(batch_df)) {
-    suppressWarnings(max(batch_df$cramer_v, na.rm = TRUE))
-  } else {
-    NA_real_
-  }
   if (!is.finite(batch_v)) batch_v <- NA_real_
   out[[length(out) + 1L]] <- data.frame(
     mechanism_class = "confounding_alignment",
-    flagged = is.finite(batch_p) && batch_p <= 0.05 && is.finite(batch_v) && batch_v >= 0.1,
+    flagged = batch_flag,
     evidence = "batch_assoc",
     statistic = batch_v,
     p_value = batch_p,
@@ -684,17 +692,7 @@
     return(-mean(yb * log(p) + (1 - yb) * log(1 - p), na.rm = TRUE))
   }
   if (metric == "auc") {
-    if (requireNamespace("pROC", quietly = TRUE)) {
-      roc <- pROC::roc(truth, pred, quiet = TRUE)
-      return(as.numeric(pROC::auc(roc)))
-    }
-    yb <- if (is.factor(truth)) as.numeric(truth) - 1 else truth
-    pos <- pred[yb == 1]; neg <- pred[yb == 0]
-    if (length(pos) && length(neg)) {
-      comp <- outer(pos, neg, function(a, b) (a > b) + 0.5 * (a == b))
-      return(mean(comp))
-    }
-    return(NA_real_)
+    return(.auc_binary(truth, pred))
   }
   if (metric == "pr_auc") {
     if (requireNamespace("PRROC", quietly = TRUE)) {
@@ -744,11 +742,13 @@
 #' @param B Integer scalar. Number of permutations used to build the null
 #'   distribution (default 200). Larger values reduce Monte Carlo error but
 #'   increase runtime.
-#' @param perm_stratify Logical scalar or `"auto"`. If TRUE, permutations
-#'   are stratified within each fold (factor levels; numeric outcomes are binned
-#'   into quantiles when enough non-missing values are available). If FALSE, no
-#'   stratification is used. Defaults to FALSE. Stratification only applies when
-#'   `coldata` supplies the outcome; otherwise labels are shuffled within each fold.
+#' @param perm_stratify Logical scalar or `"auto"`. If TRUE, refit-based
+#'   permutations (`perm_refit = TRUE`) are stratified (factor levels; numeric
+#'   outcomes are binned into quantiles when enough non-missing values are
+#'   available). If FALSE, no stratification is used. Defaults to FALSE.
+#'   Stratification only applies when `coldata` supplies the outcome. It has no
+#'   effect on fixed-prediction permutations (`perm_refit = FALSE`), which
+#'   always use a global label shuffle; a warning is raised if it is set there.
 #' @param perm_refit Logical scalar or `"auto"`. If FALSE, permutations keep
 #'   predictions fixed and shuffle labels (association test). If TRUE, each
 #'   permutation refits the model on permuted outcomes using `perm_refit_spec`.
@@ -763,18 +763,23 @@
 #'   Required elements: `x` (data used for fitting) and `learner` (parsnip
 #'   model_spec, workflow, or legacy learner). Optional elements: `outcome`
 #'   (defaults to `fit@outcome`), `preprocess`, `learner_args`,
-#'   `custom_learners`, `class_weights`, `positive_class`, and `parallel`.
+#'   `custom_learners`, `class_weights`, `positive_class`, `parallel`, and
+#'   `id_cols` (defaults to the `id_cols` used by [fit_resample()]).
 #'   Survival outcomes are not supported for refit-based permutations.
 #' @param perm_mode Optional character scalar to override the permutation mode
 #'   used for restricted shuffles. One of `"subject_grouped"`, `"batch_blocked"`,
 #'   `"study_loocv"`, or `"time_series"`. Defaults to the split metadata when
-#'   available (including rsample-derived modes).
+#'   available (including rsample-derived modes). Restricted shuffles are used
+#'   by refit-based permutations and by the multivariate target scan; the
+#'   fixed-prediction permutation gap always uses a global label shuffle.
 #' @param time_block Character scalar, `"circular"` or `"stationary"`. Controls
-#'   block permutation for `time_series` splits; ignored for other split modes.
-#'   Default is `"circular"`.
+#'   block permutation for `time_series` splits; ignored for other split modes
+#'   and by the fixed-prediction permutation gap (a warning is raised if it is
+#'   supplied with `perm_refit = FALSE`). Default is `"circular"`.
 #' @param block_len Integer scalar or NULL. Block length for time-series
 #'   permutations. NULL selects `max(5, floor(0.1 * fold_size))`. Larger values
 #'   preserve more temporal structure and yield a more conservative null.
+#'   Like `time_block`, it applies only to restricted (refit) permutations.
 #' @param include_z Logical scalar. If TRUE (default), include the z-score for the
 #'   permutation gap when a standard error is available; if FALSE, `z` is NA.
 #' @param ci_method Character scalar, `"if"` or `"bootstrap"`. Controls how the
@@ -922,11 +927,22 @@
 #' By default, `perm_refit = "auto"` refits models when refit data are available
 #' and `B` is not too large; otherwise it keeps predictions fixed and shuffles
 #' labels. Fixed-prediction permutations quantify prediction-label association
-#' rather than a full refit null. Set `perm_refit = FALSE` to force fixed
+#' rather than a full refit null. They pool the out-of-fold predictions and
+#' shuffle labels globally (not within folds, which would preserve fold-level
+#' class balance and inflate the null), so `perm_stratify`, `time_block`, and
+#' `block_len` do not apply to them; `info$perm_null` records which null was
+#' used (`"global_shuffle"` or `"refit"`). AUC is always oriented so that
+#' higher predictions indicate the positive class (the second outcome level),
+#' so anti-correlated predictions give AUC below 0.5 and the permutation null
+#' centres at 0.5. Set `perm_refit = FALSE` to force fixed
 #' predictions, or `perm_refit = TRUE` (with `perm_refit_spec`) to always refit.
 #'
 #' `batch_assoc` contains chi-square tests between fold assignment and each
-#' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
+#' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`), one row per
+#' variable and repeat, plus `pval_adj`, the Holm-adjusted p-value across all
+#' rows. The `confounding_alignment` rule of the mechanism summary flags only
+#' when some row has `pval_adj <= 0.05` and `cramer_v >= 0.1`, so repeated CV
+#' does not inflate the false-positive rate. `target_assoc`
 #' reports feature-wise outcome associations on `X_ref`; numeric features use
 #' AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
 #' categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
@@ -1096,6 +1112,7 @@ audit_leakage <- function(fit,
   feature_space <- match.arg(feature_space)
   sim_method    <- match.arg(sim_method)
   duplicate_scope <- match.arg(duplicate_scope)
+  time_block_supplied <- !missing(time_block)
   time_block <- match.arg(time_block)
   ci_method <- match.arg(ci_method)
   target_p_adjust <- match.arg(target_p_adjust)
@@ -1220,6 +1237,7 @@ audit_leakage <- function(fit,
   refit_class_weights <- NULL
   refit_positive_class <- NULL
   refit_parallel <- FALSE
+  refit_id_cols <- NULL
   refit_coldata <- NULL
   refit_coldata_supplied <- FALSE
   default_preprocess <- list(
@@ -1256,6 +1274,7 @@ audit_leakage <- function(fit,
     refit_class_weights <- perm_refit_spec$class_weights %||% fit@info$class_weights %||% NULL
     refit_positive_class <- perm_refit_spec$positive_class %||% fit@info$positive_class %||% NULL
     refit_parallel <- isTRUE(perm_refit_spec$parallel)
+    refit_id_cols <- perm_refit_spec$id_cols %||% fit@info$id_cols %||% NULL
     refit_coldata_supplied <- !is.null(perm_refit_spec$coldata)
     refit_coldata <- perm_refit_spec$coldata %||% NULL
   }
@@ -1638,7 +1657,8 @@ audit_leakage <- function(fit,
         positive_class = refit_positive_class,
         parallel = refit_parallel,
         refit = FALSE,
-        seed = seed + b
+        seed = seed + b,
+        id_cols = refit_id_cols
       ), silent = TRUE)
       if (inherits(fit_perm, "try-error")) {
         warning(sprintf("Permutation refit %d failed: %s", b, attr(fit_perm, "condition")$message),
@@ -1660,42 +1680,21 @@ audit_leakage <- function(fit,
       perm_vals <- sapply(seq_len(B), perm_eval_refit)
     }
   } else {
-    perm_source <- NULL
-    perm_coldata <- NULL
-    if (!is.null(coldata)) {
-      sample_ids <- resolve_sample_ids(fit, fallback_n = nrow(fit@splits@info$coldata %||% data.frame()))
-      perm_coldata <- align_coldata_for_perm(coldata, sample_ids, context = "Permutation",
-                                              strict_align = strict_align)
-    }
-    if (!is.null(perm_coldata) && !is.null(outcome_col) && outcome_col %in% names(perm_coldata)) {
-      folds_perm <- folds
-      if (isTRUE(compact)) {
-        attr(folds_perm, "fold_assignments") <- fold_assignments
-      }
-      perm_source <- .permute_labels_factory(
-        cd = perm_coldata, outcome = outcome_col, mode = perm_mode_use,
-        folds = folds_perm, perm_stratify = perm_stratify, time_block = time_block,
-        block_len = block_len, seed = seed,
-        group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
-        study_col = fit@splits@info$study, time_col = fit@splits@info$time,
-        perm_refit = FALSE
-      )
-    }
-    if (is.null(perm_source)) {
-      perm_source <- function(b) {
-        lapply(pred_list, function(df) {
-          if (identical(task, "survival")) {
-            if (!requireNamespace("survival", quietly = TRUE)) {
-              stop("Package 'survival' is required for survival permutations.")
-            }
-            if (all(c("truth_time", "truth_event") %in% names(df))) {
-              idx <- sample(seq_len(nrow(df)))
-              return(survival::Surv(df$truth_time[idx], df$truth_event[idx]))
-            }
-          }
-          if (length(df$truth) <= 1L) df$truth else df$truth[sample.int(length(df$truth))]
-        })
-      }
+    # Fixed-prediction permutations always use a global label shuffle (see
+    # below), so the restricted-permutation arguments cannot shape this null.
+    # Tell the user rather than silently ignoring an explicit request.
+    ignored_args <- character(0)
+    if (!isFALSE(perm_stratify)) ignored_args <- c(ignored_args, "perm_stratify")
+    if (time_block_supplied) ignored_args <- c(ignored_args, "time_block")
+    if (!is.null(block_len)) ignored_args <- c(ignored_args, "block_len")
+    if (length(ignored_args)) {
+      warning(sprintf(paste0(
+        "audit_leakage(): %s %s no effect on the fixed-prediction permutation ",
+        "null (perm_refit = FALSE), which always uses a global label shuffle. ",
+        "Restricted permutations are applied only when perm_refit = TRUE."),
+        paste(ignored_args, collapse = ", "),
+        if (length(ignored_args) == 1L) "has" else "have"),
+        call. = FALSE)
     }
 
     # Global label shuffle: concatenate all fold predictions and permute
@@ -1966,6 +1965,7 @@ audit_leakage <- function(fit,
         batch_results <- batch_results[keep_idx]
         batch_df <- do.call(rbind, Map(function(nm, df) { df$batch_col <- nm; df }, names(batch_results), batch_results))
         batch_df <- batch_df[, c("batch_col", "repeat_id", "stat", "df", "pval", "cramer_v")]
+        batch_df$pval_adj <- .holm_adjust(batch_df$pval)
       }
     }
   }
@@ -2403,6 +2403,7 @@ audit_leakage <- function(fit,
         perm_stratify = perm_stratify,
         perm_method = perm_method,
         perm_mode = perm_mode_use,
+        perm_null = if (isTRUE(perm_refit)) "refit" else "global_shuffle",
         perm_refit_mode = perm_refit_mode,
         perm_refit_reason = perm_refit_reason,
         perm_refit_auto_max = perm_refit_auto_max,

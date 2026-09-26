@@ -12,6 +12,14 @@
 #'   object and its attributes are missing. `"auto"` falls back to common
 #'   metadata column names (e.g., `group`, `subject`, `batch`, `study`, `time`).
 #'   Supported names are `group`, `batch`, `study`, and `time`.
+#' @param id_cols Optional character vector of identifier or metadata columns
+#'   (for example a \code{sample_id}) to exclude from the predictors. The
+#'   outcome and the split's group/batch/study/time columns are always
+#'   excluded; every other column of \code{x} is used as a predictor, and
+#'   character/factor columns are one-hot encoded. With the built-in guarded
+#'   preprocessing, a warning is raised when a character or factor column not
+#'   listed here has nearly one unique value per row (at least 90\% unique),
+#'   because such columns are almost always identifiers.
 #' @param store_refit_data Logical; when TRUE (default), stores the original
 #'   data and learner configuration inside the fit to enable refit-based
 #'   permutation tests without manual `perm_refit_spec` setup.
@@ -165,7 +173,8 @@ fit_resample <- function(x, outcome, splits,
                          refit = TRUE,
                          seed = 1,
                          split_cols = "auto",
-                         store_refit_data = TRUE) {
+                         store_refit_data = TRUE,
+                         id_cols = NULL) {
 
   set.seed(seed)
   .bio_strict_checks(context = "fit_resample", seed = seed)
@@ -348,12 +357,43 @@ fit_resample <- function(x, outcome, splits,
                           split_info$study,
                           split_info$time))
   }
+  if (!is.null(id_cols)) {
+    if (!is.character(id_cols) || anyNA(id_cols)) {
+      .bio_stop("id_cols must be a character vector of column names.",
+                "bioLeak_input_error")
+    }
+    missing_id <- setdiff(id_cols, colnames(Xall))
+    if (length(missing_id)) {
+      .bio_stop(sprintf("id_cols not found in x: %s",
+                        paste(missing_id, collapse = ", ")),
+                "bioLeak_input_error")
+    }
+    drop_cols <- unique(c(drop_cols, id_cols))
+  }
   drop_cols <- drop_cols[!is.na(drop_cols) & nzchar(drop_cols)]
   if (length(drop_cols) && !is.null(colnames(Xall))) {
     drop_cols <- intersect(colnames(Xall), drop_cols)
   }
   if (length(drop_cols)) {
     Xall <- Xall[, setdiff(colnames(Xall), drop_cols), drop = FALSE]
+  }
+  # Recipes/workflows assign roles (e.g. "id") themselves, so only the guarded
+  # pipeline, which one-hot encodes every non-numeric column, is checked.
+  if (identical(preprocess_mode, "guard") && is.data.frame(Xall) && nrow(Xall) >= 10L) {
+    id_like <- names(Xall)[vapply(Xall, function(col) {
+      if (!is.character(col) && !is.factor(col)) return(FALSE)
+      n_ok <- sum(!is.na(col))
+      n_ok >= 10L && length(unique(col[!is.na(col)])) >= 0.9 * n_ok
+    }, logical(1))]
+    if (length(id_like)) {
+      .bio_warn(sprintf(paste0(
+        "fit_resample(): column(s) %s look like identifiers (character/factor ",
+        "with nearly one unique value per row) and will be one-hot encoded as ",
+        "predictors. Pass id_cols = c(%s) to exclude them."),
+        paste(sprintf("'%s'", id_like), collapse = ", "),
+        paste(sprintf("\"%s\"", id_like), collapse = ", ")),
+        class = "bioLeak_input_warning")
+    }
   }
   sample_ids <- NULL
   if (inherits(splits, "LeakSplits") && !is.null(splits@info$coldata)) {
@@ -588,12 +628,7 @@ fit_resample <- function(x, outcome, splits,
       yb <- if (is.factor(y)) as.numeric(y) - 1 else as.numeric(y)
     }
     if (name == "auc" && task == "binomial") {
-      if (requireNamespace("pROC", quietly = TRUE))
-        return(as.numeric(pROC::auc(pROC::roc(y, pred, quiet = TRUE))))
-      pos <- pred[yb == 1]
-      neg <- pred[yb == 0]
-      comp <- outer(pos, neg, function(a, b) (a > b) + 0.5 * (a == b))
-      return(mean(comp))
+      return(.auc_binary(y, pred))
     }
     if (name == "pr_auc" && task == "binomial") {
       if (requireNamespace("PRROC", quietly = TRUE)) {
@@ -1531,7 +1566,8 @@ fit_resample <- function(x, outcome, splits,
         class_weights = class_weights,
         positive_class = positive_class,
         classification_threshold = classification_threshold,
-        parallel = parallel
+        parallel = parallel,
+        id_cols = id_cols
       )
     }
 
@@ -1560,6 +1596,7 @@ fit_resample <- function(x, outcome, splits,
                   final_model = final_model,
                   final_preprocess = final_guard,
                   learner_names = learner_names,
+                  id_cols = id_cols,
                   perm_refit_spec = perm_refit_spec,
                   provenance = .bio_capture_provenance()))
 }

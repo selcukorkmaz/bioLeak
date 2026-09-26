@@ -57,11 +57,13 @@ statistic, the permutation null, and the sign of the reported gap.}
 distribution (default 200). Larger values reduce Monte Carlo error but
 increase runtime.}
 
-\item{perm_stratify}{Logical scalar or `"auto"`. If TRUE, permutations
-are stratified within each fold (factor levels; numeric outcomes are binned
-into quantiles when enough non-missing values are available). If FALSE, no
-stratification is used. Defaults to FALSE. Stratification only applies when
-`coldata` supplies the outcome; otherwise labels are shuffled within each fold.}
+\item{perm_stratify}{Logical scalar or `"auto"`. If TRUE, refit-based
+permutations (`perm_refit = TRUE`) are stratified (factor levels; numeric
+outcomes are binned into quantiles when enough non-missing values are
+available). If FALSE, no stratification is used. Defaults to FALSE.
+Stratification only applies when `coldata` supplies the outcome. It has no
+effect on fixed-prediction permutations (`perm_refit = FALSE`), which
+always use a global label shuffle; a warning is raised if it is set there.}
 
 \item{perm_refit}{Logical scalar or `"auto"`. If FALSE, permutations keep
 predictions fixed and shuffle labels (association test). If TRUE, each
@@ -79,21 +81,26 @@ permutations.}
 Required elements: `x` (data used for fitting) and `learner` (parsnip
 model_spec, workflow, or legacy learner). Optional elements: `outcome`
 (defaults to `fit@outcome`), `preprocess`, `learner_args`,
-`custom_learners`, `class_weights`, `positive_class`, and `parallel`.
+`custom_learners`, `class_weights`, `positive_class`, `parallel`, and
+`id_cols` (defaults to the `id_cols` used by [fit_resample()]).
 Survival outcomes are not supported for refit-based permutations.}
 
 \item{perm_mode}{Optional character scalar to override the permutation mode
 used for restricted shuffles. One of `"subject_grouped"`, `"batch_blocked"`,
 `"study_loocv"`, or `"time_series"`. Defaults to the split metadata when
-available (including rsample-derived modes).}
+available (including rsample-derived modes). Restricted shuffles are used
+by refit-based permutations and by the multivariate target scan; the
+fixed-prediction permutation gap always uses a global label shuffle.}
 
 \item{time_block}{Character scalar, `"circular"` or `"stationary"`. Controls
-block permutation for `time_series` splits; ignored for other split modes.
-Default is `"circular"`.}
+block permutation for `time_series` splits; ignored for other split modes
+and by the fixed-prediction permutation gap (a warning is raised if it is
+supplied with `perm_refit = FALSE`). Default is `"circular"`.}
 
 \item{block_len}{Integer scalar or NULL. Block length for time-series
 permutations. NULL selects `max(5, floor(0.1 * fold_size))`. Larger values
-preserve more temporal structure and yield a more conservative null.}
+preserve more temporal structure and yield a more conservative null.
+Like `time_block`, it applies only to restricted (refit) permutations.}
 
 \item{include_z}{Logical scalar. If TRUE (default), include the z-score for the
 permutation gap when a standard error is available; if FALSE, `z` is NA.}
@@ -285,11 +292,22 @@ accuracy, macro-F1, C-index) and `perm_mean - metric_obs` for RMSE/log-loss.
 By default, `perm_refit = "auto"` refits models when refit data are available
 and `B` is not too large; otherwise it keeps predictions fixed and shuffles
 labels. Fixed-prediction permutations quantify prediction-label association
-rather than a full refit null. Set `perm_refit = FALSE` to force fixed
+rather than a full refit null. They pool the out-of-fold predictions and
+shuffle labels globally (not within folds, which would preserve fold-level
+class balance and inflate the null), so `perm_stratify`, `time_block`, and
+`block_len` do not apply to them; `info$perm_null` records which null was
+used (`"global_shuffle"` or `"refit"`). AUC is always oriented so that
+higher predictions indicate the positive class (the second outcome level),
+so anti-correlated predictions give AUC below 0.5 and the permutation null
+centres at 0.5. Set `perm_refit = FALSE` to force fixed
 predictions, or `perm_refit = TRUE` (with `perm_refit_spec`) to always refit.
 
 `batch_assoc` contains chi-square tests between fold assignment and each
-`batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`). `target_assoc`
+`batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`), one row per
+variable and repeat, plus `pval_adj`, the Holm-adjusted p-value across all
+rows. The `confounding_alignment` rule of the mechanism summary flags only
+when some row has `pval_adj <= 0.05` and `cramer_v >= 0.1`, so repeated CV
+does not inflate the false-positive rate. `target_assoc`
 reports feature-wise outcome associations on `X_ref`; numeric features use
 AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
 categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a

@@ -146,7 +146,12 @@ BCa bootstrap confidence intervals (Efron, 1987) require
 \describe{
   \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + sign-flip p-value; \code{inference_ok = TRUE}}
   \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20: point + sign-flip p-value + BCa CI}
-  \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI)}
+  \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI).
+    The exact two-sided sign-flip test has minimum achievable p-value
+    \eqn{2 / 2^{R_{\text{eff}}}}, so at \eqn{R_{\text{eff}} = 5} the smallest
+    possible p is 0.0625 and the test can never reach \eqn{p < 0.05};
+    use \eqn{R_{\text{eff}} \geq 6} (minimum p = 0.03125) if a 5\% test is
+    needed. The attainable floor is stored in \code{info$min_p_achievable}.}
   \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
 }}
 }

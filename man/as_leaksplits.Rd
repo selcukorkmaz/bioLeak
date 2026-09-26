@@ -40,8 +40,20 @@ The mapping from \code{spec$constraint_mode} to
   \item \code{"batch"}     -> \code{"batch_blocked"}
   \item \code{"study"}     -> \code{"study_loocv"}
   \item \code{"time"}      -> \code{"time_series"}
-  \item \code{"composite"} -> \code{"combined"}
+  \item \code{"site"}, \code{"region"}, \code{"platform"},
+    \code{"assay"}, \code{"relatedness"}, \code{"spatial"},
+    \code{"composite"} -> \code{"subject_grouped"} with
+    \code{group = spec$group_var} (\code{"group_id"})
 }
+
+For the grouping modes in the last row, splitGraph has already resolved
+the dependency structure into one group id per sample (for
+\code{"composite"}, the merged components of all relations in \code{via}),
+so keeping each group intact within a fold honours the constraint.
+Composite specs that require ordering (\code{spec$ordering_required})
+cannot be expressed as grouped folds and raise an error; derive a
+\code{"time"} spec instead. Unrecognised future modes fall back to
+grouped folds on \code{group_var} with a warning.
 
 Blocking variables declared on the spec (\code{batch_group},
 \code{study_group}) and ordering (\code{order_rank}) are forwarded

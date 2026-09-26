@@ -167,3 +167,44 @@ test_that("predict_guard requires GuardFit objects", {
   expect_true(is.data.frame(out))
   expect_error(predict_guard(list(), X))
 })
+
+test_that("variance/IQR filter uses the pre-normalization scale", {
+  # Before 0.3.8 the filter ran on z-scored data, where every non-constant
+  # column has variance 1, so var_thresh could not separate these features.
+  set.seed(8)
+  X <- data.frame(low = rnorm(50, sd = 0.1), mid = rnorm(50, sd = 1),
+                  high = rnorm(50, sd = 5))
+  for (norm in c("zscore", "robust", "none")) {
+    fit <- guard_fit(
+      X, y = rep(0:1, 25),
+      steps = list(impute = list(method = "median"),
+                   normalize = list(method = norm),
+                   filter = list(var_thresh = 0.5),
+                   fs = list(method = "none")),
+      task = "binomial"
+    )
+    expect_identical(names(which(fit$state$filter$keep)), c("mid", "high"), info = norm)
+    out <- fit$transform(X)
+    expect_identical(colnames(out), c("mid", "high"), info = norm)
+    if (norm == "zscore") {
+      expect_equal(unname(vapply(out, stats::sd, numeric(1))), c(1, 1))
+    }
+  }
+
+  fit_iqr <- guard_fit(
+    X, y = rep(0:1, 25),
+    steps = list(normalize = list(method = "zscore"),
+                 filter = list(iqr_thresh = 3)),
+    task = "binomial"
+  )
+  expect_identical(names(which(fit_iqr$state$filter$keep)), "high")
+
+  # min_keep ranks by the original-scale spread
+  fit_mk <- guard_fit(
+    X, y = rep(0:1, 25),
+    steps = list(normalize = list(method = "zscore"),
+                 filter = list(var_thresh = 1e6, min_keep = 1)),
+    task = "binomial"
+  )
+  expect_identical(names(which(fit_mk$state$filter$keep)), "high")
+})

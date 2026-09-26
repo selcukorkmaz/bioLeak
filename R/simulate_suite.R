@@ -241,8 +241,12 @@ simulate_leakage_suite <- function(
   }
   linpred <- rowSums(X[, seq_len(min(5, p)), drop = FALSE])
   linpred <- scale(linpred) * signal_strength
-  thr <- stats::qnorm(prevalence)
-  y_prob <- stats::pnorm(linpred - thr)
+  # Probit model P(y = 1 | x) = pnorm(linpred + b0). linpred ~ N(0, s^2) with
+  # s = signal_strength, so the marginal prevalence is
+  # pnorm(b0 / sqrt(1 + s^2)); choosing b0 = qnorm(prevalence) * sqrt(1 + s^2)
+  # makes it equal the requested `prevalence`.
+  b0 <- stats::qnorm(prevalence) * sqrt(1 + signal_strength^2)
+  y_prob <- stats::pnorm(linpred + b0)
   y <- rbinom(n, 1, y_prob)
   if (leakage == "subject_overlap") {
     X <- cbind(X, leak_subj = ave(y, subject, FUN = mean))

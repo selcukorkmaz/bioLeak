@@ -357,7 +357,12 @@
 #' \describe{
 #'   \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + sign-flip p-value; \code{inference_ok = TRUE}}
 #'   \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20: point + sign-flip p-value + BCa CI}
-#'   \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI)}
+#'   \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI).
+#'     The exact two-sided sign-flip test has minimum achievable p-value
+#'     \eqn{2 / 2^{R_{\text{eff}}}}, so at \eqn{R_{\text{eff}} = 5} the smallest
+#'     possible p is 0.0625 and the test can never reach \eqn{p < 0.05};
+#'     use \eqn{R_{\text{eff}} \geq 6} (minimum p = 0.03125) if a 5\% test is
+#'     needed. The attainable floor is stored in \code{info$min_p_achievable}.}
 #'   \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
 #' }}
 #'
@@ -670,7 +675,7 @@ delta_lsi <- function(
       n_blocks_used   <- as.integer(sf_out$n_blocks)
       # If too few independent blocks for p < 0.05, set p to NA and warn.
       if (!is.na(n_blocks_used) && n_blocks_used < 5L) {
-        min_p <- if (n_blocks_used >= 1L) 1.0 / 2.0^n_blocks_used else 1.0
+        min_p <- if (n_blocks_used >= 2L) 2.0 / 2.0^n_blocks_used else 1.0
         warning(sprintf(
           paste0("[delta_lsi] blocked_time sign-flip: n_blocks = %d < 5; ",
                  "minimum achievable p = %.4f > 0.05. Setting p_value = NA. ",
@@ -697,6 +702,19 @@ delta_lsi <- function(
 
   inference_ok <- (R_eff >= 20L && is.finite(p_val) && all(is.finite(ci_lsi)))
 
+  # Smallest p-value the iid sign-flip test can return: the observed sign
+  # pattern and its mirror image are always "as extreme", so exact
+  # enumeration gives 2 / 2^R; the Monte Carlo version is floored at 1/(M+1).
+  # The block test has the same floor with n_blocks in place of R.
+  min_p_achievable <- NA_real_
+  if (!is.null(delta_r) && R_eff >= 5L) {
+    n_units <- if (exchangeability == "blocked_time") n_blocks_used else R_eff
+    if (!is.na(n_units)) {
+      min_p_achievable <- if (n_units < 2L) 1 else
+        if (n_units <= 15L) 2 / 2^n_units else 1 / (M_flip + 1)
+    }
+  }
+
   # Metadata
   info_list <- list(
     paired           = paired,
@@ -706,7 +724,8 @@ delta_lsi <- function(
     metric_naive     = .dlsi_huber(reps_n$metric),
     metric_guarded   = .dlsi_huber(reps_g$metric),
     block_size_used  = block_size_used,
-    n_blocks         = n_blocks_used
+    n_blocks         = n_blocks_used,
+    min_p_achievable = min_p_achievable
   )
   if (return_details) {
     info_list$delta_r     <- delta_r
@@ -821,6 +840,11 @@ summary.LeakDeltaLSI <- function(object, digits = 3L, ...) {
     p   <- object@p_value
     sig <- if (p < 0.001) "***" else if (p < 0.01) "**" else if (p < 0.05) "*" else ""
     cat(sprintf("  Sign-flip p:   %.4f %s\n", p, sig))
+    min_p <- object@info[["min_p_achievable"]] %||% NA_real_
+    if (is.finite(min_p) && min_p > 0.05)
+      cat(sprintf(paste0("  [Note: with R_eff = %d the smallest attainable p is %.4f > 0.05;\n",
+                         "   use R_eff >= 6 repeats for a 5%% sign-flip test.]\n"),
+                  object@R_eff, min_p))
     # Diagnostic: warn when p-value and BCa CI lead to different conclusions.
     # This happens when the arithmetic mean (tested by p) and the Huber estimate
     # (covered by the CI) diverge — a sign of outlier repeats skewing the mean.

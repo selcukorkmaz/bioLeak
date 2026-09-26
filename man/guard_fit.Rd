@@ -33,7 +33,10 @@ The pipeline applies, in order:
   \item Winsorization (optional) to limit outliers.
   \item Imputation learned on training data only.
   \item Normalization (z-score or robust).
-  \item Variance/IQR filtering.
+  \item Variance/IQR filtering. Thresholds are compared with the variance
+    and IQR of the imputed training data on its original scale (before
+    normalization), so \code{var_thresh} and \code{iqr_thresh} keep their
+    meaning under z-score or robust scaling.
   \item Feature selection (optional; t-test, lasso, PCA).
 }
 All statistics are estimated on the training data and re-used for new data.

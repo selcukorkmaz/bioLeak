@@ -1,3 +1,90 @@
+# bioLeak 0.3.8
+
+## Bug fixes (results can change)
+
+* **AUC orientation.** AUC was computed with `pROC::roc(truth, pred)` using
+  pROC's default `direction = "auto"`, which silently flips the curve when
+  predictions are anti-correlated with the outcome. A perfectly inverted
+  model scored AUC = 1, AUC could never fall below about 0.5, and
+  permutation nulls centred above 0.5 (0.51-0.57 observed). AUC is now
+  always oriented, with explicit `levels = c(negative, positive)` and
+  `direction = "<"` (the positive class is the second outcome level, as set
+  by `positive_class`), through a single internal helper used by
+  `fit_resample()` and `audit_leakage()` (observed metric and permutation
+  null). The univariate and multivariate target scans already used an
+  oriented rank AUC and now share the same helper. Anti-correlated
+  predictions now give AUC < 0.5, and label-permutation nulls centre at 0.5.
+  The target-scan flagging `score = |AUC - 0.5| * 2` is unchanged, so strong
+  inverse proxies are still flagged.
+
+* **`simulate_leakage_suite()` prevalence.** The outcome generator used
+  `pnorm(linpred - qnorm(prevalence))`, which inverted the requested
+  prevalence (0.2 gave about 0.72; 0.8 gave about 0.27). It now uses
+  `pnorm(linpred + b0)` with `b0 = qnorm(prevalence) * sqrt(1 + signal_strength^2)`,
+  which also corrects the attenuation from the latent-variable scale, so the
+  marginal prevalence equals the requested value at every `signal_strength`.
+  The `imaging_tabular` (0.4) and `ehr_tabular` (0.3) profiles of
+  `benchmark_leakage_suite()` now have their declared prevalence.
+
+* **`as_leaksplits()` for all splitGraph modes.** The splitGraph modes
+  `site`, `region`, `platform`, `assay`, `relatedness` and `spatial` failed
+  with "subscript out of bounds" (the `subject_grouped` fallback was
+  unreachable), and `composite` failed with "'primary_axis' must be a list".
+  These modes, including both composite strategies, now map to
+  `make_split_plan(mode = "subject_grouped", group = "group_id")`, which
+  keeps each splitGraph dependency group intact within a fold. Composite
+  specs that require ordering, specs whose constraint collapses all samples
+  into one group, and column-name clashes between `data` and the spec give
+  clear errors; unrecognised future modes fall back to grouped folds with a
+  warning. bioLeak now has its own `as_leaksplits()` tests.
+
+* **Batch-confounding rule corrected for multiplicity.** The
+  `confounding_alignment` rule of the audit mechanism summary took the raw
+  minimum chi-square p-value over all batch columns and CV repeats, so a
+  chance p = 0.038 in one of 10 repeats flagged an unrelated batch.
+  `audit_leakage()` now adds a Holm-adjusted `pval_adj` column to
+  `batch_assoc` (family = all batch-column x repeat rows), and the rule flags
+  only when a row has `pval_adj <= 0.05` and Cramer's V >= 0.1. With a single
+  repeat and one batch column the rule is unchanged.
+
+* **Guarded variance/IQR filter uses the original scale.** `guard_fit()`
+  applied `filter$var_thresh` / `filter$iqr_thresh` after z-scoring, where
+  every non-constant feature has variance 1, making `var_thresh` meaningless
+  under the default `normalize = "zscore"` (and distorted under `"robust"`).
+  The thresholds, and the `min_keep` ranking, now use the variance and IQR of
+  the imputed training data before normalization. The pipeline order and the
+  default (`var_thresh = 0`, `iqr_thresh = 0`, no filtering) are unchanged.
+
+## Behaviour changes and new arguments
+
+* `audit_leakage()` with `perm_refit = FALSE`: the permutation-gap null is,
+  by design, a global label shuffle of the pooled out-of-fold predictions.
+  A restricted permutation source was also built on this path but never
+  used, so `perm_stratify`, `time_block` and `block_len` silently had no
+  effect. The dead code is removed, a warning is now raised when any of
+  these is set on the fixed-prediction path, the documentation says which
+  null each argument affects, and `info$perm_null` records the null used
+  (`"global_shuffle"` or `"refit"`). Refit-based permutations are unchanged.
+
+* `fit_resample()` gains `id_cols`, a character vector of identifier or
+  metadata columns to exclude from the predictors (previously only the
+  outcome and the split's group/batch/study/time columns were dropped, so a
+  character `sample_id` was one-hot encoded into one predictor per row).
+  With guarded preprocessing, a `bioLeak_input_warning` is raised when a
+  character or factor column not listed in `id_cols` has at least 90% unique
+  values. `id_cols` is stored in the fit and reused by refit-based
+  permutations in `audit_leakage()`.
+
+## Documentation
+
+* `delta_lsi()`: the exact two-sided sign-flip test has minimum achievable
+  p-value `2 / 2^R_eff`, so tier `C_signflip` at `R_eff = 5` can never
+  reach p < 0.05 (minimum 0.0625); 6 or more paired repeats are needed. The
+  tier documentation and vignette (which gave `1 / 2^R`) are corrected, the
+  floor is stored in `info$min_p_achievable` (using `n_blocks` for
+  `exchangeability = "blocked_time"`), and `summary()` notes when it exceeds
+  0.05. Tier boundaries are unchanged.
+
 # bioLeak 0.3.7
 
 ## Documentation

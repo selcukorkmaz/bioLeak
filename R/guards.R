@@ -278,7 +278,10 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
 #'   \item Winsorization (optional) to limit outliers.
 #'   \item Imputation learned on training data only.
 #'   \item Normalization (z-score or robust).
-#'   \item Variance/IQR filtering.
+#'   \item Variance/IQR filtering. Thresholds are compared with the variance
+#'     and IQR of the imputed training data on its original scale (before
+#'     normalization), so \code{var_thresh} and \code{iqr_thresh} keep their
+#'     meaning under z-score or robust scaling.
 #'   \item Feature selection (optional; t-test, lasso, PCA).
 #' }
 #' All statistics are estimated on the training data and re-used for new data.
@@ -465,6 +468,12 @@ guard_fit <- function(X, y = NULL, steps = list(),
 
   audit <- c(audit, list(state$impute$label))
 
+  # Variance/IQR filter statistics are taken from the imputed data *before*
+  # normalization: after z-scoring every non-constant column has variance 1,
+  # which would make var_thresh meaningless. The filter itself is a column
+  # selection, so applying it after normalization is unchanged.
+  X_prenorm <- X
+
   # 3) Normalization -----------------------------------------------------------
   norm_cfg <- steps$normalize %||% list()
   norm_method <- norm_cfg$method %||% "zscore"
@@ -501,11 +510,11 @@ guard_fit <- function(X, y = NULL, steps = list(),
   keep <- rep(TRUE, ncol(X))
   names(keep) <- colnames(X)
   if (var_th > 0) {
-    v <- vapply(X, stats::var, numeric(1))
+    v <- vapply(X_prenorm, stats::var, numeric(1))
     keep <- keep & (v >= var_th)
   }
   if (iqr_th > 0) {
-    i <- vapply(X, stats::IQR, numeric(1))
+    i <- vapply(X_prenorm, stats::IQR, numeric(1))
     keep <- keep & (i >= iqr_th)
   }
 
@@ -515,8 +524,8 @@ guard_fit <- function(X, y = NULL, steps = list(),
     min_keep <- min(min_keep, ncol(X))
     if (sum(keep) < min_keep) {
       # Rank by variance then IQR to recover features until min_keep
-      v <- vapply(X, stats::var, numeric(1))
-      i <- vapply(X, stats::IQR, numeric(1))
+      v <- vapply(X_prenorm, stats::var, numeric(1))
+      i <- vapply(X_prenorm, stats::IQR, numeric(1))
       ord <- order(v + i, decreasing = TRUE)
       keep[ord[seq_len(min_keep)]] <- TRUE
     }

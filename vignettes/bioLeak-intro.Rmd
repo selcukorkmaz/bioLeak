@@ -1952,8 +1952,12 @@ need:
 - **Tier D** (`D_insufficient`, point estimates only): any $R_{\text{eff}} < 5$ — useful for
   exploratory comparisons where no formal test is required.
 - **Tier C** (`C_signflip`, sign-flip p-value available): 5-fold $\times$ 5 repeats
-  $\to R_{\text{eff}} = 5$. The smallest achievable p-value is $1/2^5 = 0.031$.
-  For `exchangeability = "blocked_time"` the minimum p-value is $1/2^{n_{\text{blocks}}}$;
+  $\to R_{\text{eff}} = 5$. The exact two-sided sign-flip test has smallest
+  achievable p-value $2/2^{R_{\text{eff}}}$, which is $2/2^5 = 0.0625$ at
+  $R_{\text{eff}} = 5$: that design can never reach $p < 0.05$. Use at least 6
+  repeats ($2/2^6 = 0.031$) if you need a 5% test; the attainable floor is
+  stored in `info$min_p_achievable`.
+  For `exchangeability = "blocked_time"` the minimum p-value is $2/2^{n_{\text{blocks}}}$;
   at least 5 blocks are required for the test to be available.
 - **Tier B** (`B_signflip_ci`, BCa CI additionally available): 5-fold $\times$ 10 repeats
   $\to R_{\text{eff}} = 10$. Both sign-flip p-value and BCa CI are reported.
@@ -2002,8 +2006,9 @@ Two computation regimes are used:
 - **Exact enumeration** ($R_{\text{eff}} \leq 15$): all $2^R$ sign vectors are
   evaluated — $|\mathcal{E}| = 2^R$. The p-value is $\text{count}/2^R$ with
   **no** continuity correction, because every sign combination including the
-  observed one is explicitly enumerated. The minimum achievable p-value is
-  $1/2^R$.
+  observed one is explicitly enumerated. Because the test is two-sided, the
+  observed signs and their mirror image always count, so the minimum
+  achievable p-value is $2/2^R$.
 
 - **Monte Carlo** ($R_{\text{eff}} > 15$): $M_{\text{flip}}$ sign vectors are
   drawn uniformly from $\{-1,+1\}^R$. The Phipson & Smyth (2010) correction
@@ -2025,11 +2030,14 @@ significant `@p_value` with a BCa CI for `delta_lsi` that spans zero — or vice
 versa — if a handful of repeats pull the mean but not the robust estimate. The
 `summary()` method flags this disagreement explicitly when it occurs.
 
-The threshold $R_{\text{eff}} \geq 5$ for the sign-flip test follows from the
-minimum achievable p-value: with $R = 4$, $1/2^4 = 0.0625 > 0.05$, so a
-significant result at the conventional level is impossible regardless of the
-data. With $R = 5$, $1/2^5 = 0.03125 < 0.05$, making it attainable. For
-`exchangeability = "blocked_time"`, the relevant threshold is $n_{\text{blocks}} \geq 5$
+The sign-flip test is two-sided and, under exact enumeration, the observed
+sign pattern and its mirror image are always "as extreme", so the minimum
+achievable p-value is $2/2^{R}$. With $R = 5$ this is $2/2^5 = 0.0625 > 0.05$:
+tier C at $R_{\text{eff}} = 5$ reports a p-value, but a significant result at
+the conventional level is impossible regardless of the data. With $R = 6$,
+$2/2^6 = 0.03125 < 0.05$, making it attainable. The floor for a given fit is
+stored in `info$min_p_achievable`, and `summary()` notes when it exceeds 0.05.
+For `exchangeability = "blocked_time"`, the relevant threshold is $n_{\text{blocks}} \geq 5$
 (not $R_{\text{eff}} \geq 5$), since blocks are the independent units under the
 test; `@p_value` is set to `NA` and a warning is issued when
 $n_{\text{blocks}} < 5$. For other exchangeability values, `@p_value` is `NA`
@@ -2136,9 +2144,10 @@ system makes these dependencies explicit:
 | `B_signflip_ci` | $10 \leq R_{\text{eff}} < 20$ | ✓ | ✓ | ✓ | ✓ | `FALSE` |
 | `A_full_inference` | $R_{\text{eff}} \geq 20$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
 
-The threshold $R_{\text{eff}} \geq 5$ for the sign-flip test under `"iid"`
-exchangeability follows from the minimum achievable p-value under exact
-enumeration ($1/2^5 = 0.03125 < 0.05$; $1/2^4 = 0.0625 > 0.05$). For
+Under `"iid"` exchangeability the exact two-sided sign-flip test has minimum
+achievable p-value $2/2^{R_{\text{eff}}}$ ($2/2^5 = 0.0625$ at the tier C entry
+point; $2/2^6 = 0.03125$), so at least 6 paired repeats are needed for
+$p < 0.05$ to be attainable. For
 `exchangeability = "blocked_time"`, the independent units are blocks of
 repeats, so the effective threshold is $n_{\text{blocks}} \geq 5$; when fewer
 than five blocks are formed from the available repeats, `@p_value` is set to

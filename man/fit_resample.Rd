@@ -21,7 +21,8 @@ fit_resample(
   refit = TRUE,
   seed = 1,
   split_cols = "auto",
-  store_refit_data = TRUE
+  store_refit_data = TRUE,
+  id_cols = NULL
 )
 }
 \arguments{
@@ -86,6 +87,15 @@ Supported names are `group`, `batch`, `study`, and `time`.}
 \item{store_refit_data}{Logical; when TRUE (default), stores the original
 data and learner configuration inside the fit to enable refit-based
 permutation tests without manual `perm_refit_spec` setup.}
+
+\item{id_cols}{Optional character vector of identifier or metadata columns
+(for example a \code{sample_id}) to exclude from the predictors. The
+outcome and the split's group/batch/study/time columns are always
+excluded; every other column of \code{x} is used as a predictor, and
+character/factor columns are one-hot encoded. With the built-in guarded
+preprocessing, a warning is raised when a character or factor column not
+listed here has nearly one unique value per row (at least 90\% unique),
+because such columns are almost always identifiers.}
 }
 \value{
 A \code{\linkS4class{LeakFit}} S4 object containing:
