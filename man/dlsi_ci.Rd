@@ -3,7 +3,7 @@
 \name{dlsi_ci}
 \alias{dlsi_ci}
 \alias{dlsi_ci,LeakDeltaLSI-method}
-\title{BCa confidence interval from a LeakDeltaLSI}
+\title{Confidence interval from a LeakDeltaLSI}
 \usage{
 dlsi_ci(dlsi, which = c("robust", "metric"))
 
@@ -22,8 +22,8 @@ A length-two numeric vector `c(lower, upper)`. Returns
   example, when the inference tier did not include CIs).
 }
 \description{
-Returns the bias-corrected and accelerated (BCa) bootstrap
-confidence interval stored in a [`LeakDeltaLSI`] object. By default
+Returns the 95% confidence interval stored in a [`LeakDeltaLSI`]
+object, from the corrected repeated-CV t-test (see [delta_lsi()]). By default
 returns the interval for the Huber-robust delta estimate; set
 `which = "metric"` to return the interval for the raw metric
 difference instead.

@@ -3,7 +3,7 @@
 \name{dlsi_R_eff}
 \alias{dlsi_R_eff}
 \alias{dlsi_R_eff,LeakDeltaLSI-method}
-\title{Effective number of paired repeats from a LeakDeltaLSI}
+\title{Effective number of independent units from a LeakDeltaLSI}
 \usage{
 dlsi_R_eff(dlsi)
 
@@ -16,10 +16,10 @@ dlsi_R_eff(dlsi)
 A length-one integer.
 }
 \description{
-Returns the effective number of paired repeats `R_eff` stored in a
-[`LeakDeltaLSI`] object. This is the count of repeats that
-contribute to the inference; it equals the smaller of the leaky and
-guarded fits' repeat counts when the comparison is paired.
+Returns `R_eff` stored in a [`LeakDeltaLSI`] object: the number of folds
+per repeat (the number of studies for `study_loocv`) when the comparison
+is paired, and 0 otherwise. Repeats re-partition the same data, so they
+sharpen the estimate but do not add independent units.
 }
 \details{
 Implemented as an S4 generic with a method for [`LeakDeltaLSI`];

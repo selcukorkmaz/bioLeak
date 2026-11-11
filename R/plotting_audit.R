@@ -749,8 +749,8 @@ plot_dlsi_repeats <- function(dlsi) {
       title = expression("Per-repeat" ~ Delta[italic(r)] ~
                          "(leaky " * minus * " guarded)"),
       subtitle = sprintf(
-        "R_eff = %d   |   Delta_LSI = %.3f   |   Delta_metric = %.3f",
-        R_eff, delta_robust, delta_mean),
+        "Repeats = %d   |   R_eff = %d   |   Delta_LSI = %.3f   |   Delta_metric = %.3f",
+        R_eff, dlsi_R_eff(dlsi), delta_robust, delta_mean),
       x = "Repeat", y = expression(Delta[italic(r)])) +
     ggplot2::theme_minimal()
 

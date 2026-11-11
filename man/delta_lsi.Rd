@@ -30,49 +30,45 @@ delta_lsi(
 \item{metric}{Character. Performance metric to compare. Must appear in
 \code{fit@metrics} of both fits (e.g., \code{"auc"}, \code{"rmse"}).}
 
-\item{exchangeability}{Character. Exchangeability assumption for the
-sign-flip test. One of \code{"iid"} (default), \code{"by_group"},
-\code{"within_batch"}, \code{"blocked_time"}.
-\code{"blocked_time"} activates a block sign-flip procedure that flips
-contiguous groups of repeats together, preserving serial autocorrelation
-under the null; see \code{block_size}.  \code{"by_group"} and
-\code{"within_batch"} are stored and reported but inference still uses the
-iid sign-flip procedure (a warning is issued; contributions welcome).
-\code{"iid"} (default) applies the standard independent sign-flip test.}
+\item{exchangeability}{Character. One of \code{"iid"} (default),
+\code{"by_group"}, \code{"within_batch"}, \code{"blocked_time"}. Stored
+and reported; all settings use the same corrected t-test, because the
+correction already accounts for the dependence these settings used to
+address. For \code{"by_group"} / \code{"within_batch"} the number of
+group / batch levels is reported in \code{info$n_groups_used} /
+\code{info$n_batches_used}. Earlier versions ran sign-flip tests here
+that were anti-conservative with real model fits.}
 
 \item{learner}{Optional character. Learner name to select from multi-learner
 fits. If \code{NULL}, the first learner found in \code{fit@metrics} is used.}
 
 \item{higher_is_better}{Logical or \code{NULL}. Whether a higher value of
 \code{metric} indicates better performance. When \code{NULL} (default),
-auto-detected from the metric name: \code{"rmse"}, \code{"mse"},
-\code{"mae"}, \code{"log_loss"}, \code{"brier"}, \code{"error"},
-\code{"loss"}, and \code{"deviance"} are treated as lower-is-better;
-all others default to higher-is-better. Setting this correctly ensures
+auto-detected from the metric name: names containing \code{"rmse"},
+\code{"mse"}, \code{"mae"}, \code{"mape"}, \code{"mase"},
+\code{"log_loss"}, \code{"brier"}, \code{"error"}, \code{"loss"},
+\code{"deviance"} or \code{"cost"} are lower-is-better; names such as
+\code{"auc"}, \code{"accuracy"}, \code{"f1"}, \code{"kappa"},
+\code{"rsq"} or \code{"cindex"} are higher-is-better; any other name
+warns and is treated as higher-is-better. Setting this correctly ensures
 that a positive \code{delta_lsi} always indicates leakage inflation
 (the naive pipeline is artificially more optimistic than the guarded one).}
 
-\item{block_size}{Integer or \code{NULL}. Block length for the block
-sign-flip test, used only when \code{exchangeability = "blocked_time"}.
-When \code{NULL} (default), the block size is auto-estimated from the
-first-order autocorrelation of \eqn{\{\Delta_r\}} and capped at
-\code{floor(R/3)} to ensure at least three independent blocks.  A warning
-is issued when the estimate is used with \code{R_eff < 20} because the
-AR(1) estimate is noisy at small sample sizes.  Provide an explicit integer
-to override auto-estimation.}
+\item{block_size}{Ignored; retained for compatibility (a warning is issued
+when supplied).}
 
-\item{M_boot}{Integer. Number of bootstrap samples for BCa CI (default 2000).}
+\item{M_boot}{Ignored; retained for compatibility (no bootstrap is used).}
 
-\item{M_flip}{Integer. Maximum Monte Carlo samples for sign-flip test when
-R_eff > 15 (default 10000).}
+\item{M_flip}{Ignored; retained for compatibility (no sign-flip test is used).}
 
 \item{strict}{Logical. If \code{TRUE}, error on insufficient R_eff instead
 of a warning.}
 
 \item{return_details}{Logical. If \code{TRUE}, include the per-repeat
-\eqn{\Delta_r} vector and the original fit objects in the \code{info} slot.}
+\eqn{\Delta_r} vector, the paired fold deltas and the original fit objects
+in the \code{info} slot.}
 
-\item{seed}{Integer. Random seed for bootstrap and sign-flip test.}
+\item{seed}{Ignored; retained for compatibility (the method is deterministic).}
 
 \item{...}{Unused. Reserved for deprecated aliases such as
 \code{fit_naive}.}
@@ -89,15 +85,15 @@ A \code{\linkS4class{LeakDeltaLSI}} object. Use
     \item \code{\link{dlsi_robust}(dlsi)} -- Huber-robust point
       estimate (the \code{delta_lsi} slot).
     \item \code{\link{dlsi_ci}(dlsi, which = "robust" | "metric")} --
-      BCa bootstrap confidence interval for either the robust or
+      corrected-t 95\% confidence interval for either the robust or
       the raw estimate.
-    \item \code{\link{dlsi_p_value}(dlsi)} -- sign-flip
-      randomization-test p-value.
+    \item \code{\link{dlsi_p_value}(dlsi)} -- corrected repeated-CV
+      t-test p-value.
     \item \code{\link{dlsi_tier}(dlsi)} -- inference-tier label
       (\code{"A_full_inference"}, \code{"B_signflip_ci"},
       \code{"C_signflip"}, or \code{"D_insufficient"}).
     \item \code{\link{dlsi_R_eff}(dlsi)} -- effective number of
-      paired repeats contributing to the inference.
+      independent units (folds per repeat).
     \item \code{\link{dlsi_repeats}(dlsi, which = "naive" | "guarded")}
       -- per-repeat metric data frame for the requested pipeline.
   }
@@ -127,33 +123,52 @@ repeats. \strong{delta_metric} is the arithmetic mean of \eqn{\{\Delta_r\}}
 for easy interpretation in the original metric's units.
 
 Pairing requires that \code{fit_leaky} and \code{fit_guarded} share
-\emph{identical fold structures} (same test-set membership per fold) in
-addition to the same number of repeats.  When repeat counts match but fold
-structures differ, a warning is issued and the fits are treated as unpaired.
+\emph{identical fold structures} (same test-set membership per fold).
+When fold structures differ, a warning is issued and the fits are treated
+as unpaired. Folds whose metric is missing in either fit are dropped from
+both before pairing, so the paired delta always compares the same test sets.
 
-When \eqn{R_{\text{eff}} \geq 5} (equal, paired repeats), a sign-flip
-randomization test (Phipson & Smyth, 2010) is performed: under
-\eqn{H_0} (no leakage) the sign of each \eqn{\Delta_r} is exchangeable.
-All \eqn{2^R} sign combinations are enumerated exactly for
-\eqn{R \leq 15} (no continuity correction); Monte Carlo sampling is used
-for larger \eqn{R} with the Phipson & Smyth (2010) correction.
+\strong{Inference} uses a corrected repeated cross-validation t-test on
+the paired fold deltas \eqn{d_j}, with folds that re-use an identical
+test set (e.g. repeated leave-one-batch-out) averaged into one, so \eqn{J}
+counts distinct test sets. Repeated CV re-partitions the
+same data, so fold deltas are correlated through overlapping training sets
+and across repeats; treating them (or the repeats) as independent gives
+badly anti-conservative tests. The variance of the mean is corrected as
+\eqn{(1/J + n_{\text{test}}/n_{\text{train}})\, s_d^2} (Nadeau & Bengio,
+2003), and the t reference uses \eqn{k - 1} degrees of freedom, where
+\eqn{k} is the number of folds per repeat (calibrated degrees of freedom,
+Bouckaert, 2003): repeats sharpen the estimate but add no independent
+information. The test statistic is \code{delta_metric / se}; the 95\% CIs
+for \code{delta_metric} and \code{delta_lsi} are the estimate \eqn{\pm
+t_{0.975, k-1}\, se}. In simulations with real model fits under
+\eqn{H_0} (subject-grouped, batch-blocked and leave-one-study-out designs,
+1-20 repeats) the type-I error stayed at or below the nominal 5\%; with
+3-fold designs (2 df) the test is conservative.
 
-BCa bootstrap confidence intervals (Efron, 1987) require
-\eqn{R_{\text{eff}} \geq 10}.
+\code{R_eff} is the number of folds per repeat \eqn{k} (for
+\code{study_loocv}, the number of studies), the number of effectively
+independent units.
 }
 
 \subsection{Inference tiers}{
+Tier labels are kept from earlier versions for compatibility; every tier
+except D reports a p-value and both CIs.
 \describe{
-  \item{\code{"A_full_inference"}}{R_eff >= 20: point + BCa CI + sign-flip p-value; \code{inference_ok = TRUE}}
-  \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20: point + sign-flip p-value + BCa CI}
-  \item{\code{"C_signflip"}}{5 <= R_eff < 10: point + sign-flip p-value (no CI).
-    The exact two-sided sign-flip test has minimum achievable p-value
-    \eqn{2 / 2^{R_{\text{eff}}}}, so at \eqn{R_{\text{eff}} = 5} the smallest
-    possible p is 0.0625 and the test can never reach \eqn{p < 0.05};
-    use \eqn{R_{\text{eff}} \geq 6} (minimum p = 0.03125) if a 5\% test is
-    needed. The attainable floor is stored in \code{info$min_p_achievable}.}
-  \item{\code{"D_insufficient"}}{R_eff < 5 or unpaired: point estimate only}
-}}
+  \item{\code{"A_full_inference"}}{R_eff >= 20}
+  \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20}
+  \item{\code{"C_signflip"}}{3 <= R_eff < 10}
+  \item{\code{"D_insufficient"}}{R_eff < 3 or unpaired: point estimate only}
+}
+\code{inference_ok} is \code{TRUE} whenever a finite p-value and CI were
+computed.}
+}
+\references{
+Nadeau, C. and Bengio, Y. (2003). Inference for the generalization error.
+\emph{Machine Learning}, 52, 239-281.
+
+Bouckaert, R. R. (2003). Choosing between two learning algorithms based on
+calibrated tests. \emph{Proceedings of ICML 2003}, 51-58.
 }
 \seealso{
 \code{\link{audit_leakage}}, \code{\link{fit_resample}},

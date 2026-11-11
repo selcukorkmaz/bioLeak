@@ -3,7 +3,7 @@
 \name{dlsi_p_value}
 \alias{dlsi_p_value}
 \alias{dlsi_p_value,LeakDeltaLSI-method}
-\title{Sign-flip p-value from a LeakDeltaLSI}
+\title{p-value from a LeakDeltaLSI}
 \usage{
 dlsi_p_value(dlsi)
 
@@ -17,8 +17,8 @@ A length-one numeric scalar in `[0, 1]`, or `NA_real_` when
   the inference tier did not include hypothesis testing.
 }
 \description{
-Returns the paired sign-flip randomization-test p-value stored in a
-[`LeakDeltaLSI`] object.
+Returns the corrected repeated-CV t-test p-value stored in a
+[`LeakDeltaLSI`] object (see [delta_lsi()]).
 }
 \details{
 Implemented as an S4 generic with a method for [`LeakDeltaLSI`];

@@ -4,12 +4,23 @@
 # ── Helper: build minimal LeakFit objects ─────────────────────────────────────
 
 # Build a LeakSplits with explicit test/train indices.
-.make_dlsi_splits <- function(n_folds, n_obs, n_repeats = 1L) {
+# distinct = TRUE gives each repeat its own partition (as repeated random CV
+# does); distinct = FALSE re-uses one partition in every repeat (as
+# leave-one-group-out does), which delta_lsi() collapses to one unit.
+.make_dlsi_splits <- function(n_folds, n_obs, n_repeats = 1L, distinct = TRUE) {
   fold_size <- floor(n_obs / n_folds)
+  perms <- lapply(seq_len(n_repeats), function(r) {
+    if (!distinct || r == 1L) return(seq_len(n_obs))
+    old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv())
+    set.seed(7919L * r)
+    p <- sample.int(n_obs)
+    if (!is.null(old)) assign(".Random.seed", old, envir = globalenv())
+    p
+  })
   indices   <- lapply(seq_len(n_folds * n_repeats), function(i) {
     fold_num <- ((i - 1L) %% n_folds) + 1L
     rep_num  <- ceiling(i / n_folds)
-    te       <- ((fold_num - 1L) * fold_size + 1L):(fold_num * fold_size)
+    te       <- sort(perms[[rep_num]][((fold_num - 1L) * fold_size + 1L):(fold_num * fold_size)])
     tr       <- setdiff(seq_len(n_obs), te)
     list(fold = fold_num, repeat_id = rep_num, test = te, train = tr)
   })
@@ -22,9 +33,9 @@
 
 # Build a minimal LeakFit with controlled per-fold AUC values.
 .make_dlsi_fit <- function(fold_aucs, n_obs = 30L, n_repeats = 1L,
-                           seed = 1L) {
+                           seed = 1L, distinct = TRUE) {
   n_folds <- length(fold_aucs) %/% n_repeats
-  splits  <- .make_dlsi_splits(n_folds, n_obs, n_repeats)
+  splits  <- .make_dlsi_splits(n_folds, n_obs, n_repeats, distinct = distinct)
 
   metrics_df <- data.frame(
     fold    = seq_along(fold_aucs),
@@ -91,59 +102,79 @@ test_that("delta_lsi detects inflated naive pipeline", {
   expect_gt(res@delta_metric, 0.0)
 })
 
-# ── Tier assignment ────────────────────────────────────────────────────────────
+# ── Tier assignment and the corrected repeated-CV t-test ─────────────────────
+# R_eff is the number of folds per repeat; repeats add no independent units.
 
-test_that("tier D_insufficient for R_eff < 5", {
-  fit_n <- .make_dlsi_fit(rep(0.75, 3L), n_repeats = 1L)
-  fit_g <- .make_dlsi_fit(rep(0.60, 3L), n_repeats = 1L)
-  expect_warning(
-    res <- delta_lsi(fit_n, fit_g, metric = "auc"),
-    regexp = "R_eff"
-  )
+# Paired fits with k folds per repeat, R repeats, noisy fold metrics and a
+# leaky-minus-guarded gap.
+.noisy_pair <- function(k, R, gap, sd = 0.02, n_obs = 120L, seed = 1L) {
+  set.seed(seed)
+  base  <- runif(k * R, 0.6, 0.7)
+  aux_n <- base + gap + rnorm(k * R, 0, sd)
+  aux_g <- base + rnorm(k * R, 0, sd)
+  list(n = .make_dlsi_fit(aux_n, n_obs = n_obs, n_repeats = R),
+       g = .make_dlsi_fit(aux_g, n_obs = n_obs, n_repeats = R))
+}
+
+test_that("tier D_insufficient with fewer than 3 folds per repeat", {
+  fit_n <- .make_dlsi_fit(c(0.75, 0.70), n_repeats = 1L)
+  fit_g <- .make_dlsi_fit(c(0.60, 0.62), n_repeats = 1L)
+  expect_warning(res <- delta_lsi(fit_n, fit_g, metric = "auc"), regexp = "R_eff")
   expect_equal(res@tier, "D_insufficient")
-  expect_equal(res@R_eff, 1L)  # paired R=1 → R_eff=1, but below the 5-repeat threshold
+  expect_equal(res@R_eff, 2L)
+  expect_true(is.na(res@p_value))
+  expect_false(res@inference_ok)
 })
 
-test_that("tier C_signflip for R_eff in 5..9", {
-  set.seed(3)
-  # 5 repeats × 3 folds = 15 folds each
-  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc", seed = 3L)
+test_that("tier C for 3-9 folds per repeat, with p-value and CI", {
+  f <- .noisy_pair(k = 5L, R = 4L, gap = 0.05)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
   expect_equal(res@tier, "C_signflip")
   expect_equal(res@R_eff, 5L)
-  # CI not available at tier C
-  expect_true(all(!is.finite(res@delta_lsi_ci)))
-  # Sign-flip p-value is available at tier C
   expect_true(is.finite(res@p_value))
+  expect_true(all(is.finite(res@delta_metric_ci)))
+  expect_true(all(is.finite(res@delta_lsi_ci)))
+  expect_true(res@inference_ok)
 })
 
-test_that("tier B_signflip_ci for R_eff in 10..19", {
-  set.seed(4)
-  fit_n <- .make_dlsi_fit(rep(0.8, 30L), n_obs = 90L, n_repeats = 10L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 30L), n_obs = 90L, n_repeats = 10L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc", seed = 4L,
-                     M_boot = 200L, M_flip = 500L)
+test_that("tier B for 10-19 folds per repeat", {
+  f <- .noisy_pair(k = 10L, R = 2L, gap = 0.05)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
   expect_equal(res@tier, "B_signflip_ci")
   expect_equal(res@R_eff, 10L)
-  # Both p-value and CI are available at tier B
-  expect_true(is.finite(res@p_value))
-  expect_true(all(is.finite(res@delta_lsi_ci)))
 })
 
-test_that("tier A_full_inference for R_eff >= 20", {
-  set.seed(5)
-  fit_n <- .make_dlsi_fit(rep(0.8, 60L), n_obs = 120L, n_repeats = 20L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 60L), n_obs = 120L, n_repeats = 20L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc", seed = 5L,
-                     M_boot = 200L, M_flip = 1000L)
+test_that("tier A for >= 20 folds per repeat", {
+  f <- .noisy_pair(k = 20L, R = 1L, gap = 0.05)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
   expect_equal(res@tier, "A_full_inference")
   expect_true(res@inference_ok)
-  expect_true(all(is.finite(res@delta_lsi_ci)))
-  expect_true(is.finite(res@p_value))
 })
 
-# ── strict mode ───────────────────────────────────────────────────────────────
+test_that("repeats do not raise R_eff or the tier", {
+  f <- .noisy_pair(k = 5L, R = 20L, gap = 0.01)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
+  expect_equal(res@R_eff, 5L)
+  expect_equal(res@tier, "C_signflip")
+  expect_equal(res@info$df, 4L)
+  expect_equal(res@info$n_fold_deltas, 100L)
+})
+
+test_that("p-value and CI equal the corrected repeated-CV t computed by hand", {
+  f <- .noisy_pair(k = 5L, R = 3L, gap = 0.03, n_obs = 100L)
+  res <- delta_lsi(f$n, f$g, metric = "auc", return_details = TRUE)
+  fd  <- res@info$fold_deltas
+  J   <- nrow(fd)
+  expect_equal(res@info$n_test_sets, J)   # random repeats: no repeated test sets
+  rho <- mean(fd$n_test) / mean(fd$n_train)
+  expect_equal(rho, 20 / 80)
+  se  <- sqrt((1 / J + rho) * var(fd$d))
+  est <- mean(res@info$delta_r)
+  expect_equal(res@delta_metric, est)
+  expect_equal(res@p_value, 2 * pt(-abs(est / se), df = 4))
+  expect_equal(res@delta_metric_ci, est + c(-1, 1) * qt(0.975, 4) * se)
+  expect_equal(res@delta_lsi_ci, res@delta_lsi + c(-1, 1) * qt(0.975, 4) * se)
+})
 
 test_that("strict = TRUE errors on insufficient R_eff", {
   fit_n <- .make_dlsi_fit(rep(0.7, 2L), n_repeats = 1L)
@@ -172,7 +203,6 @@ test_that("unpaired fits give D_insufficient with point estimate", {
   )
   expect_equal(res@tier, "D_insufficient")
   expect_equal(res@R_eff, 0L)
-  # Point estimate should still be computed
   expect_true(is.finite(res@delta_lsi))
   expect_true(is.finite(res@delta_metric))
   expect_gt(res@delta_lsi, 0.0)
@@ -180,24 +210,22 @@ test_that("unpaired fits give D_insufficient with point estimate", {
 
 # ── Return details ────────────────────────────────────────────────────────────
 
-test_that("return_details = TRUE stores delta_r and fits in info", {
+test_that("return_details = TRUE stores delta_r, fold deltas and fits in info", {
   set.seed(6)
   fit_n <- .make_dlsi_fit(rep(0.75, 15L), n_obs = 45L, n_repeats = 5L)
   fit_g <- .make_dlsi_fit(rep(0.55, 15L), n_obs = 45L, n_repeats = 5L)
   res   <- delta_lsi(fit_n, fit_g, metric = "auc",
                      return_details = TRUE, seed = 6L)
-  expect_true("delta_r"     %in% names(res@info))
-  expect_true("fit_leaky"   %in% names(res@info))
-  expect_true("fit_naive"   %in% names(res@info))
-  expect_true("fit_guarded" %in% names(res@info))
+  expect_true(all(c("delta_r", "fold_deltas", "fit_leaky", "fit_naive",
+                    "fit_guarded") %in% names(res@info)))
   expect_length(res@info$delta_r, 5L)
+  expect_equal(nrow(res@info$fold_deltas), 15L)
 })
 
 test_that("deprecated fit_naive argument maps to fit_leaky", {
   set.seed(6)
   fit_n <- .make_dlsi_fit(rep(0.75, 15L), n_obs = 45L, n_repeats = 5L)
   fit_g <- .make_dlsi_fit(rep(0.55, 15L), n_obs = 45L, n_repeats = 5L)
-
   expect_warning(
     res <- delta_lsi(fit_naive = fit_n, fit_guarded = fit_g, metric = "auc",
                      seed = 6L),
@@ -206,44 +234,37 @@ test_that("deprecated fit_naive argument maps to fit_leaky", {
   expect_s4_class(res, "LeakDeltaLSI")
 })
 
-# ── BCa CI covers zero when naive = guarded ───────────────────────────────────
+# ── CI and p-value behaviour ──────────────────────────────────────────────────
 
-test_that("BCa CI covers 0 when no leakage (same AUC)", {
-  set.seed(7)
-  # 10 repeats × 3 folds; same AUC → delta = 0
-  aucs <- rep(0.65, 30L)
-  fit_n <- .make_dlsi_fit(aucs, n_obs = 90L, n_repeats = 10L)
-  fit_g <- .make_dlsi_fit(aucs, n_obs = 90L, n_repeats = 10L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     M_boot = 500L, seed = 7L)
-  expect_equal(res@delta_lsi, 0.0, tolerance = 1e-10)
-  ci <- res@delta_lsi_ci
-  if (all(is.finite(ci))) {
-    expect_lte(ci[1L], 0.0 + 1e-8)
-    expect_gte(ci[2L], 0.0 - 1e-8)
-  }
+test_that("CI covers 0 and p is large when there is no leakage", {
+  f <- .noisy_pair(k = 5L, R = 10L, gap = 0)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
+  expect_lte(res@delta_metric_ci[1L], 0)
+  expect_gte(res@delta_metric_ci[2L], 0)
+  expect_gt(res@p_value, 0.05)
 })
 
-# ── Sign-flip p-value ──────────────────────────────────────────────────────────
+test_that("identical fits give zero estimate, p = 1 and a zero-width CI", {
+  aucs  <- rep(0.65, 30L)
+  fit_n <- .make_dlsi_fit(aucs, n_obs = 90L, n_repeats = 10L)
+  fit_g <- .make_dlsi_fit(aucs, n_obs = 90L, n_repeats = 10L)
+  res   <- delta_lsi(fit_n, fit_g, metric = "auc")
+  expect_equal(res@delta_lsi, 0.0, tolerance = 1e-10)
+  expect_equal(res@p_value, 1)
+  expect_equal(res@delta_metric_ci, c(0, 0))
+})
 
-test_that("sign-flip p-value is in [0, 1]", {
-  set.seed(8)
-  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     M_flip = 500L, seed = 8L)
+test_that("p-value is in [0, 1]", {
+  f <- .noisy_pair(k = 3L, R = 5L, gap = 0.02)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
   expect_gte(res@p_value, 0.0)
   expect_lte(res@p_value, 1.0)
 })
 
-test_that("sign-flip p-value small when inflation is large and consistent", {
-  set.seed(9)
-  # 20 repeats × 3 folds; large consistent gap
-  fit_n <- .make_dlsi_fit(rep(0.95, 60L), n_obs = 120L, n_repeats = 20L)
-  fit_g <- .make_dlsi_fit(rep(0.50, 60L), n_obs = 120L, n_repeats = 20L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     M_boot = 500L, M_flip = 2000L, seed = 9L)
-  expect_lt(res@p_value, 0.05)
+test_that("p-value small when inflation is large and consistent", {
+  f <- .noisy_pair(k = 10L, R = 5L, gap = 0.2, sd = 0.01)
+  res <- delta_lsi(f$n, f$g, metric = "auc")
+  expect_lt(res@p_value, 0.01)
 })
 
 # ── show / summary don't error ────────────────────────────────────────────────
@@ -285,30 +306,6 @@ test_that(".dlsi_huber is robust to one outlier", {
   est <- bioLeak:::.dlsi_huber(x)
   # Huber M-estimator should be much closer to 0 than arithmetic mean (100/6 ≈ 16.7)
   expect_lt(abs(est), abs(mean(x)))
-})
-
-test_that(".dlsi_bca_ci covers known mean for symmetric distribution", {
-  set.seed(42)
-  x  <- rnorm(20, mean = 0.2, sd = 0.05)
-  ci <- bioLeak:::.dlsi_bca_ci(x, mean, M = 2000L, seed = 42L)
-  expect_true(all(is.finite(ci)))
-  expect_lt(ci[1L], 0.2)
-  expect_gt(ci[2L], 0.2)
-})
-
-test_that(".dlsi_sign_flip p-value is NA for length-1 input", {
-  expect_true(is.na(bioLeak:::.dlsi_sign_flip(0.5)))
-})
-
-test_that(".dlsi_sign_flip exact enumeration: known result for R=2", {
-  # delta_r = c(1, 1); obs_stat = mean(1, 1) = 1
-  # All 4 sign combos (R=2 <= 15 → exact):
-  #   (--) → mean(-1, -1) = -1;  (-+) → mean(-1,  1) =  0
-  #   (+-) → mean( 1, -1) =  0;  (++) → mean( 1,  1) =  1
-  # |null| >= |obs| = 1: combos (--) and (++) → count = 2
-  # Exact p = 2 / 4 = 0.5  (no continuity correction for full enumeration)
-  p <- bioLeak:::.dlsi_sign_flip(c(1, 1), seed = 1L)
-  expect_equal(p, 0.5, tolerance = 1e-10)
 })
 
 # ── Adversarial tests ─────────────────────────────────────────────────────────
@@ -355,7 +352,7 @@ test_that("relabeled repeat_ids do not corrupt pairing (regression)", {
   # repeat_id sort-order mismatch between the two fits.
   expect_equal(res@info$delta_r, rep(0.1, n_repeats), tolerance = 1e-10)
   expect_true(res@info$paired)
-  expect_equal(res@R_eff, n_repeats)
+  expect_equal(res@R_eff, n_folds)
 })
 
 test_that("lower-is-better metric: delta > 0 when naive has lower (better) values", {
@@ -428,151 +425,172 @@ test_that("auto-detect higher_is_better = FALSE for rmse via metric name", {
   expect_gt(res@delta_metric, 0.0)
 })
 
-# ── Exchangeability: by_group / within_batch warnings ─────────────────────────
 
-test_that("exchangeability 'by_group' emits iid-fallback warning", {
-  set.seed(20)
-  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
-  expect_warning(
-    res <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     exchangeability = "by_group", seed = 20L),
-    regexp = "iid repeat structure"
-  )
-  # Despite the warning, a p-value is still computed (using iid sign-flip)
+# ── Exchangeability settings are reported, not separate tests ─────────────────
+
+test_that("all exchangeability settings give the same corrected test", {
+  f <- .noisy_pair(k = 5L, R = 4L, gap = 0.03)
+  ps <- vapply(c("iid", "by_group", "within_batch", "blocked_time"), function(e)
+    delta_lsi(f$n, f$g, metric = "auc", exchangeability = e)@p_value, numeric(1))
+  expect_true(all(abs(ps - ps[1]) < 1e-12))
+})
+
+test_that("by_group / within_batch report the number of group / batch levels", {
+  cd <- data.frame(study = rep(paste0("S", 1:6), each = 5),
+                   batch = rep(paste0("B", 1:3), each = 10), stringsAsFactors = FALSE)
+  f <- .noisy_pair(k = 6L, R = 1L, gap = 0.03, n_obs = 30L)
+  for (nm in c("n", "g")) {
+    f[[nm]]@splits@mode <- "study_loocv"
+    f[[nm]]@splits@info <- list(study = "study", batch = "batch", coldata = cd)
+  }
+  rg <- delta_lsi(f$n, f$g, metric = "auc", exchangeability = "by_group")
+  rb <- delta_lsi(f$n, f$g, metric = "auc", exchangeability = "within_batch")
+  expect_equal(rg@info$n_groups_used, 6L)
+  expect_equal(rg@R_eff, 6L)
+  expect_equal(rb@info$n_batches_used, 3L)
+  expect_equal(rg@p_value, rb@p_value)
+})
+
+test_that("identical repeated test sets count once in the variance", {
+  cd <- data.frame(b = rep(paste0("B", 1:6), each = 5), stringsAsFactors = FALSE)
+  set.seed(4)
+  m1 <- runif(6, 0.6, 0.8); m2 <- runif(6, 0.6, 0.8)
+  one <- .make_dlsi_fit(m1, n_obs = 30L); one_g <- .make_dlsi_fit(m2, n_obs = 30L)
+  ten <- .make_dlsi_fit(rep(m1, 10), n_obs = 30L, n_repeats = 10L, distinct = FALSE)
+  ten_g <- .make_dlsi_fit(rep(m2, 10), n_obs = 30L, n_repeats = 10L, distinct = FALSE)
+  r1  <- delta_lsi(one, one_g, metric = "auc")
+  r10 <- delta_lsi(ten, ten_g, metric = "auc")
+  expect_equal(r10@info$n_test_sets, 6L)
+  expect_equal(r10@info$n_fold_deltas, 60L)
+  expect_equal(r10@p_value, r1@p_value)
+  expect_equal(r10@delta_metric_ci, r1@delta_metric_ci)
+})
+
+test_that("block_size is ignored with a warning", {
+  f <- .noisy_pair(k = 5L, R = 2L, gap = 0.03)
+  expect_warning(delta_lsi(f$n, f$g, metric = "auc", exchangeability = "blocked_time",
+                           block_size = 2L), regexp = "block_size")
+})
+
+# ── Missing metrics (BL-10, BL-12) ────────────────────────────────────────────
+
+test_that("an all-NA repeat in one fit keeps the comparison paired", {
+  f <- .noisy_pair(k = 5L, R = 6L, gap = 0.03)
+  f$n@metrics$auc[1:5] <- NA          # repeat 1 missing in the leaky fit only
+  w <- testthat::capture_warnings(res <- delta_lsi(f$n, f$g, metric = "auc"))
+  expect_true(any(grepl("dropped from both fits", w)))
+  expect_true(res@info$paired)
+  expect_equal(res@R_eff, 5L)
+  expect_equal(res@info$n_fold_deltas, 25L)
   expect_true(is.finite(res@p_value))
-  expect_equal(res@exchangeability, "by_group")
 })
 
-test_that("exchangeability 'within_batch' emits iid-fallback warning", {
-  set.seed(21)
-  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
-  expect_warning(
-    delta_lsi(fit_n, fit_g, metric = "auc",
-              exchangeability = "within_batch", seed = 21L),
-    regexp = "iid repeat structure"
+test_that("a fold missing in one fit is dropped from both before pairing", {
+  aux_n <- c(0.80, 0.80, 0.80, 0.80)
+  aux_g <- c(0.60, 0.60, 0.60, 0.20)   # fold 4 differs only in guarded
+  fit_n <- .make_dlsi_fit(aux_n, n_obs = 40L)
+  fit_g <- .make_dlsi_fit(aux_g, n_obs = 40L)
+  fit_n@metrics$auc[4] <- NA
+  res <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "auc", return_details = TRUE))
+  expect_equal(res@info$delta_r, 0.2)   # fold 4 left out of both, not just one
+  expect_equal(res@info$n_fold_deltas, 3L)
+})
+
+# ── Compact splits (BL-11) ────────────────────────────────────────────────────
+
+test_that("compact and explicit splits give identical results", {
+  set.seed(3)
+  df <- data.frame(g = rep(sprintf("G%02d", 1:20), each = 3), y = rbinom(60, 1, 0.5), x = rnorm(60))
+  sp_e <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "g",
+                          v = 5, repeats = 3, seed = 9, progress = FALSE)
+  sp_c <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "g",
+                          v = 5, repeats = 3, seed = 9, compact = TRUE, progress = FALSE)
+  k <- length(sp_e@indices)
+  m1 <- runif(k, 0.6, 0.8); m2 <- runif(k, 0.6, 0.8)
+  mk <- function(sp, m) methods::new("LeakFit", splits = sp,
+    metrics = data.frame(fold = seq_len(k), learner = "glm", auc = m),
+    outcome = "y", task = "binomial")
+  re <- delta_lsi(mk(sp_e, m1), mk(sp_e, m2), metric = "auc")
+  rc <- delta_lsi(mk(sp_c, m1), mk(sp_c, m2), metric = "auc")
+  expect_equal(rc@delta_metric, re@delta_metric)
+  expect_equal(rc@p_value, re@p_value)
+  expect_equal(rc@info$rho, re@info$rho)
+})
+
+test_that("delta_lsi() leaves the caller's RNG state unchanged", {
+  f <- .noisy_pair(k = 5L, R = 3L, gap = 0.03)
+  set.seed(10); a <- runif(1)
+  set.seed(10); invisible(delta_lsi(f$n, f$g, metric = "auc")); b <- runif(1)
+  expect_identical(a, b)
+})
+
+# ── Review round 4 (corrected-t engine) ───────────────────────────────────────
+
+test_that("compact time_series and combined plans use the real training sizes", {
+  set.seed(3)
+  n <- 100
+  dat <- data.frame(t = seq_len(n), y = rbinom(n, 1, 0.5),
+                    s = rep(paste0("S", 1:5), each = 20),   # subjects nested in studies
+                    p = rep(paste0("P", 1:25), each = 4))
+  mk <- function(sp, m) methods::new("LeakFit", splits = sp,
+    metrics = data.frame(fold = seq_along(sp@indices), learner = "glm", auc = m),
+    outcome = "y", task = "binomial")
+  plans <- list(
+    ts = list(mode = "time_series", time = "t", v = 5, horizon = 10, purge = 5),
+    cb = list(mode = "combined", v = 3,
+              constraints = list(list(type = "subject", col = "p"), list(type = "study", col = "s")))
   )
+  for (pl in plans) {
+    sp_e <- do.call(make_split_plan, c(list(dat, outcome = "y", progress = FALSE, seed = 2), pl))
+    sp_c <- do.call(make_split_plan, c(list(dat, outcome = "y", progress = FALSE, seed = 2, compact = TRUE), pl))
+    k  <- length(sp_e@indices)
+    m1 <- runif(k, 0.5, 0.8); m2 <- runif(k, 0.5, 0.8)
+    re <- delta_lsi(mk(sp_e, m1), mk(sp_e, m2), metric = "auc")
+    rc <- delta_lsi(mk(sp_c, m1), mk(sp_c, m2), metric = "auc")
+    expect_equal(bioLeak:::.dlsi_fold_train_sizes(sp_c),
+                 vapply(sp_e@indices, function(z) as.numeric(length(z$train)), numeric(1)))
+    expect_equal(rc@info$rho, re@info$rho)
+    expect_equal(rc@p_value, re@p_value)
+  }
 })
 
-# ── Exchangeability: blocked_time block sign-flip ──────────────────────────────
-
-test_that(".dlsi_resolve_block_size returns 1 for uncorrelated Δ_r", {
-  # iid Δ_r has rho1 ≈ 0, so block_size should be 1
-  set.seed(42)
-  delta_r <- rnorm(20)
-  bs <- bioLeak:::.dlsi_resolve_block_size(delta_r)
-  expect_gte(bs, 1L)
-  # With low autocorrelation, expected block_size is 1 (or very small)
-  expect_lte(bs, 3L)
+test_that("metric direction recognises lower-is-better names and warns on unknown ones", {
+  dir <- bioLeak:::.dlsi_metric_direction
+  for (m in c("rmse", "mape", "smape", "mase", "mn_log_loss", "huber_loss",
+              "classification_cost", "brier"))
+    expect_false(dir(m), info = m)
+  for (m in c("auc", "roc_auc", "pr_auc", "accuracy", "macro_f1", "kappa", "rsq", "cindex"))
+    expect_true(suppressWarnings(dir(m)), info = m)
+  expect_warning(dir("my_score"), "Cannot tell")
+  for (m in c("ece", "fpr", "nll", "cross_entropy", "misclassification_rate"))
+    expect_false(dir(m), info = m)
+  for (m in c("brier_skill_score", "deviance_explained", "kap", "ccc", "roc_aunp", "gain_capture"))
+    expect_true(expect_silent(dir(m)), info = m)
 })
 
-test_that(".dlsi_resolve_block_size respects explicit block_size argument", {
-  delta_r <- rnorm(20)
-  expect_equal(bioLeak:::.dlsi_resolve_block_size(delta_r, block_size = 4L), 4L)
+test_that("a fold missing from one fit's metrics is counted as dropped", {
+  f <- .noisy_pair(k = 5L, R = 3L, gap = 0.03)
+  f$n@metrics <- f$n@metrics[-2, ]            # fold 2 absent from the leaky fit
+  w <- testthat::capture_warnings(res <- delta_lsi(f$n, f$g, metric = "auc"))
+  expect_true(any(grepl("1 fold\\(s\\)", w)))
+  expect_equal(res@info$n_fold_deltas, 14L)
+  expect_true(is.na(res@folds_guarded$metric[res@folds_guarded$fold == 2]))
 })
 
-test_that(".dlsi_resolve_block_size caps at floor(R/3)", {
-  # Highly correlated Δ_r: AR(1) rho ~ 0.99, would give block_size = R
-  # but cap forces at most floor(R/3)
-  delta_r <- cumsum(rnorm(12))   # near unit root, very high autocorrelation
-  bs      <- bioLeak:::.dlsi_resolve_block_size(delta_r)
-  expect_lte(bs, floor(length(delta_r) / 3L))
+test_that("repeat counts in info follow the paired folds", {
+  f <- .noisy_pair(k = 5L, R = 3L, gap = 0.03)
+  f$n@metrics$auc[1:5] <- NA                   # whole repeat 1 fails in the leaky fit
+  res <- suppressWarnings(delta_lsi(f$n, f$g, metric = "auc"))
+  expect_equal(res@info$R_naive, 2L)
+  expect_equal(res@info$R_guarded, 2L)
+  expect_equal(nrow(res@repeats_guarded), 2L)
 })
 
-test_that(".dlsi_sign_flip_blocked exact: known result for R=4, block_size=2", {
-  # delta_r = c(1, 1, 1, 1); block_size=2 → block_id = c(1,1,2,2); n_blocks=2
-  # All 4 block-sign combos (exact enumeration, n_blocks=2 <= 15):
-  #   (--): mean(-1,-1,-1,-1) = -1
-  #   (-+): mean(-1,-1, 1, 1) =  0
-  #   (+-): mean( 1, 1,-1,-1) =  0
-  #   (++): mean( 1, 1, 1, 1) =  1
-  # obs_stat = 1; |null| >= |obs|=1: combos (--) and (++) → count = 2
-  # Exact p = 2/4 = 0.5
-  res <- bioLeak:::.dlsi_sign_flip_blocked(c(1, 1, 1, 1), block_size = 2L, seed = 1L)
-  expect_equal(res$p_value,        0.5, tolerance = 1e-10)
-  expect_equal(res$n_blocks,       2L)
-  expect_equal(res$block_size_used, 2L)
-})
-
-test_that("blocked_time sign-flip gives more conservative p than iid for AR Δ_r", {
-  set.seed(30)
-  # Generate strongly AR(1) Δ_r with a positive mean (leakage signal)
-  R <- 15L
-  delta_r <- 0.2 + as.numeric(arima.sim(list(ar = 0.85), n = R, sd = 0.05))
-
-  # iid sign-flip
-  p_iid <- bioLeak:::.dlsi_sign_flip(delta_r, M_flip = 5000L, seed = 30L)
-
-  # Blocked sign-flip with block_size=3 (5 blocks from 15 repeats)
-  sf_blk <- bioLeak:::.dlsi_sign_flip_blocked(delta_r, block_size = 3L,
-                                               M_flip = 5000L, seed = 30L)
-  p_blk <- sf_blk$p_value
-
-  # Block p-value should be >= iid p-value (more conservative under autocorrelation)
-  # Allow tolerance for MC noise; the key property is p_blk is generally larger
-  expect_gte(sf_blk$n_blocks, 5L)  # at least 5 blocks for inference
-  expect_true(is.finite(p_blk))
-  expect_true(is.finite(p_iid))
-})
-
-test_that("blocked_time with n_blocks < 5 sets p_value = NA and warns", {
-  set.seed(31)
-  # 6 repeats, block_size=3 → 2 blocks → below threshold of 5
-  fit_n <- .make_dlsi_fit(rep(0.8, 18L), n_obs = 54L, n_repeats = 6L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 18L), n_obs = 54L, n_repeats = 6L)
-  expect_warning(
-    res <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     exchangeability = "blocked_time",
-                     block_size = 3L, seed = 31L),
-    regexp = "n_blocks"
-  )
-  expect_true(is.na(res@p_value))
-  expect_equal(res@info$n_blocks, 2L)
-})
-
-test_that("blocked_time with explicit block_size=1 behaves like iid sign-flip", {
-  set.seed(32)
-  fit_n <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
-  # block_size=1 → each repeat is its own block → equivalent to iid
-  res_blk <- delta_lsi(fit_n, fit_g, metric = "auc",
-                        exchangeability = "blocked_time",
-                        block_size = 1L, seed = 32L)
-  res_iid <- delta_lsi(fit_n, fit_g, metric = "auc",
-                        exchangeability = "iid", seed = 32L)
-  # p-values should be identical (same enumeration, same seed offset)
-  expect_equal(res_blk@p_value, res_iid@p_value, tolerance = 1e-10)
-})
-
-test_that("blocked_time stores block_size_used and n_blocks in info", {
-  set.seed(33)
-  fit_n <- .make_dlsi_fit(rep(0.8, 30L), n_obs = 90L, n_repeats = 10L)
-  fit_g <- .make_dlsi_fit(rep(0.6, 30L), n_obs = 90L, n_repeats = 10L)
-  res <- delta_lsi(fit_n, fit_g, metric = "auc",
-                    exchangeability = "blocked_time",
-                    block_size = 2L, seed = 33L,
-                    M_boot = 100L, M_flip = 500L)
-  expect_equal(res@info$block_size_used, 2L)
-  expect_equal(res@info$n_blocks,        5L)   # 10 repeats / block_size=2 = 5 blocks
-  expect_true(is.finite(res@p_value))          # 5 blocks >= 5 → p_value available
-})
-
-test_that("tier C at R_eff = 5 cannot reach p < 0.05; R_eff = 6 can", {
-  # Every repeat favours the leaky pipeline: the most extreme possible data.
-  fit_n5 <- .make_dlsi_fit(rep(0.8, 15L), n_obs = 45L, n_repeats = 5L)
-  fit_g5 <- .make_dlsi_fit(rep(0.6, 15L), n_obs = 45L, n_repeats = 5L)
-  res5   <- delta_lsi(fit_n5, fit_g5, metric = "auc", seed = 3L)
-  expect_equal(res5@tier, "C_signflip")
-  expect_equal(res5@info$min_p_achievable, 2 / 2^5)
-  expect_equal(res5@p_value, 0.0625)
-  expect_output(summary(res5), "smallest attainable p is 0.0625")
-
-  fit_n6 <- .make_dlsi_fit(rep(0.8, 18L), n_obs = 54L, n_repeats = 6L)
-  fit_g6 <- .make_dlsi_fit(rep(0.6, 18L), n_obs = 54L, n_repeats = 6L)
-  res6   <- delta_lsi(fit_n6, fit_g6, metric = "auc", seed = 3L)
-  expect_equal(res6@tier, "C_signflip")
-  expect_equal(res6@info$min_p_achievable, 2 / 2^6)
-  expect_lt(res6@p_value, 0.05)
-  expect_false(any(grepl("smallest attainable", capture.output(summary(res6)))))
+test_that("per-pipeline summaries use the same paired folds as the delta", {
+  fit_n <- .make_dlsi_fit(c(0.6, 0.6, 0.6, 0.9), n_obs = 40L)
+  fit_g <- .make_dlsi_fit(c(0.6, 0.6, 0.6, 0.6), n_obs = 40L)
+  fit_g@metrics$auc[4] <- NA
+  res <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "auc"))
+  expect_equal(res@delta_metric, 0)
+  expect_equal(res@info$metric_naive, res@info$metric_guarded)
 })

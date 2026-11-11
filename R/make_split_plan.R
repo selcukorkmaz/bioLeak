@@ -20,6 +20,36 @@
   train
 }
 
+# Training indices for a compact fold, mirroring how fit_resample() builds
+# them: time_series trains on earlier rows only (minus horizon / purge /
+# embargo, and excluding test groups when a group column is set); combined
+# drops rows sharing a secondary-constraint level with the test rows; all
+# other modes train on every non-test row.
+.bio_compact_train_indices <- function(splits, test_idx, n) {
+  info <- splits@info
+  cd   <- info$coldata
+  if (identical(splits@mode, "time_series") && is.data.frame(cd) &&
+      !is.null(info$time) && info$time %in% names(cd)) {
+    gv <- if (!is.null(info$group) && info$group %in% names(cd)) cd[[info$group]] else NULL
+    return(.bio_time_series_train_indices(
+      time_vec = cd[[info$time]], test_idx = test_idx, candidate_idx = seq_len(n),
+      horizon = info$horizon %||% 0, purge = info$purge %||% 0,
+      embargo = info$embargo %||% 0, group_vec = gv
+    ))
+  }
+  remaining <- setdiff(seq_len(n), test_idx)
+  if (identical(splits@mode, "combined") && is.data.frame(cd)) {
+    cst <- info$constraints
+    if (length(cst) > 1L) {
+      for (ax in cst[-1]) {
+        v <- cd[[ax$col]]
+        if (!is.null(v)) remaining <- remaining[!v[remaining] %in% unique(v[test_idx])]
+      }
+    }
+  }
+  remaining
+}
+
 # Internal helper for combined (N-axis) splits.
 .bio_make_combined_splits <- function(cd, n, constraints,
                                       v, repeats, stratify, outcome, seed,

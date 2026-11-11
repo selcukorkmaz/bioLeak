@@ -227,10 +227,10 @@ setMethod("dlsi_robust", "LeakDeltaLSI",
           function(dlsi) dlsi@delta_lsi)
 
 
-#' BCa confidence interval from a LeakDeltaLSI
+#' Confidence interval from a LeakDeltaLSI
 #'
-#' Returns the bias-corrected and accelerated (BCa) bootstrap
-#' confidence interval stored in a [`LeakDeltaLSI`] object. By default
+#' Returns the 95% confidence interval stored in a [`LeakDeltaLSI`]
+#' object, from the corrected repeated-CV t-test (see [delta_lsi()]). By default
 #' returns the interval for the Huber-robust delta estimate; set
 #' `which = "metric"` to return the interval for the raw metric
 #' difference instead.
@@ -262,10 +262,10 @@ setMethod("dlsi_ci", "LeakDeltaLSI",
           })
 
 
-#' Sign-flip p-value from a LeakDeltaLSI
+#' p-value from a LeakDeltaLSI
 #'
-#' Returns the paired sign-flip randomization-test p-value stored in a
-#' [`LeakDeltaLSI`] object.
+#' Returns the corrected repeated-CV t-test p-value stored in a
+#' [`LeakDeltaLSI`] object (see [delta_lsi()]).
 #'
 #' Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
 #' visible via `methods(class = "LeakDeltaLSI")`.
@@ -288,8 +288,10 @@ setMethod("dlsi_p_value", "LeakDeltaLSI",
 #'
 #' Returns the inference tier label stored in a [`LeakDeltaLSI`] object.
 #' Possible values are `"A_full_inference"` (`R_eff >= 20`),
-#' `"B_signflip_ci"` (`R_eff >= 10`), `"C_signflip"` (`R_eff >= 5`),
-#' or `"D_insufficient"` (`R_eff < 5`).
+#' `"B_signflip_ci"` (`R_eff >= 10`), `"C_signflip"` (`R_eff >= 3`),
+#' or `"D_insufficient"` (`R_eff < 3` or unpaired). `R_eff` is the number of
+#' folds per repeat; the labels are historical, and tiers A-C all report the
+#' corrected repeated-CV t-test p-value and CIs.
 #'
 #' Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
 #' visible via `methods(class = "LeakDeltaLSI")`.
@@ -307,12 +309,12 @@ setMethod("dlsi_tier", "LeakDeltaLSI",
           function(dlsi) dlsi@tier)
 
 
-#' Effective number of paired repeats from a LeakDeltaLSI
+#' Effective number of independent units from a LeakDeltaLSI
 #'
-#' Returns the effective number of paired repeats `R_eff` stored in a
-#' [`LeakDeltaLSI`] object. This is the count of repeats that
-#' contribute to the inference; it equals the smaller of the leaky and
-#' guarded fits' repeat counts when the comparison is paired.
+#' Returns `R_eff` stored in a [`LeakDeltaLSI`] object: the number of folds
+#' per repeat (the number of studies for `study_loocv`) when the comparison
+#' is paired, and 0 otherwise. Repeats re-partition the same data, so they
+#' sharpen the estimate but do not add independent units.
 #'
 #' Implemented as an S4 generic with a method for [`LeakDeltaLSI`];
 #' visible via `methods(class = "LeakDeltaLSI")`.

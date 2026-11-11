@@ -112,16 +112,16 @@ LeakAudit <- function(...) methods::new("LeakAudit", ...)
 
 #' @rdname LeakClasses
 #' @slot metric Performance metric compared between pipelines
-#' @slot exchangeability Exchangeability assumption used for the sign-flip test
-#' @slot tier Inference tier label based on effective number of repeats
+#' @slot exchangeability Exchangeability setting requested (reported; all settings use the corrected t-test)
+#' @slot tier Inference tier label based on the effective number of units (folds per repeat)
 #' @slot strict Whether strict mode was requested
-#' @slot R_eff Effective number of paired repeats available for inference
+#' @slot R_eff Effective number of independent units: folds per repeat (studies for study_loocv)
 #' @slot delta_lsi Huber-robust point estimate of repeat-level metric difference
-#' @slot delta_lsi_ci BCa 95\% CI for delta_lsi (NA when R_eff < 10)
+#' @slot delta_lsi_ci Corrected-t 95\% CI for delta_lsi (NA in tier D)
 #' @slot delta_metric Arithmetic mean of repeat-level metric differences
-#' @slot delta_metric_ci BCa 95\% CI for delta_metric (NA when R_eff < 10)
-#' @slot p_value Sign-flip randomization test p-value (NA when R_eff < 5 or unpaired)
-#' @slot inference_ok TRUE when tier A (R_eff >= 20, paired, finite p and CI)
+#' @slot delta_metric_ci Corrected-t 95\% CI for delta_metric (NA in tier D)
+#' @slot p_value Corrected repeated-CV t-test p-value (NA when R_eff < 3 or unpaired)
+#' @slot inference_ok TRUE when a finite p-value and CI were computed (tiers A-C)
 #' @slot folds_naive Per-fold data frame for the naive pipeline
 #' @slot folds_guarded Per-fold data frame for the guarded pipeline
 #' @slot repeats_naive Per-repeat aggregate data frame for the naive pipeline

@@ -72,25 +72,25 @@ These classes capture splits, model fits, and audit diagnostics produced by
 
 \item{\code{metric}}{Performance metric compared between pipelines}
 
-\item{\code{exchangeability}}{Exchangeability assumption used for the sign-flip test}
+\item{\code{exchangeability}}{Exchangeability setting requested (reported; all settings use the corrected t-test)}
 
-\item{\code{tier}}{Inference tier label based on effective number of repeats}
+\item{\code{tier}}{Inference tier label based on the effective number of units (folds per repeat)}
 
 \item{\code{strict}}{Whether strict mode was requested}
 
-\item{\code{R_eff}}{Effective number of paired repeats available for inference}
+\item{\code{R_eff}}{Effective number of independent units: folds per repeat (studies for study_loocv)}
 
 \item{\code{delta_lsi}}{Huber-robust point estimate of repeat-level metric difference}
 
-\item{\code{delta_lsi_ci}}{BCa 95\% CI for delta_lsi (NA when R_eff < 10)}
+\item{\code{delta_lsi_ci}}{Corrected-t 95\% CI for delta_lsi (NA in tier D)}
 
 \item{\code{delta_metric}}{Arithmetic mean of repeat-level metric differences}
 
-\item{\code{delta_metric_ci}}{BCa 95\% CI for delta_metric (NA when R_eff < 10)}
+\item{\code{delta_metric_ci}}{Corrected-t 95\% CI for delta_metric (NA in tier D)}
 
-\item{\code{p_value}}{Sign-flip randomization test p-value (NA when R_eff < 5 or unpaired)}
+\item{\code{p_value}}{Corrected repeated-CV t-test p-value (NA when R_eff < 3 or unpaired)}
 
-\item{\code{inference_ok}}{TRUE when tier A (R_eff >= 20, paired, finite p and CI)}
+\item{\code{inference_ok}}{TRUE when a finite p-value and CI were computed (tiers A-C)}
 
 \item{\code{folds_naive}}{Per-fold data frame for the naive pipeline}
 
