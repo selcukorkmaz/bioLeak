@@ -124,11 +124,13 @@ An S4 object of the respective class.
 
 - `exchangeability`:
 
-  Exchangeability assumption used for the sign-flip test
+  Exchangeability setting requested (reported; all settings use the
+  corrected t-test)
 
 - `tier`:
 
-  Inference tier label based on effective number of repeats
+  Inference tier label based on the effective number of units (folds per
+  repeat)
 
 - `strict`:
 
@@ -136,7 +138,8 @@ An S4 object of the respective class.
 
 - `R_eff`:
 
-  Effective number of paired repeats available for inference
+  Effective number of independent units: folds per repeat (studies for
+  study_loocv)
 
 - `delta_lsi`:
 
@@ -144,7 +147,7 @@ An S4 object of the respective class.
 
 - `delta_lsi_ci`:
 
-  BCa 95% CI for delta_lsi (NA when R_eff \< 10)
+  Corrected-t 95% CI for delta_lsi (NA in tier D)
 
 - `delta_metric`:
 
@@ -152,15 +155,15 @@ An S4 object of the respective class.
 
 - `delta_metric_ci`:
 
-  BCa 95% CI for delta_metric (NA when R_eff \< 10)
+  Corrected-t 95% CI for delta_metric (NA in tier D)
 
 - `p_value`:
 
-  Sign-flip randomization test p-value (NA when R_eff \< 5 or unpaired)
+  Corrected repeated-CV t-test p-value (NA when R_eff \< 3 or unpaired)
 
 - `inference_ok`:
 
-  TRUE when tier A (R_eff \>= 20, paired, finite p and CI)
+  TRUE when a finite p-value and CI were computed (tiers A-C)
 
 - `folds_naive`:
 

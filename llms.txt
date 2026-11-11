@@ -453,9 +453,9 @@ result.
 - [`dlsi_metric()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_metric.md)
   : Raw delta-metric estimate from a LeakDeltaLSI
 - [`dlsi_ci()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_ci.md)
-  : BCa confidence interval from a LeakDeltaLSI
+  : Confidence interval from a LeakDeltaLSI
 - [`dlsi_p_value()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_p_value.md)
-  : Sign-flip p-value from a LeakDeltaLSI
+  : p-value from a LeakDeltaLSI
 - [`dlsi_tier()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_tier.md)
   : Inference tier from a LeakDeltaLSI
 - [`dlsi_robust()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_robust.md)
@@ -463,7 +463,7 @@ result.
 - [`dlsi_repeats()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_repeats.md)
   : Per-repeat metric data frames from a LeakDeltaLSI
 - [`dlsi_R_eff()`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_R_eff.md)
-  : Effective number of paired repeats from a LeakDeltaLSI
+  : Effective number of independent units from a LeakDeltaLSI
 
 ## Plots
 

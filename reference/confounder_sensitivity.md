@@ -92,7 +92,15 @@ custom <- list(
 fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     learner = "glm", custom_learners = custom,
                     metrics = "auc", refit = FALSE, seed = 1)
-#>   |                                                                              |                                                                      |   0%  |                                                                              |=======================                                               |  33%  |                                                                              |===============================================                       |  67%  |                                                                              |======================================================================| 100%
+#> 
+  |                                                                            
+  |                                                                      |   0%
+  |                                                                            
+  |=======================                                               |  33%
+  |                                                                            
+  |===============================================                       |  67%
+  |                                                                            
+  |======================================================================| 100%
 confounder_sensitivity(fit, confounders = "batch", coldata = df)
 #>   confounder level metric direction value  n positive_rate
 #> 1      batch     A    auc    higher  0.08 10           0.5

@@ -81,10 +81,18 @@ custom <- list(
 fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     learner = "glm", custom_learners = custom,
                     metrics = "auc", seed = 1)
-#>   |                                                                              |                                                                      |   0%
+#> 
+  |                                                                            
+  |                                                                      |   0%
 #> Warning: glm.fit: algorithm did not converge
 #> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
-#>   |                                                                              |=======================                                               |  33%  |                                                                              |===============================================                       |  67%  |                                                                              |======================================================================| 100%
+#> 
+  |                                                                            
+  |=======================                                               |  33%
+  |                                                                            
+  |===============================================                       |  67%
+  |                                                                            
+  |======================================================================| 100%
 summary_df <- summary(fit)
 #> 
 #> ===========================

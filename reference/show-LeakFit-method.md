@@ -53,10 +53,18 @@ custom <- list(
 fit <- fit_resample(df, outcome = "outcome", splits = splits,
                     learner = "glm", custom_learners = custom,
                     metrics = "auc", refit = FALSE, seed = 1)
-#>   |                                                                              |                                                                      |   0%  |                                                                              |=======================                                               |  33%
+#> 
+  |                                                                            
+  |                                                                      |   0%
+  |                                                                            
+  |=======================                                               |  33%
 #> Warning: glm.fit: algorithm did not converge
 #> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
-#>   |                                                                              |===============================================                       |  67%  |                                                                              |======================================================================| 100%
+#> 
+  |                                                                            
+  |===============================================                       |  67%
+  |                                                                            
+  |======================================================================| 100%
 show(fit)
 #> A LeakFit object
 #>   Task:           binomial

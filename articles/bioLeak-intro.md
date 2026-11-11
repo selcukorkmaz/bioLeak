@@ -1109,10 +1109,10 @@ do not need a final model.
 # Fold-level diagnostics for reproducible troubleshooting
 head(fit_safe@info$fold_status, 5)
 #>   fold    stage  status reason                    notes elapsed_sec
-#> 1    1 fold_run success   <NA> Successful learners: 1/1       0.025
-#> 2    2 fold_run success   <NA> Successful learners: 1/1       0.023
+#> 1    1 fold_run success   <NA> Successful learners: 1/1       0.023
+#> 2    2 fold_run success   <NA> Successful learners: 1/1       0.022
 #> 3    3 fold_run success   <NA> Successful learners: 1/1       0.022
-#> 4    4 fold_run success   <NA> Successful learners: 1/1       0.022
+#> 4    4 fold_run success   <NA> Successful learners: 1/1       0.021
 #> 5    5 fold_run success   <NA> Successful learners: 1/1       0.022
 ```
 
@@ -2851,8 +2851,8 @@ $`\boldsymbol{\mu}^{\text{guarded}}`$:
 
 where $`\bar{\mu}`$ is the arithmetic mean and $`\hat{H}`$ is the Huber
 M-estimator applied to each pipeline’s repeat-means vector
-independently. No inference (sign-flip test or BCa interval) is
-available in the unpaired case ($`R_{\text{eff}} = 0`$).
+independently. No inference (corrected t-test or CI) is available in the
+unpaired case ($`R_{\text{eff}} = 0`$).
 
 ### Setting up a two-pipeline comparison
 
@@ -2892,7 +2892,7 @@ df_dlsi_naive$leak <- ave(
   subj_d, FUN = mean
 )
 
-# Shared splits: 5-fold × 5 repeats → R_eff = 5 (tier C: point + p-value)
+# Shared splits: 5-fold × 5 repeats → R_eff = 5 folds per repeat (tier C)
 splits_dlsi <- make_split_plan(
   df_dlsi_guarded,
   outcome = "outcome",
@@ -2954,23 +2954,24 @@ summary(result_dlsi)
 #> =====================================
 #> 
 #> Metric:            auc
-#> Exchangeability:   iid
-#> Inference tier:    C_signflip
-#> R_eff:             5  (R_leaky=5, R_guarded=5, paired=TRUE)
+#> Exchangeability:   iid  (reported only; same corrected test)
+#> Inference tier:    C_signflip  (label kept for compatibility; test is the corrected t)
+#> R_eff:             5 folds per repeat  (R_leaky=5, R_guarded=5, paired=TRUE)
 #> 
 #> Leaky pipeline:    0.716
 #> Guarded pipeline:  0.502
 #> 
 #> Point estimates (leaky - guarded; positive = leakage inflation):
 #>   delta_metric:  0.213  (raw metric difference)
+#>   95% CI:        [0.060, 0.367]
 #>   delta_lsi:     0.216  (Huber-robust)
+#>   95% CI:        [0.062, 0.370]
 #> 
-#> Hypothesis test  [H0: no systematic inflation; paired repeat signs exchangeable]:
-#>   Sign-flip p:   0.0625 
-#>   [Note: with R_eff = 5 the smallest attainable p is 0.0625 > 0.05;
-#>    use R_eff >= 6 repeats for a 5% sign-flip test.]
+#> Hypothesis test  [H0: no systematic inflation]
+#>   Corrected repeated-CV t (Nadeau & Bengio 2003; df = folds per repeat - 1)
+#>   t-test p:      0.0182 *  (df = 4)
 #> 
-#> Inference valid:   NO (C_signflip; need paired R_eff >= 20)
+#> Inference valid:   YES (C_signflip)
 ```
 
 [`summary()`](https://rdrr.io/r/base/summary.html) reports seven
@@ -2991,52 +2992,38 @@ quantities; here is how to read each one:
   when repeat-to-repeat variation is high. Values very close to
   `delta_metric` indicate a consistent, non-skewed inflation pattern.
 
-- **95% BCa CI** (shown when `R_eff ≥ 10`): a bootstrap confidence
-  interval for `delta_lsi`. If the lower bound is above zero the
-  inflation is unlikely to be a sampling artefact. If the interval spans
-  zero the inflation estimate is uncertain given the number of repeats.
+- **95% CI** (shown in tiers A-C): a confidence interval for
+  `delta_metric` and `delta_lsi` from the corrected repeated-CV t-test.
+  If the lower bound is above zero the inflation is unlikely to be a
+  sampling artefact. If the interval spans zero the inflation estimate
+  is uncertain.
 
-- **Sign-flip p-value** (shown when `R_eff ≥ 5`): tests H₀: no leakage
-  inflation (mean $`\Delta_r = 0`$) via a randomization test. A small
-  p-value (e.g., \< 0.05) indicates the observed inflation is unlikely
-  under the null of exchangeable pipeline labels.
+- **p-value** (shown in tiers A-C): tests H₀: no leakage inflation with
+  the corrected repeated-CV t-test described in the Statistical
+  inference section.
 
 - **Inference tier** and **`inference_ok`**: summarise how much
-  statistical weight the design supports. Only tier A (`R_eff ≥ 20`,
-  `inference_ok = TRUE`) provides a full combination of point estimate +
-  CI + p-value. Lower tiers report what is reliable given the available
-  repeats. The formal tier definitions and their rationale are given in
-  the Statistical inference section below.
+  independent information the design holds. `R_eff` is the number of
+  folds per repeat; `inference_ok` is `TRUE` whenever a p-value and CI
+  were computed.
 
 ### Designing for a target inference tier
 
-The formal tier thresholds have direct implications for how you set up
-your repeated CV design. Plan the number of folds and repeats around the
-tier you need:
+`R_eff` is the number of folds per repeat (for `study_loocv`, the number
+of studies). Repeats re-partition the same data, so they stabilise the
+point estimate but do **not** add independent units or raise the tier:
 
-- **Tier D** (`D_insufficient`, point estimates only): any
-  $`R_{\text{eff}} < 5`$ — useful for exploratory comparisons where no
-  formal test is required.
-- **Tier C** (`C_signflip`, sign-flip p-value available): 5-fold
-  $`\times`$ 5 repeats $`\to R_{\text{eff}} = 5`$. The exact two-sided
-  sign-flip test has smallest achievable p-value
-  $`2/2^{R_{\text{eff}}}`$, which is $`2/2^5 = 0.0625`$ at
-  $`R_{\text{eff}} = 5`$: that design can never reach $`p < 0.05`$. Use
-  at least 6 repeats ($`2/2^6 = 0.031`$) if you need a 5% test; the
-  attainable floor is stored in `info$min_p_achievable`. For
-  `exchangeability = "blocked_time"` the minimum p-value is
-  $`2/2^{n_{\text{blocks}}}`$; at least 5 blocks are required for the
-  test to be available.
-- **Tier B** (`B_signflip_ci`, BCa CI additionally available): 5-fold
-  $`\times`$ 10 repeats $`\to R_{\text{eff}} = 10`$. Both sign-flip
-  p-value and BCa CI are reported.
-- **Tier A** (`A_full_inference`, `inference_ok = TRUE`): 5-fold
-  $`\times`$ 20 repeats $`\to R_{\text{eff}} = 20`$. Recommended for any
-  published or pre-registered ΔLSI analysis.
+- **Tier D** (`D_insufficient`, point estimates only): fewer than 3
+  folds per repeat, or unpaired fits.
+- **Tier C** (`C_signflip`): 3-9 folds per repeat, e.g. 5-fold CV.
+- **Tier B** (`B_signflip_ci`): 10-19 folds per repeat, e.g. 10-fold CV.
+- **Tier A** (`A_full_inference`): 20 or more folds per repeat, e.g.
+  leave-one-study-out with 20+ studies.
 
-For paired designs `R_eff` equals the number of matched repeats. For
-unpaired designs `R_eff = 0` and only the raw point estimates are
-available.
+Tiers A-C all report a p-value and CIs; the tier labels are kept from
+earlier versions. More folds per repeat buy degrees of freedom and
+power; more repeats buy a more stable estimate. With 3 folds per repeat
+the test has only 2 degrees of freedom and is conservative.
 
 ``` r
 
@@ -3045,95 +3032,63 @@ cat("Tier:          ", result_dlsi@tier, "\n")
 cat("R_eff:         ", result_dlsi@R_eff, "\n")
 #> R_eff:          5
 cat("inference_ok:  ", result_dlsi@inference_ok, "\n")
-#> inference_ok:   FALSE
+#> inference_ok:   TRUE
 ```
 
 ### Statistical inference
 
-#### Sign-flip randomization test
+#### Corrected repeated-CV t-test
 
-The sign-flip test (Phipson & Smyth, 2010) assesses the null hypothesis
-that there is no systematic performance inflation:
-
-``` math
-H_0: \mathbb{E}[\Delta_r] = 0 \quad \text{(no leakage-induced inflation)}
-```
-
-The test exploits sign-exchangeability: under $`H_0`$, each $`\Delta_r`$
-is symmetrically distributed around zero, so randomly flipping the sign
-of any $`\Delta_r`$ leaves the distribution of the test statistic
-unchanged. The test statistic is the arithmetic mean of the inflation
-scores:
+The null hypothesis is that there is no systematic performance
+inflation:
 
 ``` math
-T_{\text{obs}} = \frac{1}{R} \sum_{r=1}^{R} \Delta_r
+H_0: \mathbb{E}[\Delta] = 0 \quad \text{(no leakage-induced inflation)}
 ```
 
-For each sign vector
-$`\boldsymbol{\epsilon} = (\epsilon_1, \ldots, \epsilon_R)`$ with
-$`\epsilon_r \in \{-1, +1\}`$, a null-distribution realisation is:
+Repeated cross-validation re-uses the same data: training sets overlap
+within a repeat, and repeats re-partition the same samples. Fold-level
+differences $`d_j`$ (leaky minus guarded, with the metric’s sign
+convention) are therefore correlated, and tests that treat folds or
+repeats as independent are badly anti-conservative. In simulations with
+real model fits under $`H_0`$, a sign-flip test over 10 repeats of
+5-fold CV rejected 70% of the time at nominal 5%.
+
+[`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md)
+uses the corrected resampled t-test of Nadeau & Bengio (2003). With
+$`J`$ distinct test sets (folds re-using an identical test set, as in
+repeated leave-one-batch-out, are averaged into one) and sample variance
+$`s_d^2`$ of their differences:
 
 ``` math
-T_{\boldsymbol{\epsilon}} = \frac{1}{R} \sum_{r=1}^{R} \epsilon_r \Delta_r
+\widehat{\operatorname{Var}}(\bar d) = \left(\frac{1}{J} +
+  \frac{n_{\text{test}}}{n_{\text{train}}}\right) s_d^2,
+\qquad
+t = \frac{\hat{\delta}_{\text{metric}}}{\sqrt{\widehat{\operatorname{Var}}(\bar d)}}
 ```
 
-The two-sided p-value is the proportion of sign vectors yielding a
-statistic at least as extreme as observed:
+The $`n_{\text{test}}/n_{\text{train}}`$ term corrects for overlapping
+training sets. The reference distribution is $`t_{k-1}`$, where $`k`$ is
+the number of folds per repeat (calibrated degrees of freedom;
+Bouckaert, 2003): repeats sharpen the estimate but add no independent
+information. The 95% CIs are
 
 ``` math
-p = \frac{\#\bigl\{\boldsymbol{\epsilon} \in \mathcal{E} :
-           |T_{\boldsymbol{\epsilon}}| \geq |T_{\text{obs}}|\bigr\}}{|\mathcal{E}|}
+\hat{\delta}_{\text{metric}} \pm t_{0.975,\,k-1}\, \widehat{\operatorname{SE}},
+\qquad
+\hat{\delta}_{\text{LSI}} \pm t_{0.975,\,k-1}\, \widehat{\operatorname{SE}}
 ```
 
-Two computation regimes are used:
+`@p_value` tests `@delta_metric`; the interval for `@delta_lsi` uses the
+same standard error around the Huber estimate. With real model fits
+under $`H_0`$ (subject-grouped, batch-blocked, leave-one-study-out and
+rolling-origin designs, 1-20 repeats) the type-I error stayed at or
+below the nominal 5%. The price of calibrated degrees of freedom is
+power: small effects need more folds per repeat to be detected.
 
-- **Exact enumeration** ($`R_{\text{eff}} \leq 15`$): all $`2^R`$ sign
-  vectors are evaluated — $`|\mathcal{E}| = 2^R`$. The p-value is
-  $`\text{count}/2^R`$ with **no** continuity correction, because every
-  sign combination including the observed one is explicitly enumerated.
-  Because the test is two-sided, the observed signs and their mirror
-  image always count, so the minimum achievable p-value is $`2/2^R`$.
-
-- **Monte Carlo** ($`R_{\text{eff}} > 15`$): $`M_{\text{flip}}`$ sign
-  vectors are drawn uniformly from $`\{-1,+1\}^R`$. The Phipson &
-  Smyth (2010) correction prevents $`p = 0`$ in the extreme tail:
-  ``` math
-  p = \frac{B^{+} + 1}{M_{\text{flip}} + 1},
-  \qquad B^{+} = \#\{b : |T_{\boldsymbol{\epsilon}_b}| \geq |T_{\text{obs}}|\}
-  ```
-
-The arithmetic mean $`\hat{\delta}_{\text{metric}}`$ is used as the test
-statistic — not the Huber estimate $`\hat{\delta}_{\text{LSI}}`$. Under
-a sign-flip null the mean has a symmetric, well-defined exchangeable
-distribution; the Huber M-estimator’s nonlinear weighting changes with
-each sign assignment and therefore does not preserve
-sign-exchangeability. As a result, `@p_value` tests `@delta_metric`, not
-`@delta_lsi`.
-
-This distinction matters in practice. When the per-repeat inflation
-vector $`\{\Delta_r\}`$ contains outliers, `delta_lsi` (Huber) and
-`delta_metric` (mean) can diverge in magnitude while agreeing in sign. A
-user can therefore see a significant `@p_value` with a BCa CI for
-`delta_lsi` that spans zero — or vice versa — if a handful of repeats
-pull the mean but not the robust estimate. The
-[`summary()`](https://rdrr.io/r/base/summary.html) method flags this
-disagreement explicitly when it occurs.
-
-The sign-flip test is two-sided and, under exact enumeration, the
-observed sign pattern and its mirror image are always “as extreme”, so
-the minimum achievable p-value is $`2/2^{R}`$. With $`R = 5`$ this is
-$`2/2^5 = 0.0625 > 0.05`$: tier C at $`R_{\text{eff}} = 5`$ reports a
-p-value, but a significant result at the conventional level is
-impossible regardless of the data. With $`R = 6`$,
-$`2/2^6 = 0.03125 < 0.05`$, making it attainable. The floor for a given
-fit is stored in `info$min_p_achievable`, and
-[`summary()`](https://rdrr.io/r/base/summary.html) notes when it exceeds
-0.05. For `exchangeability = "blocked_time"`, the relevant threshold is
-$`n_{\text{blocks}} \geq 5`$ (not $`R_{\text{eff}} \geq 5`$), since
-blocks are the independent units under the test; `@p_value` is set to
-`NA` and a warning is issued when $`n_{\text{blocks}} < 5`$. For other
-exchangeability values, `@p_value` is `NA` when $`R_{\text{eff}} < 5`$
-or when the design is unpaired.
+The `exchangeability` argument is stored and reported, but every setting
+uses this test, because the correction already accounts for the
+dependence that earlier sign-flip variants tried to address.
 
 #### Huber M-estimator and robustness properties
 
@@ -3161,112 +3116,29 @@ because the Huber estimator and the arithmetic mean agree on direction.
 They differ only in magnitude, and then only when one or more
 $`\Delta_r`$ are extreme relative to the bulk of the distribution.
 
-#### BCa bootstrap confidence interval
-
-The BCa (bias-corrected and accelerated) interval (Efron, 1987) for
-$`\hat{\delta}_{\text{LSI}}`$ corrects for both median bias and
-distributional skewness in the bootstrap. Given $`M_{\text{boot}}`$
-bootstrap resamples $`\boldsymbol{\Delta}_b^*`$ drawn with replacement
-from $`\boldsymbol{\Delta}`$, let
-$`\hat{\theta}_b^* = \hat{H}(\boldsymbol{\Delta}_b^*)`$ be the Huber
-estimate on resample $`b`$ and
-$`\hat{\theta} = \hat{H}(\boldsymbol{\Delta})`$ the observed estimate.
-
-**Bias-correction constant** $`\hat{z}_0`$ accounts for the median bias
-of the bootstrap distribution relative to the observed estimate:
-
-``` math
-\hat{z}_0 = \Phi^{-1}\!\left(
-  \frac{\#\{b : \hat{\theta}_b^* < \hat{\theta}\}}{M_{\text{boot}}}
-\right)
-```
-
-When $`\hat{\theta}`$ coincides with the exact median of the bootstrap
-distribution, $`\hat{z}_0 = 0`$ and no bias correction is applied. A
-nonzero $`\hat{z}_0`$ shifts both interval endpoints in the same
-direction.
-
-**Acceleration constant** $`\hat{a}`$ corrects for skewness via the
-jackknife. Let
-$`\hat{\theta}_{(-r)} = \hat{H}(\boldsymbol{\Delta}_{(-r)})`$ be the
-Huber estimate with observation $`r`$ removed and
-$`\bar{\theta}_{(\cdot)} = R^{-1}\sum_{r=1}^R \hat{\theta}_{(-r)}`$:
-
-``` math
-\hat{a} = \frac{\displaystyle\sum_{r=1}^{R}
-                  \bigl(\bar{\theta}_{(\cdot)} - \hat{\theta}_{(-r)}\bigr)^3}
-                 {6\,\left[\displaystyle\sum_{r=1}^{R}
-                  \bigl(\bar{\theta}_{(\cdot)} - \hat{\theta}_{(-r)}\bigr)^2
-                 \right]^{3/2}}
-```
-
-Here $`\hat{a} > 0`$ indicates a right-skewed sampling distribution;
-$`\hat{a} < 0`$ indicates left skew.
-
-**BCa-adjusted quantile levels**: for nominal coverage
-$`1 - \alpha = 0.95`$, let $`z_L = \Phi^{-1}(\alpha/2)`$ and
-$`z_U = \Phi^{-1}(1-\alpha/2)`$. The adjusted quantile levels are:
-
-``` math
-p_j = \Phi\!\left(\hat{z}_0 +
-  \frac{\hat{z}_0 + z_j}{1 - \hat{a}\,(\hat{z}_0 + z_j)}
-\right), \quad j \in \{L,\, U\}
-```
-
-The 95% BCa interval is the $`p_L`$ and $`p_U`$ empirical quantiles of
-the bootstrap distribution $`\{\hat{\theta}_b^*\}`$:
-
-``` math
-\bigl[\hat{\theta}^*_{(p_L)},\; \hat{\theta}^*_{(p_U)}\bigr]
-```
-
-A separate BCa interval is computed for $`\hat{\delta}_{\text{metric}}`$
-(using the arithmetic mean as the bootstrap statistic) and stored in
-`@delta_metric_ci`. Both intervals are `NA` when
-$`R_{\text{eff}} < 10`$, because fewer than 10 leave-one-out jackknife
-samples do not provide a reliable estimate of $`\hat{a}`$.
-
 #### Pairing condition and the inference tier system
 
-Two `LeakFit` objects are treated as **paired** if and only if they have
-the same number of repeats and every fold shares an identical test-index
-composition:
+Two `LeakFit` objects are treated as **paired** if every fold position
+shares an identical test-index composition:
 
 ``` math
-\operatorname{sort}\!\bigl(\mathcal{T}_{r,k}^{\text{naive}}\bigr)
-= \operatorname{sort}\!\bigl(\mathcal{T}_{r,k}^{\text{guarded}}\bigr)
-\quad \forall\, r,\, k
+\operatorname{sort}\!\bigl(\mathcal{T}_{j}^{\text{naive}}\bigr)
+= \operatorname{sort}\!\bigl(\mathcal{T}_{j}^{\text{guarded}}\bigr)
+\quad \forall\, j
 ```
 
-This is verified by comparing the sorted integer index vectors for each
-sequential fold position. When paired, $`R_{\text{eff}} = R`$; when
-unpaired, $`R_{\text{eff}} = 0`$ and all inference is disabled. Pairing
-is automatic when both fits are produced from the same `LeakSplits`
-object.
+Pairing is automatic when both fits are produced from the same
+`LeakSplits` object. Folds whose metric is missing in either fit are
+dropped from both, so the paired difference always compares the same
+test sets. When unpaired, $`R_{\text{eff}} = 0`$ and all inference is
+disabled.
 
-All three inference procedures are gated by $`R_{\text{eff}}`$. The
-four-tier system makes these dependencies explicit:
-
-| Tier | Condition | `@delta_metric` | `@delta_lsi` | `@p_value` | `@delta_lsi_ci` | `@inference_ok` |
+| Tier | Folds per repeat ($`R_{\text{eff}}`$) | `@delta_metric` | `@delta_lsi` | `@p_value` | CIs | `@inference_ok` |
 |----|----|:--:|:--:|:--:|:--:|:--:|
-| `D_insufficient` | $`R_{\text{eff}} < 5`$ | ✓ | ✓ | `NA` | `NA` | `FALSE` |
-| `C_signflip` | $`5 \leq R_{\text{eff}} < 10`$ | ✓ | ✓ | ✓ | `NA` | `FALSE` |
-| `B_signflip_ci` | $`10 \leq R_{\text{eff}} < 20`$ | ✓ | ✓ | ✓ | ✓ | `FALSE` |
-| `A_full_inference` | $`R_{\text{eff}} \geq 20`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
-
-Under `"iid"` exchangeability the exact two-sided sign-flip test has
-minimum achievable p-value $`2/2^{R_{\text{eff}}}`$ ($`2/2^5 = 0.0625`$
-at the tier C entry point; $`2/2^6 = 0.03125`$), so at least 6 paired
-repeats are needed for $`p < 0.05`$ to be attainable. For
-`exchangeability = "blocked_time"`, the independent units are blocks of
-repeats, so the effective threshold is $`n_{\text{blocks}} \geq 5`$;
-when fewer than five blocks are formed from the available repeats,
-`@p_value` is set to `NA` even if $`R_{\text{eff}} \geq 5`$. The
-threshold $`R_{\text{eff}} \geq 10`$ for BCa intervals ensures at least
-10 jackknife leave-one-out estimates for a reliable $`\hat{a}`$. The
-`inference_ok = TRUE` flag at tier A requires all three of
-$`R_{\text{eff}} \geq 20`$, a finite `@p_value`, and finite
-`@delta_lsi_ci` to hold simultaneously.
+| `D_insufficient` | $`< 3`$, or unpaired | ✓ | ✓ | `NA` | `NA` | `FALSE` |
+| `C_signflip` | $`3`$-$`9`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `B_signflip_ci` | $`10`$-$`19`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `A_full_inference` | $`\geq 20`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
 
 The code below shows direct slot access to confirm that the numbers
 correspond exactly to the quantities defined above:
@@ -3279,15 +3151,15 @@ cat("delta_metric:  ", round(result_dlsi@delta_metric, 4), "\n")
 # delta_lsi: Huber M-estimate of {Δ_r} (k=1.345, fixed MAD scale)
 cat("delta_lsi:     ", round(result_dlsi@delta_lsi,    4), "\n")
 #> delta_lsi:      0.2159
-# delta_lsi_ci: 95% BCa interval for delta_lsi (NA below tier B)
-cat("95% BCa CI:    [",
+# delta_lsi_ci: corrected-t 95% interval for delta_lsi (NA in tier D)
+cat("95% CI:        [",
     paste(round(result_dlsi@delta_lsi_ci, 4), collapse = ", "), "]\n")
-#> 95% BCa CI:    [ NA, NA ]
-# p_value: sign-flip randomization p-value (NA below tier C or if unpaired)
+#> 95% CI:        [ 0.0622, 0.3695 ]
+# p_value: corrected repeated-CV t-test p-value (NA in tier D or if unpaired)
 cat("p-value:       ",
     if (is.na(result_dlsi@p_value)) "NA (tier D or unpaired)"
     else format(result_dlsi@p_value, digits = 3), "\n")
-#> p-value:        0.0625
+#> p-value:        0.0182
 ```
 
 ### Paired vs. unpaired designs
@@ -3400,20 +3272,20 @@ for programmatic downstream use:
 | Slot | Type | Description |
 |----|----|----|
 | `@metric` | character | Metric name used (e.g. `"auc"`, `"rmse"`) |
-| `@exchangeability` | character | Exchangeability assumption for the sign-flip test. `"blocked_time"` activates a block sign-flip procedure; `"by_group"` and `"within_batch"` are stored but inference still uses iid sign-flip (a warning is issued); `"iid"` (default) applies the standard independent sign-flip |
+| `@exchangeability` | character | Exchangeability setting requested (`"iid"`, `"by_group"`, `"within_batch"`, `"blocked_time"`). Reported only: every setting uses the corrected repeated-CV t-test |
 | `@tier` | character | Inference tier: `"A_full_inference"`, `"B_signflip_ci"`, `"C_signflip"`, or `"D_insufficient"` |
-| `@R_eff` | integer | Effective paired repeats (0 when unpaired; all inference is based on this count) |
+| `@R_eff` | integer | Effective independent units: folds per repeat (studies for `study_loocv`); 0 when unpaired |
 | `@delta_metric` | numeric | Arithmetic mean of per-repeat inflation scores $`\bar{\Delta}`$; interpret directly in metric units |
 | `@delta_lsi` | numeric | Huber M-estimate of per-repeat inflation scores; more robust than `delta_metric` when repeat-level outliers are present |
-| `@delta_metric_ci` | numeric\[2\] | 95% BCa bootstrap CI for `delta_metric` (both elements `NA` below tier B) |
-| `@delta_lsi_ci` | numeric\[2\] | 95% BCa bootstrap CI for `delta_lsi` (both elements `NA` below tier B) |
-| `@p_value` | numeric | Sign-flip randomization p-value testing H₀: mean inflation = 0 (`NA` below tier C or when unpaired) |
-| `@inference_ok` | logical | `TRUE` only at tier A (`R_eff ≥ 20`), indicating full point + CI + p-value inference is available |
+| `@delta_metric_ci` | numeric\[2\] | Corrected-t 95% CI for `delta_metric` (both elements `NA` in tier D) |
+| `@delta_lsi_ci` | numeric\[2\] | Corrected-t 95% CI for `delta_lsi`, using the same standard error (both elements `NA` in tier D) |
+| `@p_value` | numeric | Corrected repeated-CV t-test p-value for H₀: mean inflation = 0 (`NA` in tier D or when unpaired) |
+| `@inference_ok` | logical | `TRUE` when a finite p-value and CI were computed (tiers A-C) |
 | `@folds_naive` | data.frame | Per-fold data for the naive pipeline: columns `fold`, `metric` (fold-level metric value), `repeat_id`, `n` (test-fold size) |
 | `@folds_guarded` | data.frame | Per-fold data for the guarded pipeline: columns `fold`, `metric`, `repeat_id`, `n` — same structure as `@folds_naive` |
 | `@repeats_naive` | data.frame | Per-repeat aggregates for the naive pipeline: columns `repeat_id`, `metric` (size-weighted mean across folds), `n_folds`, `total_n` |
 | `@repeats_guarded` | data.frame | Per-repeat aggregates for the guarded pipeline: same structure as `@repeats_naive` |
-| `@info` | list | Metadata: `paired` (logical), `R_naive`, `R_guarded` (number of repeats in each fit), `higher_is_better` (logical, after auto-detection), `metric_naive` and `metric_guarded` (Huber-robust overall mean for each pipeline), `block_size_used` and `n_blocks` (for `exchangeability = "blocked_time"`; `NA` otherwise), and optionally `delta_r` (per-repeat $`\Delta_r`$ vector) and the original fit objects when `return_details = TRUE` |
+| `@info` | list | Metadata: `paired` (logical), `R_naive`, `R_guarded` (number of repeats in each fit), `higher_is_better` (logical, after auto-detection), `metric_naive` and `metric_guarded` (Huber-robust overall mean for each pipeline), `test`, `se`, `df`, `rho` ($`n_{\text{test}}/n_{\text{train}}`$), `n_fold_deltas`, `n_test_sets`, `folds_per_repeat`, `n_groups_used` / `n_batches_used` (for `by_group` / `within_batch`), and optionally `delta_r`, `fold_deltas` and the original fit objects when `return_details = TRUE` |
 
 ``` r
 
@@ -3443,16 +3315,25 @@ head(result_dlsi@folds_guarded, 3)
 
 # Metadata
 str(result_dlsi@info)
-#> List of 9
+#> List of 18
 #>  $ paired          : logi TRUE
 #>  $ R_naive         : int 5
 #>  $ R_guarded       : int 5
 #>  $ higher_is_better: logi TRUE
 #>  $ metric_naive    : num 0.716
 #>  $ metric_guarded  : num 0.502
+#>  $ test            : chr "corrected repeated-CV t (Nadeau & Bengio 2003; df = folds per repeat - 1)"
+#>  $ se              : num 0.0553
+#>  $ df              : int 4
+#>  $ rho             : num 0.25
+#>  $ n_fold_deltas   : int 25
+#>  $ n_test_sets     : int 25
+#>  $ folds_per_repeat: int 5
+#>  $ n_groups_used   : int NA
+#>  $ n_batches_used  : int NA
 #>  $ block_size_used : int NA
 #>  $ n_blocks        : int NA
-#>  $ min_p_achievable: num 0.0625
+#>  $ min_p_achievable: num NA
 ```
 
 The `@repeats_naive` and `@repeats_guarded` data frames are the primary
@@ -3481,7 +3362,7 @@ answer complementary questions:
 | Does leakage produce non-random performance? | [`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md) — permutation gap + p-value |
 | What mechanisms drive the leakage? | [`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md) — `batch_assoc`, `target_assoc`, `duplicates` |
 | How large is the performance inflation? | [`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md) — `delta_metric`, `delta_lsi` |
-| Is the inflation statistically significant? | [`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md) — sign-flip p-value |
+| Is the inflation statistically significant? | [`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md) — corrected repeated-CV t-test p-value |
 | Do guards fully eliminate the inflation? | [`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md) — compare before/after guarding |
 
 A recommended two-step workflow:
@@ -3560,9 +3441,9 @@ cat("\ndelta_metric (naive vs guarded):", round(result_dlsi@delta_metric, 4), "\
 #> 
 #> delta_metric (naive vs guarded): 0.2133
 if (!is.na(result_dlsi@p_value)) {
-  cat("Sign-flip p-value:              ", format(result_dlsi@p_value, digits = 3), "\n")
+  cat("Corrected t-test p-value:       ", format(result_dlsi@p_value, digits = 3), "\n")
 }
-#> Sign-flip p-value:               0.0625
+#> Corrected t-test p-value:        0.0182
 ```
 
 A ΔLSI near zero after guarding and a non-significant p-value together

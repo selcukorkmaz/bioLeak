@@ -1,9 +1,9 @@
-# BCa confidence interval from a LeakDeltaLSI
+# Confidence interval from a LeakDeltaLSI
 
-Returns the bias-corrected and accelerated (BCa) bootstrap confidence
-interval stored in a \[\`LeakDeltaLSI\`\] object. By default returns the
-interval for the Huber-robust delta estimate; set \`which = "metric"\`
-to return the interval for the raw metric difference instead.
+Returns the 95 object, from the corrected repeated-CV t-test (see
+\[delta_lsi()\]). By default returns the interval for the Huber-robust
+delta estimate; set \`which = "metric"\` to return the interval for the
+raw metric difference instead.
 
 ## Usage
 

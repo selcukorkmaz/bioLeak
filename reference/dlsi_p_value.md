@@ -1,7 +1,7 @@
-# Sign-flip p-value from a LeakDeltaLSI
+# p-value from a LeakDeltaLSI
 
-Returns the paired sign-flip randomization-test p-value stored in a
-\[\`LeakDeltaLSI\`\] object.
+Returns the corrected repeated-CV t-test p-value stored in a
+\[\`LeakDeltaLSI\`\] object (see \[delta_lsi()\]).
 
 ## Usage
 

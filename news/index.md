@@ -1,5 +1,68 @@
 # Changelog
 
+## bioLeak (development version)
+
+### Bug fixes (results can change)
+
+- **[`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md)
+  inference replaced: corrected repeated-CV t-test.** Repeated
+  cross-validation re-uses the same data, so fold and repeat differences
+  are correlated. The previous sign-flip tests treated them as
+  independent and were badly anti-conservative with real model fits
+  under a true null: 70% type-I error at alpha = 0.05 for 5-fold x 10
+  repeats on 100 samples, and 14-17% for the group-level test on
+  leave-one-study-out designs.
+  [`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md)
+  now uses the Nadeau & Bengio (2003) corrected variance
+  `(1/J + n_test/n_train) * var(fold deltas)` with a t reference on
+  `folds per repeat - 1` degrees of freedom (calibrated df, Bouckaert
+  2003), for every `exchangeability` setting. Folds that re-use an
+  identical test set are counted once. In real-fit simulations
+  (subject-grouped, batch-blocked, leave-one-study-out and
+  rolling-origin designs, 1-20 repeats) type-I error stayed at or below
+  5%. CIs for `delta_metric` and `delta_lsi` use the same standard
+  error; the BCa bootstrap is gone.
+  - `R_eff` is now the number of folds per repeat (studies for
+    `study_loocv`), not the number of repeats: repeats sharpen the
+    estimate but add no independent units, so they no longer raise the
+    tier.
+  - Tiers: D below 3 folds per repeat or unpaired; C 3-9; B 10-19; A
+    20+. Tier labels are unchanged for compatibility; tiers A-C all
+    report a p-value and CIs, and `inference_ok` is `TRUE` whenever they
+    are finite.
+  - `exchangeability` is stored and reported only. `block_size`,
+    `M_boot`, `M_flip` and `seed` are ignored (a warning is issued for
+    `block_size`).
+  - `info` gains `test`, `se`, `df`, `rho`, `n_fold_deltas`,
+    `n_test_sets` and `folds_per_repeat`; `return_details = TRUE` adds
+    `fold_deltas`. `min_p_achievable`, `block_size_used` and `n_blocks`
+    are now `NA`.
+- **[`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md)
+  pairs fits at the fold level.** A fold whose metric is missing in
+  either fit is dropped from both, so the paired difference always
+  compares the same test sets; previously one all-NA repeat in one fit
+  made the comparison unpaired, and an NA fold was dropped from one side
+  only. The per-pipeline summaries (`repeats_naive`, `repeats_guarded`,
+  `info$metric_naive`, `info$metric_guarded`) use the same paired folds.
+- **[`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md)
+  sizes compact-split folds correctly.** Fold sizes come from
+  `fold_assignments`, and training sizes are rebuilt the way
+  [`fit_resample()`](https://selcukorkmaz.github.io/bioLeak/reference/fit_resample.md)
+  builds them (past rows only for `time_series`, minus horizon / purge /
+  embargo; secondary-constraint exclusions for `combined`). Compact
+  plans previously weighted every fold equally and used “all non-test
+  rows” as the training size, so the same plan could give different
+  results in compact and explicit form.
+- **[`delta_lsi()`](https://selcukorkmaz.github.io/bioLeak/reference/delta_lsi.md)
+  metric direction.** Auto-detection now treats `mape`, `smape`, `mase`,
+  `*_cost`, `ece`, `fpr`, `nll`, `cross_entropy` and other loss/error
+  names as lower-is-better (several were read as higher-is-better,
+  flipping the sign of the result), recognises skill scores and
+  explained-deviance (e.g. `brier_skill_score`) and yardstick names such
+  as `kap`, `ccc` and `roc_aunp` as higher-is-better, and warns when a
+  metric name is not recognised instead of silently assuming higher is
+  better.
+
 ## bioLeak 0.3.8
 
 CRAN release: 2026-05-21

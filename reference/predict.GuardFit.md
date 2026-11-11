@@ -19,9 +19,9 @@ alias that simply forwards to the S3 method, so existing code that calls
 
 ``` r
 # S3 method for class 'GuardFit'
-predict(object, newdata, ...)
+predict(object, newdata, batch = NULL, ...)
 
-predict_guard(fit, newdata)
+predict_guard(fit, newdata, batch = NULL)
 ```
 
 ## Arguments
@@ -44,6 +44,13 @@ predict_guard(fit, newdata)
   extra columns are dropped, and factor levels are aligned to the
   training levels; if the training fit was numeric-only, non-numeric
   columns in `newdata` trigger an error.
+
+- batch:
+
+  Optional vector of batch labels aligned to `newdata` rows when
+  `batch_adjust` was enabled during
+  [`guard_fit()`](https://selcukorkmaz.github.io/bioLeak/reference/guard_fit.md)
+  and `batch_col` is not present inside `newdata`.
 
 - ...:
 

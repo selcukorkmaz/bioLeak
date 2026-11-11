@@ -254,7 +254,9 @@ splits <- make_split_plan(df, outcome = "outcome",
 # glmnet learner (requires glmnet package)
 fit <- fit_resample(df, outcome = "outcome", splits = splits,
                       learner = "glmnet", metrics = "auc")
-#>   |                                                                              |                                                                      |   0%
+#> 
+  |                                                                            
+  |                                                                      |   0%
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
@@ -266,20 +268,9 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: Option grouped=FALSE enforced in cv.glmnet, since < 3 observations per fold
-#>   |                                                                              |==============                                                        |  20%
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> Warning: Option grouped=FALSE enforced in cv.glmnet, since < 3 observations per fold
-#>   |                                                                              |============================                                          |  40%
+#> 
+  |                                                                            
+  |==============                                                        |  20%
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
@@ -292,7 +283,9 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: Option grouped=FALSE enforced in cv.glmnet, since < 3 observations per fold
-#>   |                                                                              |==========================================                            |  60%
+#> 
+  |                                                                            
+  |============================                                          |  40%
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
@@ -305,7 +298,9 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: Option grouped=FALSE enforced in cv.glmnet, since < 3 observations per fold
-#>   |                                                                              |========================================================              |  80%
+#> 
+  |                                                                            
+  |==========================================                            |  60%
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
@@ -318,7 +313,24 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: Option grouped=FALSE enforced in cv.glmnet, since < 3 observations per fold
-#>   |                                                                              |======================================================================| 100%
+#> 
+  |                                                                            
+  |========================================================              |  80%
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> Warning: Option grouped=FALSE enforced in cv.glmnet, since < 3 observations per fold
+#> 
+  |                                                                            
+  |======================================================================| 100%
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
 #> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
@@ -365,7 +377,19 @@ custom <- list(
 fit2 <- fit_resample(df, outcome = "outcome", splits = splits,
                      learner = "glm", custom_learners = custom,
                      metrics = "accuracy")
-#>   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%
+#> 
+  |                                                                            
+  |                                                                      |   0%
+  |                                                                            
+  |==============                                                        |  20%
+  |                                                                            
+  |============================                                          |  40%
+  |                                                                            
+  |==========================================                            |  60%
+  |                                                                            
+  |========================================================              |  80%
+  |                                                                            
+  |======================================================================| 100%
 
 summary(fit2)
 #> 

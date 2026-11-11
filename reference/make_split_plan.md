@@ -24,6 +24,7 @@ make_split_plan(
   v = 5,
   repeats = 1,
   stratify = FALSE,
+  stratify_by = NULL,
   nested = FALSE,
   seed = 1,
   horizon = 0,
@@ -106,9 +107,15 @@ make_split_plan(
 
 - stratify:
 
-  logical, keep outcome proportions similar across folds. For grouped
-  modes, stratification is applied at the group level (by majority class
-  per group) if `outcome` is provided; otherwise ignored.
+  logical, keep outcome (or `stratify_by`) proportions similar across
+  folds. For grouped modes, stratification is applied at the group level
+  (by majority class per group) if `outcome` or `stratify_by` is
+  provided; otherwise ignored.
+
+- stratify_by:
+
+  optional character column name in metadata to stratify on instead of
+  `outcome` when `stratify = TRUE`.
 
 - nested:
 

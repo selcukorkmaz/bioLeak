@@ -45,14 +45,13 @@ delta_lsi(
 
 - exchangeability:
 
-  Character. Exchangeability assumption for the sign-flip test. One of
-  `"iid"` (default), `"by_group"`, `"within_batch"`, `"blocked_time"`.
-  `"blocked_time"` activates a block sign-flip procedure that flips
-  contiguous groups of repeats together, preserving serial
-  autocorrelation under the null; see `block_size`. `"by_group"` and
-  `"within_batch"` are stored and reported but inference still uses the
-  iid sign-flip procedure (a warning is issued; contributions welcome).
-  `"iid"` (default) applies the standard independent sign-flip test.
+  Character. One of `"iid"` (default), `"by_group"`, `"within_batch"`,
+  `"blocked_time"`. Stored and reported; all settings use the same
+  corrected t-test, because the correction already accounts for the
+  dependence these settings used to address. For `"by_group"` /
+  `"within_batch"` the number of group / batch levels is reported in
+  `info$n_groups_used` / `info$n_batches_used`. Earlier versions ran
+  sign-flip tests here that were anti-conservative with real model fits.
 
 - learner:
 
@@ -63,30 +62,27 @@ delta_lsi(
 
   Logical or `NULL`. Whether a higher value of `metric` indicates better
   performance. When `NULL` (default), auto-detected from the metric
-  name: `"rmse"`, `"mse"`, `"mae"`, `"log_loss"`, `"brier"`, `"error"`,
-  `"loss"`, and `"deviance"` are treated as lower-is-better; all others
-  default to higher-is-better. Setting this correctly ensures that a
-  positive `delta_lsi` always indicates leakage inflation (the naive
-  pipeline is artificially more optimistic than the guarded one).
+  name: names containing `"rmse"`, `"mse"`, `"mae"`, `"mape"`, `"mase"`,
+  `"log_loss"`, `"brier"`, `"error"`, `"loss"`, `"deviance"` or `"cost"`
+  are lower-is-better; names such as `"auc"`, `"accuracy"`, `"f1"`,
+  `"kappa"`, `"rsq"` or `"cindex"` are higher-is-better; any other name
+  warns and is treated as higher-is-better. Setting this correctly
+  ensures that a positive `delta_lsi` always indicates leakage inflation
+  (the naive pipeline is artificially more optimistic than the guarded
+  one).
 
 - block_size:
 
-  Integer or `NULL`. Block length for the block sign-flip test, used
-  only when `exchangeability = "blocked_time"`. When `NULL` (default),
-  the block size is auto-estimated from the first-order autocorrelation
-  of \\\\\Delta_r\\\\ and capped at `floor(R/3)` to ensure at least
-  three independent blocks. A warning is issued when the estimate is
-  used with `R_eff < 20` because the AR(1) estimate is noisy at small
-  sample sizes. Provide an explicit integer to override auto-estimation.
+  Ignored; retained for compatibility (a warning is issued when
+  supplied).
 
 - M_boot:
 
-  Integer. Number of bootstrap samples for BCa CI (default 2000).
+  Ignored; retained for compatibility (no bootstrap is used).
 
 - M_flip:
 
-  Integer. Maximum Monte Carlo samples for sign-flip test when R_eff \>
-  15 (default 10000).
+  Ignored; retained for compatibility (no sign-flip test is used).
 
 - strict:
 
@@ -94,12 +90,12 @@ delta_lsi(
 
 - return_details:
 
-  Logical. If `TRUE`, include the per-repeat \\\Delta_r\\ vector and the
-  original fit objects in the `info` slot.
+  Logical. If `TRUE`, include the per-repeat \\\Delta_r\\ vector, the
+  paired fold deltas and the original fit objects in the `info` slot.
 
 - seed:
 
-  Integer. Random seed for bootstrap and sign-flip test.
+  Ignored; retained for compatibility (the method is deterministic).
 
 - ...:
 
@@ -122,18 +118,18 @@ fold-level deltas, use the S4 accessor methods registered for
   – Huber-robust point estimate (the `delta_lsi` slot).
 
 - [`dlsi_ci`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_ci.md)`(dlsi, which = "robust" | "metric")`
-  – BCa bootstrap confidence interval for either the robust or the raw
+  – corrected-t 95% confidence interval for either the robust or the raw
   estimate.
 
 - [`dlsi_p_value`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_p_value.md)`(dlsi)`
-  – sign-flip randomization-test p-value.
+  – corrected repeated-CV t-test p-value.
 
 - [`dlsi_tier`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_tier.md)`(dlsi)`
   – inference-tier label (`"A_full_inference"`, `"B_signflip_ci"`,
   `"C_signflip"`, or `"D_insufficient"`).
 
 - [`dlsi_R_eff`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_R_eff.md)`(dlsi)`
-  – effective number of paired repeats contributing to the inference.
+  – effective number of independent units (folds per repeat).
 
 - [`dlsi_repeats`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_repeats.md)`(dlsi, which = "naive" | "guarded")`
   – per-repeat metric data frame for the requested pipeline.
@@ -161,43 +157,63 @@ repeats. **delta_metric** is the arithmetic mean of \\\\\Delta_r\\\\ for
 easy interpretation in the original metric's units.
 
 Pairing requires that `fit_leaky` and `fit_guarded` share *identical
-fold structures* (same test-set membership per fold) in addition to the
-same number of repeats. When repeat counts match but fold structures
-differ, a warning is issued and the fits are treated as unpaired.
+fold structures* (same test-set membership per fold). When fold
+structures differ, a warning is issued and the fits are treated as
+unpaired. Folds whose metric is missing in either fit are dropped from
+both before pairing, so the paired delta always compares the same test
+sets.
 
-When \\R\_{\text{eff}} \geq 5\\ (equal, paired repeats), a sign-flip
-randomization test (Phipson & Smyth, 2010) is performed: under \\H_0\\
-(no leakage) the sign of each \\\Delta_r\\ is exchangeable. All \\2^R\\
-sign combinations are enumerated exactly for \\R \leq 15\\ (no
-continuity correction); Monte Carlo sampling is used for larger \\R\\
-with the Phipson & Smyth (2010) correction.
+**Inference** uses a corrected repeated cross-validation t-test on the
+paired fold deltas \\d_j\\, with folds that re-use an identical test set
+(e.g. repeated leave-one-batch-out) averaged into one, so \\J\\ counts
+distinct test sets. Repeated CV re-partitions the same data, so fold
+deltas are correlated through overlapping training sets and across
+repeats; treating them (or the repeats) as independent gives badly
+anti-conservative tests. The variance of the mean is corrected as
+\\(1/J + n\_{\text{test}}/n\_{\text{train}})\\ s_d^2\\ (Nadeau & Bengio,
+2003), and the t reference uses \\k - 1\\ degrees of freedom, where
+\\k\\ is the number of folds per repeat (calibrated degrees of freedom,
+Bouckaert, 2003): repeats sharpen the estimate but add no independent
+information. The test statistic is `delta_metric / se`; the 95% CIs for
+`delta_metric` and `delta_lsi` are the estimate \\\pm t\_{0.975, k-1}\\
+se\\. In simulations with real model fits under \\H_0\\
+(subject-grouped, batch-blocked and leave-one-study-out designs, 1-20
+repeats) the type-I error stayed at or below the nominal 5%; with 3-fold
+designs (2 df) the test is conservative.
 
-BCa bootstrap confidence intervals (Efron, 1987) require
-\\R\_{\text{eff}} \geq 10\\.
+`R_eff` is the number of folds per repeat \\k\\ (for `study_loocv`, the
+number of studies), the number of effectively independent units.
 
 ### Inference tiers
 
+Tier labels are kept from earlier versions for compatibility; every tier
+except D reports a p-value and both CIs.
+
 - `"A_full_inference"`:
 
-  R_eff \>= 20: point + BCa CI + sign-flip p-value;
-  `inference_ok = TRUE`
+  R_eff \>= 20
 
 - `"B_signflip_ci"`:
 
-  10 \<= R_eff \< 20: point + sign-flip p-value + BCa CI
+  10 \<= R_eff \< 20
 
 - `"C_signflip"`:
 
-  5 \<= R_eff \< 10: point + sign-flip p-value (no CI). The exact
-  two-sided sign-flip test has minimum achievable p-value \\2 /
-  2^{R\_{\text{eff}}}\\, so at \\R\_{\text{eff}} = 5\\ the smallest
-  possible p is 0.0625 and the test can never reach \\p \< 0.05\\; use
-  \\R\_{\text{eff}} \geq 6\\ (minimum p = 0.03125) if a 5% test is
-  needed. The attainable floor is stored in `info$min_p_achievable`.
+  3 \<= R_eff \< 10
 
 - `"D_insufficient"`:
 
-  R_eff \< 5 or unpaired: point estimate only
+  R_eff \< 3 or unpaired: point estimate only
+
+`inference_ok` is `TRUE` whenever a finite p-value and CI were computed.
+
+## References
+
+Nadeau, C. and Bengio, Y. (2003). Inference for the generalization
+error. *Machine Learning*, 52, 239-281.
+
+Bouckaert, R. R. (2003). Choosing between two learning algorithms based
+on calibrated tests. *Proceedings of ICML 2003*, 51-58.
 
 ## See also
 

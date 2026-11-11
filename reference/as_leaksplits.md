@@ -10,7 +10,15 @@ id.
 ## Usage
 
 ``` r
-as_leaksplits(spec, data, outcome, sample_id_col = "sample_id", v = 5, ...)
+as_leaksplits(
+  spec,
+  data,
+  outcome,
+  sample_id_col = "sample_id",
+  v = 5,
+  use_block_constraints = FALSE,
+  ...
+)
 ```
 
 ## Arguments
@@ -36,6 +44,13 @@ as_leaksplits(spec, data, outcome, sample_id_col = "sample_id", v = 5, ...)
 
   Number of CV folds to request from
   [`make_split_plan()`](https://selcukorkmaz.github.io/bioLeak/reference/make_split_plan.md).
+
+- use_block_constraints:
+
+  Logical (default `FALSE`). When `TRUE` and the spec uses a grouped
+  mode with non-empty `spec$block_vars`, converts `group_var` and
+  `block_vars` into multi-axis `constraints` in
+  `make_split_plan(mode = "combined")`.
 
 - ...:
 
@@ -66,14 +81,21 @@ The mapping from `spec$constraint_mode` to `make_split_plan(mode=)` is:
 For the grouping modes in the last row, splitGraph has already resolved
 the dependency structure into one group id per sample (for
 `"composite"`, the merged components of all relations in `via`), so
-keeping each group intact within a fold honours the constraint.
-Composite specs that require ordering (`spec$ordering_required`) cannot
-be expressed as grouped folds and raise an error; derive a `"time"` spec
-instead. Unrecognised future modes fall back to grouped folds on
+keeping each group intact within a fold honours the constraint. Specs
+that require ordering (`spec$ordering_required = TRUE`) and supply a
+valid ordering column (`"order_rank"` or `spec$time_var`) map to
+`"time_series"` while also passing `group = spec$group_var` (for
+non-`"time"` modes) so both temporal ordering and group disjointness are
+enforced. Unrecognised future modes fall back to grouped folds on
 `group_var` with a warning.
 
-Blocking variables declared on the spec (`batch_group`, `study_group`)
-and ordering (`order_rank`) are forwarded automatically when relevant.
+Blocking variables declared on the spec (`batch_group`, `study_group`,
+`site_group`, `region_group`, `platform_group`, `assay_group`),
+stratification (`stratum` or `spec$stratum_var`), and ordering
+(`order_rank`) are forwarded automatically when relevant. When
+`use_block_constraints = TRUE`, non-missing `spec$block_vars` on a
+grouped spec are enforced as secondary exclusion axes via
+`make_split_plan(mode = "combined")`.
 
 ## See also
 

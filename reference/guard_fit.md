@@ -45,7 +45,12 @@ The pipeline applies, in order:
 
 - Imputation learned on training data only.
 
-- Normalization (z-score or robust).
+- Normalization (`"zscore"`, `"robust"`, frozen reference `"quantile"`,
+  `"log_cpm"`, `"clr"`, or `"none"`).
+
+- Optional frozen train-only batch adjustment (`steps$batch_adjust` with
+  `method` in `"combat_frozen"`, `"location_scale"`, or
+  `"mean_center"`).
 
 - Variance/IQR filtering. Thresholds are compared with the variance and
   IQR of the imputed training data on its original scale (before
