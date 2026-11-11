@@ -208,3 +208,126 @@ test_that("variance/IQR filter uses the pre-normalization scale", {
   )
   expect_identical(names(which(fit_mk$state$filter$keep)), "high")
 })
+
+test_that("Phase 2 (2.3): guard_fit supports frozen quantile, log_cpm, clr, and combat_frozen batch adjustment", {
+  set.seed(101)
+  X_train <- data.frame(
+    g1 = c(10, 20, 30, 100, 110, 120),
+    g2 = c(20, 30, 40, 200, 210, 220),
+    g3 = c(40, 50, 60, 300, 310, 320),
+    batch = c("B1", "B1", "B1", "B2", "B2", "B2"),
+    stringsAsFactors = FALSE
+  )
+  X_test <- data.frame(
+    g1 = c(15, 115, 50),
+    g2 = c(25, 215, 60),
+    g3 = c(45, 315, 70),
+    batch = c("B1", "B2", "B_unseen"),
+    stringsAsFactors = FALSE
+  )
+
+  # 1) Frozen quantile normalization maps new rows solely against training q_ref
+  fit_q <- guard_fit(
+    X_train[, c("g1", "g2", "g3")],
+    steps = list(impute = list(winsor = FALSE), normalize = list(method = "quantile")),
+    task = "gaussian"
+  )
+  out_q1 <- fit_q$transform(X_test[1, c("g1", "g2", "g3"), drop = FALSE])
+  out_q_all <- fit_q$transform(X_test[, c("g1", "g2", "g3"), drop = FALSE])
+  expect_equal(as.numeric(out_q1[1, ]), as.numeric(out_q_all[1, ]))
+
+  # 2) log_cpm and clr transforms
+  fit_cpm <- guard_fit(
+    X_train[, c("g1", "g2", "g3")],
+    steps = list(impute = list(winsor = FALSE), normalize = list(method = "log_cpm")),
+    task = "gaussian"
+  )
+  out_cpm <- fit_cpm$transform(X_test[, c("g1", "g2", "g3")])
+  expect_false(anyNA(out_cpm))
+
+  fit_clr <- guard_fit(
+    X_train[, c("g1", "g2", "g3")],
+    steps = list(impute = list(winsor = FALSE), normalize = list(method = "clr")),
+    task = "gaussian"
+  )
+  out_clr <- fit_clr$transform(X_test[, c("g1", "g2", "g3")])
+  expect_equal(unname(rowMeans(as.matrix(out_clr))), rep(0, nrow(X_test)), tolerance = 1e-8)
+
+  # 3) Frozen ComBat / EB batch adjustment strips batch_col and shrinks batch shift
+  fit_eb <- guard_fit(
+    X_train,
+    steps = list(
+      impute = list(winsor = FALSE),
+      normalize = list(method = "none"),
+      batch_adjust = list(method = "combat_frozen", batch_col = "batch")
+    ),
+    task = "gaussian"
+  )
+  expect_false("batch" %in% colnames(fit_eb$transform(X_train)))
+  adj_train <- fit_eb$transform(X_train)
+  raw_gap <- abs(mean(X_train$g1[4:6]) - mean(X_train$g1[1:3]))
+  adj_gap <- abs(mean(adj_train$g1[4:6]) - mean(adj_train$g1[1:3]))
+  expect_lt(adj_gap, raw_gap * 0.25)
+
+  # Held-out transform works with known and unseen batches without leaking test rows
+  adj_test_single <- fit_eb$transform(X_test[1, , drop = FALSE])
+  adj_test_full <- fit_eb$transform(X_test)
+  expect_equal(as.numeric(adj_test_single[1, ]), as.numeric(adj_test_full[1, ]))
+
+  # Single-column quantile normalization (p = 1), predict_guard(..., batch=), hash, and fit_resample integration
+  fit_q1 <- guard_fit(
+    data.frame(g1 = c(10, 20, 30, 40)),
+    steps = list(impute = list(winsor = FALSE), normalize = list(method = "quantile")),
+    task = "gaussian"
+  )
+  out_q1_single <- predict(fit_q1, data.frame(g1 = c(15, 35)))
+  expect_equal(nrow(out_q1_single), 2L)
+  expect_false(anyNA(out_q1_single))
+
+  fit_no_eb <- guard_fit(
+    X_train[, c("g1", "g2", "g3")],
+    steps = list(impute = list(winsor = FALSE), normalize = list(method = "none")),
+    task = "gaussian"
+  )
+  expect_false(identical(fit_eb$hash, fit_no_eb$hash))
+  expect_equal(
+    as.numeric(predict_guard(fit_eb, X_test[, c("g1", "g2", "g3")], batch = X_test$batch)[1, ]),
+    as.numeric(adj_test_full[1, ])
+  )
+
+  # End-to-end fit_resample with batch_adjust when batch is also a split blocking column
+  set.seed(202)
+  df_fr <- data.frame(
+    batch = rep(c("B1", "B2", "B3"), length.out = 48),
+    y = factor(rep(c("ctrl", "case"), 24)),
+    g1 = rnorm(48) + ifelse(rep(c("B1", "B2", "B3"), length.out = 48) == "B2", 5, 0),
+    g2 = rnorm(48),
+    g3 = rnorm(48),
+    stringsAsFactors = FALSE
+  )
+  custom_glm <- list(
+    glm = list(
+      fit = function(x, y, task, weights, ...) {
+        suppressWarnings(stats::glm(y ~ ., data = as.data.frame(x),
+                                    family = stats::binomial(), weights = weights))
+      },
+      predict = function(object, newdata, task, ...) {
+        as.numeric(suppressWarnings(stats::predict(object,
+                                                   newdata = as.data.frame(newdata),
+                                                   type = "response")))
+      }
+    )
+  )
+  sp_fr <- make_split_plan(df_fr, outcome = "y", mode = "batch_blocked", batch = "batch", v = 3, progress = FALSE)
+  fit_fr <- fit_resample(
+    df_fr, outcome = "y", splits = sp_fr,
+    learner = "glm", custom_learners = custom_glm, metrics = "auc",
+    preprocess = list(
+      impute = list(method = "median"),
+      normalize = list(method = "quantile"),
+      batch_adjust = list(method = "combat_frozen", batch_col = "batch")
+    )
+  )
+  expect_s4_class(fit_fr, "LeakFit")
+  expect_identical(fit_fr@feature_names, c("g1", "g2", "g3"))
+})

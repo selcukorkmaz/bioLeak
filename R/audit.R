@@ -1765,9 +1765,9 @@ audit_leakage <- function(fit,
     } else if (identical(perm_folds, "fixed")) {
       perm_folds_used <- "fixed"
       perm_folds_reason <- "perm_folds = \"fixed\": observed folds reused for every permutation."
-    } else if (!split_stratified) {
+    } else if (!split_stratified || !identical(split_info$stratify_by %||% split_outcome, split_outcome)) {
       perm_folds_used <- "fixed"
-      perm_folds_reason <- "auto: splits are not stratified, so the observed folds do not depend on the outcome."
+      perm_folds_reason <- "auto: splits are not stratified on the outcome, so the observed folds do not depend on the outcome."
     } else if (!is.null(redraw_problem)) {
       perm_folds_used <- "fixed"
       perm_folds_reason <- sprintf("auto: stratified splits but folds cannot be re-drawn (%s).", redraw_problem)
@@ -1791,7 +1791,8 @@ audit_leakage <- function(fit,
         study = split_info$study, time = split_info$time,
         constraints = if (is_combined) split_info$constraints else NULL,
         v = split_info$v, repeats = split_info$repeats %||% 1L,
-        stratify = split_stratified, nested = isTRUE(split_info$nested),
+        stratify = split_stratified, stratify_by = split_info$stratify_by,
+        nested = isTRUE(split_info$nested),
         seed = split_info$seed + b,
         horizon = split_info$horizon %||% 0, purge = split_info$purge %||% 0,
         embargo = split_info$embargo %||% 0,

@@ -32,7 +32,11 @@ The pipeline applies, in order:
 \itemize{
   \item Winsorization (optional) to limit outliers.
   \item Imputation learned on training data only.
-  \item Normalization (z-score or robust).
+  \item Normalization (\code{"zscore"}, \code{"robust"}, frozen reference
+    \code{"quantile"}, \code{"log_cpm"}, \code{"clr"}, or \code{"none"}).
+  \item Optional frozen train-only batch adjustment (\code{steps$batch_adjust}
+    with \code{method} in \code{"combat_frozen"}, \code{"location_scale"}, or
+    \code{"mean_center"}).
   \item Variance/IQR filtering. Thresholds are compared with the variance
     and IQR of the imputed training data on its original scale (before
     normalization), so \code{var_thresh} and \code{iqr_thresh} keep their

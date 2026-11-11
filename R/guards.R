@@ -269,6 +269,147 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
   list(data = df, levels = levels_map)
 }
 
+# Map each row's empirical ranks to a frozen training reference quantile profile
+.guard_quantile_normalize_apply <- function(df, q_ref) {
+  mat <- as.matrix(df)
+  p <- ncol(mat)
+  if (p == 0L || nrow(mat) == 0L || length(q_ref) != p) return(df)
+  if (p == 1L) {
+    out <- matrix(ifelse(is.na(mat[, 1L]), NA_real_, q_ref[1L]), ncol = 1L)
+  } else {
+    out <- t(apply(mat, 1L, function(row_vals) {
+      rk <- rank(row_vals, ties.method = "average", na.last = "keep")
+      stats::approx(x = seq_len(p), y = q_ref, xout = rk, rule = 2)$y
+    }))
+  }
+  colnames(out) <- colnames(df)
+  rownames(out) <- rownames(df)
+  as.data.frame(out, check.names = FALSE)
+}
+
+# Library-size log2-CPM transform using sample library size (with frozen fallback)
+.guard_log_cpm_apply <- function(df, prior_count = 1.0, ref_lib_size = 1e6) {
+  mat <- pmax(as.matrix(df), 0)
+  lib <- rowSums(mat, na.rm = TRUE)
+  lib[!is.finite(lib) | lib <= 0] <- ref_lib_size
+  out <- log2(sweep(mat + prior_count, 1L, lib, "/") * 1e6)
+  colnames(out) <- colnames(df)
+  rownames(out) <- rownames(df)
+  as.data.frame(out, check.names = FALSE)
+}
+
+# Centered log-ratio (CLR) compositional transform per sample
+.guard_clr_apply <- function(df, pseudocount = 1e-6) {
+  mat <- pmax(as.matrix(df), 0) + pseudocount
+  lmat <- log(mat)
+  rmean <- rowMeans(lmat, na.rm = TRUE)
+  out <- sweep(lmat, 1L, rmean, "-")
+  colnames(out) <- colnames(df)
+  rownames(out) <- rownames(df)
+  as.data.frame(out, check.names = FALSE)
+}
+
+# Fit train-only frozen batch location/scale parameters (including EB shrinkage)
+.guard_batch_fit <- function(df, batch_vec, method = "combat_frozen") {
+  mat <- as.matrix(df)
+  n <- nrow(mat)
+  p <- ncol(mat)
+  b <- as.character(batch_vec)
+  if (length(b) != n) {
+    stop("Length of batch vector must match nrow(X) in guard_fit().", call. = FALSE)
+  }
+  grand_mu <- colMeans(mat, na.rm = TRUE)
+  grand_sd <- apply(mat, 2L, stats::sd, na.rm = TRUE)
+  grand_sd[!is.finite(grand_sd) | grand_sd < 1e-12] <- 1.0
+
+  z <- sweep(sweep(mat, 2L, grand_mu, "-"), 2L, grand_sd, "/")
+  batches <- unique(stats::na.omit(b))
+  gamma_star <- matrix(0.0, nrow = length(batches), ncol = p,
+                       dimnames = list(batches, colnames(df)))
+  delta_star <- matrix(1.0, nrow = length(batches), ncol = p,
+                       dimnames = list(batches, colnames(df)))
+
+  for (bnm in batches) {
+    idx <- which(b == bnm)
+    nb <- length(idx)
+    if (nb < 1L) next
+    zb <- z[idx, , drop = FALSE]
+    g_hat <- colMeans(zb, na.rm = TRUE)
+    g_hat[!is.finite(g_hat)] <- 0.0
+    if (nb >= 2L && method %in% c("combat_frozen", "eb_frozen", "location_scale")) {
+      d_hat <- apply(zb, 2L, stats::var, na.rm = TRUE)
+      d_hat[!is.finite(d_hat) | d_hat < 1e-8] <- 1.0
+    } else {
+      d_hat <- rep(1.0, p)
+    }
+
+    if (method %in% c("combat_frozen", "eb_frozen") && p >= 2L) {
+      # Parametric empirical-Bayes shrinkage across features on the training fold
+      g_bar <- mean(g_hat)
+      tau2 <- stats::var(g_hat)
+      if (!is.finite(tau2) || tau2 < 1e-12) {
+        gamma_star[bnm, ] <- g_bar
+      } else {
+        se2 <- d_hat / nb
+        w_eb <- tau2 / (tau2 + se2)
+        gamma_star[bnm, ] <- w_eb * g_hat + (1.0 - w_eb) * g_bar
+      }
+      if (nb >= 2L) {
+        d_bar <- mean(d_hat)
+        s2_d <- stats::var(d_hat)
+        if (!is.finite(s2_d) || s2_d < 1e-12) {
+          delta_star[bnm, ] <- d_bar
+        } else {
+          w_d <- s2_d / (s2_d + (2.0 * d_hat^2) / max(1L, nb - 1L))
+          delta_star[bnm, ] <- pmax(1e-6, w_d * d_hat + (1.0 - w_d) * d_bar)
+        }
+      }
+    } else {
+      gamma_star[bnm, ] <- g_hat
+      delta_star[bnm, ] <- d_hat
+    }
+  }
+
+  list(
+    enabled = TRUE,
+    method = method,
+    grand_mu = grand_mu,
+    grand_sd = grand_sd,
+    batches = batches,
+    gamma_star = gamma_star,
+    delta_star = delta_star
+  )
+}
+
+.guard_batch_apply <- function(df, batch_vec, batch_state) {
+  if (!isTRUE(batch_state$enabled) || is.null(batch_vec)) return(df)
+  cols <- names(batch_state$grand_mu)
+  missing_c <- setdiff(cols, colnames(df))
+  if (length(missing_c) > 0L) {
+    for (mc in missing_c) df[[mc]] <- batch_state$grand_mu[[mc]]
+  }
+  df <- df[, cols, drop = FALSE]
+  mat <- as.matrix(df)
+  b <- as.character(batch_vec)
+  if (length(b) != nrow(mat)) {
+    stop("Length of batch vector must match nrow(Xnew) in guard transform.", call. = FALSE)
+  }
+
+  z <- sweep(sweep(mat, 2L, batch_state$grand_mu, "-"), 2L, batch_state$grand_sd, "/")
+  known <- intersect(unique(stats::na.omit(b)), batch_state$batches)
+  for (bnm in known) {
+    idx <- which(b == bnm)
+    if (!length(idx)) next
+    g_b <- batch_state$gamma_star[bnm, ]
+    d_b <- sqrt(pmax(batch_state$delta_star[bnm, ], 1e-8))
+    z[idx, ] <- sweep(sweep(z[idx, , drop = FALSE], 2L, g_b, "-"), 2L, d_b, "/")
+  }
+  out <- sweep(sweep(z, 2L, batch_state$grand_sd, "*"), 2L, batch_state$grand_mu, "+")
+  colnames(out) <- cols
+  rownames(out) <- rownames(df)
+  as.data.frame(out, check.names = FALSE)
+}
+
 #' @title Fit leakage-safe preprocessing pipeline
 #' @description Builds and fits a guarded preprocessing pipeline on training data,
 #' then constructs a transformer for consistent application to new data.
@@ -277,7 +418,11 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
 #' \itemize{
 #'   \item Winsorization (optional) to limit outliers.
 #'   \item Imputation learned on training data only.
-#'   \item Normalization (z-score or robust).
+#'   \item Normalization (\code{"zscore"}, \code{"robust"}, frozen reference
+#'     \code{"quantile"}, \code{"log_cpm"}, \code{"clr"}, or \code{"none"}).
+#'   \item Optional frozen train-only batch adjustment (\code{steps$batch_adjust}
+#'     with \code{method} in \code{"combat_frozen"}, \code{"location_scale"}, or
+#'     \code{"mean_center"}).
 #'   \item Variance/IQR filtering. Thresholds are compared with the variance
 #'     and IQR of the imputed training data on its original scale (before
 #'     normalization), so \code{var_thresh} and \code{iqr_thresh} keep their
@@ -317,6 +462,18 @@ guard_fit <- function(X, y = NULL, steps = list(),
   }
 
   n0 <- nrow(X)
+
+  # Extract optional batch_col before one-hot encoding predictors
+  batch_cfg <- steps[["batch_adjust"]] %||% list()
+  batch_method <- batch_cfg[["method"]] %||% "none"
+  batch_col <- batch_cfg[["batch_col"]] %||% NULL
+  batch_vec_train <- batch_cfg[["batch"]] %||% NULL
+  if (!is.null(batch_col) && batch_col %in% names(X)) {
+    if (is.null(batch_vec_train)) batch_vec_train <- X[[batch_col]]
+    if (!isTRUE(batch_cfg[["keep_batch_col"]])) {
+      X[[batch_col]] <- NULL
+    }
+  }
 
   # Keep original column names for diagnostics
   orig_colnames <- colnames(X)
@@ -494,12 +651,63 @@ guard_fit <- function(X, y = NULL, steps = list(),
     X <- sweep(X, 2, sdv, "/")
     state$normalize <- list(method = "robust", mu = mu, sd = sdv)
 
+  } else if (norm_method == "quantile") {
+    mat_q <- as.matrix(X)
+    sorted_rows <- t(apply(mat_q, 1L, function(r) sort(r, na.last = TRUE)))
+    if (ncol(mat_q) == 1L) sorted_rows <- matrix(sorted_rows, ncol = 1L)
+    q_ref <- colMeans(sorted_rows, na.rm = TRUE)
+    q_ref[!is.finite(q_ref)] <- 0.0
+    X <- .guard_quantile_normalize_apply(X, q_ref)
+    state$normalize <- list(method = "quantile", q_ref = q_ref, cols = colnames(X))
+
+  } else if (norm_method == "log_cpm") {
+    prior_count <- norm_cfg$prior_count %||% 1.0
+    mat_pos <- pmax(as.matrix(X), 0)
+    libs <- rowSums(mat_pos, na.rm = TRUE)
+    pos_libs <- libs[is.finite(libs) & libs > 0]
+    ref_lib <- if (length(pos_libs)) stats::median(pos_libs) else 1e6
+    X <- .guard_log_cpm_apply(X, prior_count = prior_count, ref_lib_size = ref_lib)
+    state$normalize <- list(
+      method = "log_cpm",
+      prior_count = prior_count,
+      ref_lib_size = ref_lib,
+      cols = colnames(X)
+    )
+
+  } else if (norm_method == "clr") {
+    pseudocount <- norm_cfg$pseudocount %||% 1e-6
+    X <- .guard_clr_apply(X, pseudocount = pseudocount)
+    state$normalize <- list(
+      method = "clr",
+      pseudocount = pseudocount,
+      cols = colnames(X)
+    )
+
   } else if (norm_method == "none") {
     state$normalize <- list(method = "none")
   } else {
-    stop("Unknown normalize method. Use 'zscore', 'robust', or 'none'.")
+    stop("Unknown normalize method. Use 'zscore', 'robust', 'quantile', 'log_cpm', 'clr', or 'none'.")
   }
   audit <- c(audit, list(paste0("normalize: ", state$normalize$method)))
+
+  # 3b) Frozen train-only batch adjustment (optional) --------------------------
+  if (!identical(batch_method, "none")) {
+    if (!batch_method %in% c("combat_frozen", "eb_frozen", "location_scale", "mean_center")) {
+      stop("Unknown batch_adjust method. Use 'combat_frozen', 'location_scale', 'mean_center', or 'none'.",
+           call. = FALSE)
+    }
+    if (is.null(batch_vec_train)) {
+      stop("batch_adjust requires either `batch` (vector) or `batch_col` (column in X).",
+           call. = FALSE)
+    }
+    state$batch_adjust <- .guard_batch_fit(X, batch_vec_train, method = batch_method)
+    state$batch_adjust$batch_col <- batch_col
+    state$batch_adjust$keep_batch_col <- isTRUE(batch_cfg$keep_batch_col)
+    X <- .guard_batch_apply(X, batch_vec_train, state$batch_adjust)
+    audit <- c(audit, list(paste0("batch_adjust: ", batch_method)))
+  } else {
+    state$batch_adjust <- list(enabled = FALSE, method = "none")
+  }
 
   # 4) Filtering (variance / IQR) ---------------------------------------------
   filt_cfg <- steps$filter %||% list()
@@ -634,14 +842,29 @@ guard_fit <- function(X, y = NULL, steps = list(),
   impute_hash <- state$impute
   if (!is.null(impute_hash$knn_ref)) impute_hash$knn_ref <- NULL
   if (!is.null(impute_hash$rf_models)) impute_hash$rf_models <- NULL
-  state$hash  <- .guard_hash(list(impute = impute_hash, normalize = state$normalize,
-                                  filter = list(var_th = var_th, iqr_th = iqr_th),
-                                  fs = state$fs))
+  hash_payload <- list(
+    impute = impute_hash,
+    normalize = state$normalize,
+    filter = list(var_th = var_th, iqr_th = iqr_th),
+    fs = state$fs
+  )
+  if (isTRUE(state$batch_adjust$enabled)) {
+    hash_payload$batch_adjust <- state$batch_adjust
+  }
+  state$hash <- .guard_hash(hash_payload)
 
   # 7) Build transformer (apply to new data) ----------------------------------
-  transformer <- function(Xnew) {
+  transformer <- function(Xnew, batch = NULL) {
     if (is.matrix(Xnew)) Xnew <- as.data.frame(Xnew, check.names = FALSE)
     stopifnot(is.data.frame(Xnew))
+
+    b_col <- state$batch_adjust[["batch_col"]] %||% NULL
+    if (!is.null(b_col) && b_col %in% names(Xnew)) {
+      if (is.null(batch)) batch <- Xnew[[b_col]]
+      if (!isTRUE(state$batch_adjust[["keep_batch_col"]])) {
+        Xnew[[b_col]] <- NULL
+      }
+    }
 
     # Handle mixed types with the same level structure learned during training
     has_factors <- isTRUE(state$encoding$has_factors) || length(state$encoding$levels) > 0
@@ -789,7 +1012,7 @@ guard_fit <- function(X, y = NULL, steps = list(),
       }
     }
 
-    # Normalize with TRAIN-FITTED centers/scales
+    # Normalize with TRAIN-FITTED centers/scales/quantiles
     if (identical(state$normalize$method, "zscore") || identical(state$normalize$method, "robust")) {
       mu <- state$normalize$mu; sdv <- state$normalize$sd
       # align columns
@@ -799,6 +1022,33 @@ guard_fit <- function(X, y = NULL, steps = list(),
       if (length(extra_cols) > 0) Xnew <- Xnew[, names(mu), drop = FALSE]
       Xnew <- sweep(Xnew, 2, mu, "-")
       Xnew <- sweep(Xnew, 2, sdv, "/")
+    } else if (identical(state$normalize$method, "quantile")) {
+      cols <- state$normalize$cols
+      missing_cols <- setdiff(cols, colnames(Xnew))
+      if (length(missing_cols) > 0) for (mc in missing_cols) Xnew[[mc]] <- 0
+      Xnew <- Xnew[, cols, drop = FALSE]
+      Xnew <- .guard_quantile_normalize_apply(Xnew, state$normalize$q_ref)
+    } else if (identical(state$normalize$method, "log_cpm")) {
+      cols <- state$normalize$cols
+      missing_cols <- setdiff(cols, colnames(Xnew))
+      if (length(missing_cols) > 0) for (mc in missing_cols) Xnew[[mc]] <- 0
+      Xnew <- Xnew[, cols, drop = FALSE]
+      Xnew <- .guard_log_cpm_apply(
+        Xnew,
+        prior_count = state$normalize$prior_count %||% 1.0,
+        ref_lib_size = state$normalize$ref_lib_size %||% 1e6
+      )
+    } else if (identical(state$normalize$method, "clr")) {
+      cols <- state$normalize$cols
+      missing_cols <- setdiff(cols, colnames(Xnew))
+      if (length(missing_cols) > 0) for (mc in missing_cols) Xnew[[mc]] <- 0
+      Xnew <- Xnew[, cols, drop = FALSE]
+      Xnew <- .guard_clr_apply(Xnew, pseudocount = state$normalize$pseudocount %||% 1e-6)
+    }
+
+    # Apply frozen train-fitted batch adjustment when enabled
+    if (isTRUE(state$batch_adjust$enabled) && !is.null(batch)) {
+      Xnew <- .guard_batch_apply(Xnew, batch, state$batch_adjust)
     }
 
     # Filter: keep as per train
@@ -845,17 +1095,21 @@ guard_fit <- function(X, y = NULL, steps = list(),
     Xnew
   }
 
+  steps_out <- list(
+    impute = imp_method,
+    normalize = norm_method,
+    filter = list(var_thresh = var_th, iqr_thresh = iqr_th, min_keep = min_keep),
+    fs = fs_method
+  )
+  if (isTRUE(state$batch_adjust$enabled)) {
+    steps_out$batch_adjust <- batch_method
+  }
   out <- structure(
     list(
       transform = transformer,
       state     = state,
       p_out     = ncol(X),
-      steps     = list(
-        impute = imp_method,
-        normalize = norm_method,
-        filter = list(var_thresh = var_th, iqr_thresh = iqr_th, min_keep = min_keep),
-        fs = fs_method
-      )
+      steps     = steps_out
     ),
     class = "GuardFit"
   )
@@ -870,6 +1124,9 @@ print.GuardFit <- function(x, ...) {
   cat("Guarded preprocessing pipeline\n")
   cat(sprintf(" - Imputation: %s\n", x$steps$impute))
   cat(sprintf(" - Normalization: %s\n", x$steps$normalize))
+  if (!is.null(x$steps$batch_adjust) && !identical(x$steps$batch_adjust, "none")) {
+    cat(sprintf(" - Batch adjustment: %s\n", x$steps$batch_adjust))
+  }
   cat(sprintf(" - Filter: var>=%s, iqr>=%s\n",
               x$steps$filter$var_thresh, x$steps$filter$iqr_thresh))
   cat(sprintf(" - Feature selection: %s\n", x$steps$fs))
@@ -937,6 +1194,9 @@ print.summary.GuardFit <- function(x, ...) {
 #' columns are dropped, and factor levels are aligned to the training levels;
 #' if the training fit was numeric-only, non-numeric columns in \code{newdata}
 #' trigger an error.
+#' @param batch Optional vector of batch labels aligned to \code{newdata} rows
+#' when \code{batch_adjust} was enabled during \code{guard_fit()} and
+#' \code{batch_col} is not present inside \code{newdata}.
 #' @param ... Ignored. Present so that the S3 method signature matches the
 #' [stats::predict()] generic; additional arguments are silently dropped.
 #'
@@ -963,17 +1223,17 @@ print.summary.GuardFit <- function(x, ...) {
 #' identical(out, predict_guard(fit, x_new))
 #' @rdname predict.GuardFit
 #' @export
-predict.GuardFit <- function(object, newdata, ...) {
+predict.GuardFit <- function(object, newdata, batch = NULL, ...) {
   if (!inherits(object, "GuardFit")) {
     stop("`object` must be a GuardFit object (got: ",
          paste(class(object), collapse = "/"), ").",
          call. = FALSE)
   }
-  object$transform(newdata)
+  object$transform(newdata, batch = batch)
 }
 
 #' @rdname predict.GuardFit
 #' @export
-predict_guard <- function(fit, newdata) {
-  predict.GuardFit(fit, newdata)
+predict_guard <- function(fit, newdata, batch = NULL) {
+  predict.GuardFit(fit, newdata, batch = batch)
 }

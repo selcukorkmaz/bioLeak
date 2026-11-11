@@ -255,11 +255,20 @@ tune_resample <- function(x, outcome, splits,
 
   drop_cols <- outcome
   split_info <- splits@info
+  cst_cols <- vapply(split_info$constraints %||% list(),
+                     function(ax) ax$col %||% "", character(1))
+  strat_drop <- if (!is.null(split_info$stratify_by) &&
+                    !identical(split_info$stratify_by, outcome)) {
+    split_info$stratify_by
+  } else NULL
   drop_cols <- unique(c(drop_cols,
                         split_info$group,
                         split_info$batch,
                         split_info$study,
-                        split_info$time))
+                        split_info$time,
+                        split_info$sample_id_col,
+                        strat_drop,
+                        cst_cols))
   drop_cols <- drop_cols[!is.na(drop_cols) & nzchar(drop_cols)]
   if (length(drop_cols) && !is.null(colnames(Xall))) {
     Xall <- Xall[, setdiff(colnames(Xall), drop_cols), drop = FALSE]

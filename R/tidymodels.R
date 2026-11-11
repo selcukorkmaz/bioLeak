@@ -65,6 +65,15 @@
   if (length(steps)) {
     for (i in seq_along(steps)) {
       st <- steps[[i]]
+      if (isTRUE(st$trained)) {
+        .bio_signal_policy(
+          sprintf(
+            "%s: recipe step %d (%s) is already trained; pass an untrained recipe.",
+            context, i, .bio_recipe_step_label(st)
+          ),
+          mode
+        )
+      }
       if (inherits(st, "step_lag")) {
         lag_vals <- suppressWarnings(as.numeric(st$lag %||% numeric(0)))
         if (length(lag_vals) && any(is.finite(lag_vals) & lag_vals < 0)) {
@@ -72,6 +81,19 @@
             sprintf(
               "%s: recipe step %d (%s) uses negative lag values; this can introduce lookahead leakage.",
               context, i, .bio_recipe_step_label(st)
+            ),
+            mode
+          )
+        }
+      }
+      if (inherits(st, c("step_mutate", "step_filter"))) {
+        exprs <- st$inputs %||% list()
+        expr_txt <- paste(vapply(exprs, function(e) paste(deparse(e), collapse = " "), character(1)), collapse = " ")
+        if (grepl("\\b(mean|sd|var|median|mad|quantile|scale|min|max)\\s*\\(", expr_txt)) {
+          .bio_signal_policy(
+            sprintf(
+              "%s: recipe step %d (%s) calls a global summary function (%s) during bake(), which leaks test-set distribution statistics.",
+              context, i, .bio_recipe_step_label(st), expr_txt
             ),
             mode
           )
@@ -456,13 +478,22 @@
     split_horizon <- splits@info$horizon %||% 0
     split_purge <- splits@info$purge %||% 0
     split_embargo <- splits@info$embargo %||% 0
+    group_col <- splits@info$group
+    group_vec <- NULL
+    if (!is.null(group_col) && !is.null(data) && group_col %in% names(data)) {
+      group_vec <- data[[group_col]]
+    } else if (!is.null(group_col) && !is.null(splits@info$coldata) &&
+               group_col %in% names(splits@info$coldata)) {
+      group_vec <- splits@info$coldata[[group_col]]
+    }
     train <- .bio_time_series_train_indices(
       time_vec = time_vec,
       test_idx = test,
       candidate_idx = seq_len(n),
       horizon = split_horizon,
       purge = split_purge,
-      embargo = split_embargo
+      embargo = split_embargo,
+      group_vec = group_vec
     )
   } else if (identical(splits@mode, "combined")) {
     # Combined mode: exclude samples sharing constraint-axis levels with test

@@ -351,11 +351,20 @@ fit_resample <- function(x, outcome, splits,
   drop_cols <- outcome
   if (inherits(splits, "LeakSplits")) {
     split_info <- splits@info
+    cst_cols <- vapply(split_info$constraints %||% list(),
+                       function(ax) ax$col %||% "", character(1))
+    strat_drop <- if (!is.null(split_info$stratify_by) &&
+                      !identical(split_info$stratify_by, outcome)) {
+      split_info$stratify_by
+    } else NULL
     drop_cols <- unique(c(drop_cols,
                           split_info$group,
                           split_info$batch,
                           split_info$study,
-                          split_info$time))
+                          split_info$time,
+                          split_info$sample_id_col,
+                          strat_drop,
+                          cst_cols))
   }
   if (!is.null(id_cols)) {
     if (!is.character(id_cols) || anyNA(id_cols)) {
@@ -427,11 +436,15 @@ fit_resample <- function(x, outcome, splits,
   split_embargo <- splits@info$embargo %||% 0
   split_coldata <- splits@info$coldata
   time_vec <- NULL
+  ts_group_vec <- NULL
   if (compact && identical(split_mode, "time_series")) {
     if (is.null(split_coldata) || is.null(split_time) || !split_time %in% names(split_coldata)) {
       stop("time_series compact splits require time column in coldata.")
     }
     time_vec <- split_coldata[[split_time]]
+    if (!is.null(splits@info$group) && splits@info$group %in% names(split_coldata)) {
+      ts_group_vec <- split_coldata[[splits@info$group]]
+    }
   }
   task <- if (.bio_is_survival(yall)) "survival"
   else if (.bio_is_binomial(yall)) "binomial"
@@ -1089,7 +1102,8 @@ fit_resample <- function(x, outcome, splits,
         candidate_idx = seq_len(nrow(Xall)),
         horizon = split_horizon,
         purge = split_purge,
-        embargo = split_embargo
+        embargo = split_embargo,
+        group_vec = ts_group_vec
       )
     } else if (identical(split_mode, "combined")) {
       # Combined mode: exclude samples sharing constraint-axis levels with test
@@ -1190,14 +1204,39 @@ fit_resample <- function(x, outcome, splits,
     dfte <- NULL
 
     if (identical(preprocess_mode, "guard")) {
+      steps_fold <- if (exists("preprocess") && is.list(preprocess)) preprocess else list()
+      b_tr_vec <- NULL
+      b_te_vec <- NULL
+      b_cfg <- steps_fold[["batch_adjust"]]
+      if (!is.null(b_cfg) && !identical(b_cfg[["method"]] %||% "none", "none")) {
+        b_col <- b_cfg[["batch_col"]] %||% (if (inherits(splits, "LeakSplits")) splits@info$batch else NULL)
+        if (!is.null(b_cfg[["batch"]]) && length(b_cfg[["batch"]]) == nrow(Xall_raw)) {
+          b_tr_vec <- b_cfg[["batch"]][tr]
+          b_te_vec <- b_cfg[["batch"]][te]
+        } else if (!is.null(b_col)) {
+          if (!is.null(colnames(Xtr)) && b_col %in% colnames(Xtr)) {
+            b_tr_vec <- Xtr[, b_col]
+            b_te_vec <- Xte[, b_col]
+          } else if (!is.null(colnames(Xall_raw)) && b_col %in% colnames(Xall_raw)) {
+            b_tr_vec <- Xall_raw[tr, b_col]
+            b_te_vec <- Xall_raw[te, b_col]
+          } else if (!is.null(split_coldata) && b_col %in% names(split_coldata)) {
+            b_tr_vec <- split_coldata[[b_col]][tr]
+            b_te_vec <- split_coldata[[b_col]][te]
+          }
+        }
+        if (!is.null(b_tr_vec)) {
+          steps_fold$batch_adjust$batch <- b_tr_vec
+        }
+      }
       guard <- guard_fit(
         X = Xtr,
         y = ytr,
-        steps = if (exists("preprocess") && is.list(preprocess)) preprocess else list(),
+        steps = steps_fold,
         task  = task
       )
-      Xtrg <- guard$transform(Xtr)
-      Xteg <- guard$transform(Xte)
+      Xtrg <- guard$transform(Xtr, batch = b_tr_vec)
+      Xteg <- guard$transform(Xte, batch = b_te_vec)
       preprocess_state <- guard$state
       colnames(Xtrg) <- make.names(colnames(Xtrg))
       colnames(Xteg) <- make.names(colnames(Xteg))
@@ -1527,8 +1566,28 @@ fit_resample <- function(x, outcome, splits,
     learner_obj <- learner_objs[[1]]
     full_weights <- if (task %in% c("binomial", "multiclass")) resolve_weights(yall, class_weights) else NULL
     if (identical(preprocess_mode, "guard")) {
-      guard_full <- guard_fit(Xall, yall, preprocess, task)
-      Xfullg <- guard_full$transform(Xall)
+      steps_full <- if (is.list(preprocess)) preprocess else list()
+      b_full_vec <- NULL
+      b_cfg_full <- steps_full[["batch_adjust"]]
+      if (!is.null(b_cfg_full) && !identical(b_cfg_full[["method"]] %||% "none", "none")) {
+        b_col_full <- b_cfg_full[["batch_col"]] %||% (if (inherits(splits, "LeakSplits")) splits@info$batch else NULL)
+        if (!is.null(b_cfg_full[["batch"]]) && length(b_cfg_full[["batch"]]) == nrow(Xall_raw)) {
+          b_full_vec <- b_cfg_full[["batch"]]
+        } else if (!is.null(b_col_full)) {
+          if (!is.null(colnames(Xall)) && b_col_full %in% colnames(Xall)) {
+            b_full_vec <- Xall[, b_col_full]
+          } else if (!is.null(colnames(Xall_raw)) && b_col_full %in% colnames(Xall_raw)) {
+            b_full_vec <- Xall_raw[, b_col_full]
+          } else if (!is.null(split_coldata) && b_col_full %in% names(split_coldata)) {
+            b_full_vec <- split_coldata[[b_col_full]]
+          }
+        }
+        if (!is.null(b_full_vec)) {
+          steps_full$batch_adjust$batch <- b_full_vec
+        }
+      }
+      guard_full <- guard_fit(Xall, yall, steps_full, task)
+      Xfullg <- guard_full$transform(Xall, batch = b_full_vec)
       colnames(Xfullg) <- make.names(colnames(Xfullg))
       final_model <- train_one_learner(learner_obj, ln, Xfullg, yall, Xfullg, yall,
                                        weights = full_weights)$fit

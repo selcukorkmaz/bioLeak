@@ -59,12 +59,64 @@ test_that("batch and study specs use their blocking columns", {
   expect_identical(sp_s@info$study, "study_group")
 })
 
-test_that("composite specs that require ordering give a clear error", {
+test_that("composite specs that require ordering give a clear error when time ordering is missing", {
   expect_error(
     as_leaksplits(fake_spec("composite", ordering_required = TRUE), obs_frame(),
                   outcome = "y", v = 3),
     "requires ordering"
   )
+})
+
+test_that("ordered composite and subject specs enforce both time ordering and group disjointness", {
+  dat <- obs_frame(n = 24)
+  # Balanced longitudinal panel: 6 groups, each observed at time 1, 2, 3, 4
+  ord_rank <- rep(1:4, each = 6)
+  spec_ord <- fake_spec(
+    "composite", n = 24, n_groups = 6, ordering_required = TRUE,
+    extra = list(order_rank = ord_rank, timepoint_id = paste0("T", ord_rank))
+  )
+  spec_ord$time_var <- "order_rank"
+
+  sp <- suppressMessages(as_leaksplits(spec_ord, dat, outcome = "y", v = 3, progress = FALSE))
+  expect_s4_class(sp, "LeakSplits")
+  expect_identical(sp@mode, "time_series")
+  expect_identical(sp@info$group, "group_id")
+  expect_identical(sp@info$time, "order_rank")
+
+  cd <- sp@info$coldata
+  for (f in sp@indices) {
+    expect_equal(length(intersect(cd$group_id[f$train], cd$group_id[f$test])), 0L)
+    expect_true(all(cd$order_rank[f$train] < min(cd$order_rank[f$test])))
+  }
+})
+
+test_that("as_leaksplits forwards custom stratum_var and supports use_block_constraints", {
+  dat <- obs_frame(n = 24)
+  b <- rep(paste0("B", 1:6), each = 4)
+  s <- rep(c("S1", "S2"), length.out = 24)
+  spec_blk <- fake_spec(
+    "subject", n = 24, n_groups = 12,
+    extra = list(batch_group = b, site_group = b, stratum = s)
+  )
+  spec_blk$block_vars <- c("batch_group", "site_group")
+  spec_blk$stratum_var <- "stratum"
+
+  sp_strat <- suppressMessages(as_leaksplits(spec_blk, dat, outcome = "y", v = 3, progress = FALSE))
+  expect_identical(sp_strat@info$stratify_by, "stratum")
+  expect_true(isTRUE(sp_strat@info$stratify))
+
+  sp_comb <- suppressMessages(as_leaksplits(
+    spec_blk, dat, outcome = "y", v = 3,
+    use_block_constraints = TRUE, progress = FALSE
+  ))
+  expect_identical(sp_comb@mode, "combined")
+  expect_equal(length(sp_comb@info$constraints), 3L)
+  cd <- sp_comb@info$coldata
+  for (f in sp_comb@indices) {
+    expect_equal(length(intersect(cd$group_id[f$train], cd$group_id[f$test])), 0L)
+    expect_equal(length(intersect(cd$batch_group[f$train], cd$batch_group[f$test])), 0L)
+    expect_equal(length(intersect(cd$site_group[f$train], cd$site_group[f$test])), 0L)
+  }
 })
 
 test_that("a spec with a single group gives a clear error", {
@@ -158,4 +210,92 @@ test_that("real splitGraph specs are accepted for every mode", {
     graph = g)
   expect_error(as_leaksplits(spec_st, data = dat, outcome = "y", v = 2),
                "places all samples in 1 group")
+
+  # min_cut composite severs secondary bridges so as_leaksplits + fit_resample succeed cleanly
+  spec_mc <- splitGraph::as_split_spec(
+    splitGraph::derive_split_constraints(g, mode = "composite", strategy = "min_cut",
+                                         via = c("subject", "site"), k = 3L),
+    graph = g)
+  set.seed(7)
+  dat_shuf <- data.frame(
+    sample_id = sample(paste0("S", 1:12)),
+    y = factor(rep(c("ctrl", "case"), 6)),
+    x1 = rnorm(12),
+    x2 = rnorm(12),
+    stringsAsFactors = FALSE
+  )
+  sp_mc <- suppressMessages(as_leaksplits(spec_mc, data = dat_shuf, outcome = "y", v = 3, progress = FALSE))
+  expect_identical(as.character(sp_mc@info$coldata$sample_id), dat_shuf$sample_id)
+  grp_shuf <- spec_mc$sample_data$group_id[match(dat_shuf$sample_id, spec_mc$sample_data$sample_id)]
+  expect_true(groups_respected(sp_mc, grp_shuf))
+
+  custom_glm <- list(
+    glm = list(
+      fit = function(x, y, task, weights, ...) {
+        suppressWarnings(stats::glm(y ~ ., data = as.data.frame(x),
+                                    family = stats::binomial(), weights = weights))
+      },
+      predict = function(object, newdata, task, ...) {
+        as.numeric(suppressWarnings(stats::predict(object,
+                                                   newdata = as.data.frame(newdata),
+                                                   type = "response")))
+      }
+    )
+  )
+
+  fit_mc <- fit_resample(dat_shuf, outcome = "y", splits = sp_mc,
+                         learner = "glm", custom_learners = custom_glm, metrics = "auc")
+  expect_false("sample_id" %in% fit_mc@feature_names)
+  expect_false(any(grepl("^sample_id", fit_mc@feature_names)))
+})
+
+test_that("as_leaksplits handles partial NA block_vars, duplicate IDs, and compact grouped time_series in fit_resample", {
+  custom_glm <- list(
+    glm = list(
+      fit = function(x, y, task, weights, ...) {
+        suppressWarnings(stats::glm(y ~ ., data = as.data.frame(x),
+                                    family = stats::binomial(), weights = weights))
+      },
+      predict = function(object, newdata, task, ...) {
+        as.numeric(suppressWarnings(stats::predict(object,
+                                                   newdata = as.data.frame(newdata),
+                                                   type = "response")))
+      }
+    )
+  )
+
+  dat <- obs_frame(n = 36)
+  dat$x2 <- rnorm(36)
+  # Partial NA in batch_group (unlinked samples) with non-chaining components
+  grp_clean <- rep(paste0("G", 1:9), each = 4)
+  b_partial <- c(rep(c("B1", "B2", "B3"), each = 8), rep(NA_character_, 12))
+  spec_na <- fake_spec("subject", n = 36, n_groups = 9,
+                       extra = list(group_id = grp_clean, batch_group = b_partial))
+  spec_na$block_vars <- "batch_group"
+  sp_na <- suppressMessages(as_leaksplits(
+    spec_na, dat, outcome = "y", v = 3, use_block_constraints = TRUE, progress = FALSE
+  ))
+  expect_identical(sp_na@mode, "combined")
+  fit_comb <- fit_resample(dat, outcome = "y", splits = sp_na,
+                           learner = "glm", custom_learners = custom_glm, metrics = "auc")
+  expect_false(any(grepl("sample_id|group_id|batch_group", fit_comb@feature_names)))
+
+  # Duplicate sample_id in data is rejected even when nrow matches
+  dat_dup <- dat
+  dat_dup$sample_id[36] <- dat_dup$sample_id[1]
+  expect_error(as_leaksplits(fake_spec("subject", n = 36), dat_dup, outcome = "y"), "check ID alignment")
+
+  # Compact grouped time_series split resolves group exclusion inside fit_resample
+  ord_rank <- rep(1:6, each = 6)
+  grp_ts <- rep(paste0("G", 1:6), each = 6)
+  spec_ts <- fake_spec("composite", n = 36, n_groups = 6, ordering_required = TRUE,
+                       extra = list(group_id = grp_ts, order_rank = ord_rank))
+  spec_ts$time_var <- "order_rank"
+  sp_ts_compact <- suppressMessages(as_leaksplits(
+    spec_ts, dat, outcome = "y", v = 3, compact = TRUE, progress = FALSE
+  ))
+  expect_true(isTRUE(sp_ts_compact@info$compact))
+  fit_ts <- fit_resample(dat, outcome = "y", splits = sp_ts_compact,
+                         learner = "glm", custom_learners = custom_glm, metrics = "auc")
+  expect_s4_class(fit_ts, "LeakFit")
 })

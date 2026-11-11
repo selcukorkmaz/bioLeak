@@ -5,9 +5,9 @@
 \alias{predict_guard}
 \title{Apply a fitted GuardFit transformer to new data}
 \usage{
-\method{predict}{GuardFit}(object, newdata, ...)
+\method{predict}{GuardFit}(object, newdata, batch = NULL, ...)
 
-predict_guard(fit, newdata)
+predict_guard(fit, newdata, batch = NULL)
 }
 \arguments{
 \item{object, fit}{A \code{GuardFit} object created by [guard_fit()].
@@ -23,6 +23,10 @@ parameters in the fit only. Missing columns are added and filled, extra
 columns are dropped, and factor levels are aligned to the training levels;
 if the training fit was numeric-only, non-numeric columns in \code{newdata}
 trigger an error.}
+
+\item{batch}{Optional vector of batch labels aligned to \code{newdata} rows
+when \code{batch_adjust} was enabled during \code{guard_fit()} and
+\code{batch_col} is not present inside \code{newdata}.}
 
 \item{...}{Ignored. Present so that the S3 method signature matches the
 [stats::predict()] generic; additional arguments are silently dropped.}

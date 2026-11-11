@@ -47,4 +47,15 @@ test_that("make_split_plan respects grouping constraints", {
     tmin <- min(df$time[fold$test])
     expect_true(all(df$time[fold$train] <= (tmin - 1)))
   }
+
+  splits_grouped_time <- make_split_plan(df, outcome = "outcome",
+                                         mode = "time_series", time = "time",
+                                         group = "subject",
+                                         v = 4, horizon = 1, seed = 1, progress = FALSE)
+  expect_true(length(splits_grouped_time@indices) > 0)
+  for (fold in splits_grouped_time@indices) {
+    tmin <- min(df$time[fold$test])
+    expect_true(all(df$time[fold$train] <= (tmin - 1)))
+    expect_equal(length(intersect(df$subject[fold$train], df$subject[fold$test])), 0L)
+  }
 })

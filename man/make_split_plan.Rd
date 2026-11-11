@@ -18,6 +18,7 @@ make_split_plan(
   v = 5,
   repeats = 1,
   stratify = FALSE,
+  stratify_by = NULL,
   nested = FALSE,
   seed = 1,
   horizon = 0,
@@ -71,9 +72,13 @@ set are removed). Requires at least 2 elements. Cannot be used together with
 
 \item{repeats}{integer, number of repeats (>=1) for non-LOOCV modes.}
 
-\item{stratify}{logical, keep outcome proportions similar across folds.
-For grouped modes, stratification is applied at the group level (by
-majority class per group) if \code{outcome} is provided; otherwise ignored.}
+\item{stratify}{logical, keep outcome (or \code{stratify_by}) proportions
+similar across folds. For grouped modes, stratification is applied at the
+group level (by majority class per group) if \code{outcome} or
+\code{stratify_by} is provided; otherwise ignored.}
+
+\item{stratify_by}{optional character column name in metadata to stratify on
+instead of \code{outcome} when \code{stratify = TRUE}.}
 
 \item{nested}{logical, whether to attach inner CV splits (per outer fold)
 using the same \code{mode} on the outer training set (with \code{v} folds, 1 repeat).}

@@ -37,6 +37,42 @@ test_that("recipe leakage validator flags negative lag steps", {
   )
 })
 
+test_that("recipe leakage validator flags global summary calls in step_mutate/step_filter and pre-trained steps", {
+  skip_if_not_installed("recipes")
+
+  df <- data.frame(
+    outcome = factor(rep(c(0, 1), each = 5), levels = c(0, 1)),
+    x1 = rnorm(10),
+    x2 = rnorm(10)
+  )
+  rec_mut <- recipes::recipe(outcome ~ x1 + x2, data = df) |>
+    recipes::step_mutate(x1_z = (x1 - mean(x1)) / sd(x1))
+  expect_warning(
+    bioLeak:::.bio_validate_recipe_graph(rec_mut, context = "test", mode = "warn"),
+    "global summary function"
+  )
+  expect_error(
+    bioLeak:::.bio_validate_recipe_graph(rec_mut, context = "test", mode = "error"),
+    "global summary function"
+  )
+
+  rec_flt <- recipes::recipe(outcome ~ x1 + x2, data = df) |>
+    recipes::step_filter(x1 > median(x1))
+  expect_warning(
+    bioLeak:::.bio_validate_recipe_graph(rec_flt, context = "test", mode = "warn"),
+    "global summary function"
+  )
+
+  # Untrained recipe shell containing an already-trained step
+  rec_step <- recipes::recipe(outcome ~ x1 + x2, data = df) |>
+    recipes::step_normalize(x1)
+  rec_step$steps[[1]]$trained <- TRUE
+  expect_warning(
+    bioLeak:::.bio_validate_recipe_graph(rec_step, context = "test", mode = "warn"),
+    "already trained"
+  )
+})
+
 test_that("workflow leakage validator flags trained workflows", {
   skip_if_not_installed("workflows")
   skip_if_not_installed("parsnip")

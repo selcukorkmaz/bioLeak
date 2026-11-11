@@ -1,6 +1,7 @@
 # Internal helper shared by explicit and compact time-series split builders.
 .bio_time_series_train_indices <- function(time_vec, test_idx, candidate_idx = seq_along(time_vec),
-                                           horizon = 0, purge = 0, embargo = 0) {
+                                           horizon = 0, purge = 0, embargo = 0,
+                                           group_vec = NULL) {
   if (!length(test_idx)) return(integer(0))
   tmin <- min(time_vec[test_idx])
   train <- if (horizon == 0 && purge == 0) {
@@ -11,6 +12,10 @@
   if (embargo > 0 && length(train)) {
     tmax <- max(time_vec[test_idx])
     train <- train[time_vec[train] <= (tmax - embargo)]
+  }
+  if (!is.null(group_vec) && length(train)) {
+    test_groups <- unique(group_vec[test_idx])
+    train <- train[!group_vec[train] %in% test_groups]
   }
   train
 }
@@ -196,9 +201,12 @@
 #'   \code{primary_axis}/\code{secondary_axis}.
 #' @param v integer, number of folds (k) or rolling partitions.
 #' @param repeats integer, number of repeats (>=1) for non-LOOCV modes.
-#' @param stratify logical, keep outcome proportions similar across folds.
-#'   For grouped modes, stratification is applied at the group level (by
-#'   majority class per group) if \code{outcome} is provided; otherwise ignored.
+#' @param stratify logical, keep outcome (or \code{stratify_by}) proportions
+#'   similar across folds. For grouped modes, stratification is applied at the
+#'   group level (by majority class per group) if \code{outcome} or
+#'   \code{stratify_by} is provided; otherwise ignored.
+#' @param stratify_by optional character column name in metadata to stratify on
+#'   instead of \code{outcome} when \code{stratify = TRUE}.
 #' @param nested logical, whether to attach inner CV splits (per outer fold)
 #'   using the same \code{mode} on the outer training set (with \code{v} folds, 1 repeat).
 #' @param seed integer seed.
@@ -256,7 +264,8 @@ make_split_plan <- function(x, outcome = NULL,
                         group = NULL, batch = NULL, study = NULL, time = NULL,
                         primary_axis = NULL, secondary_axis = NULL,
                         constraints = NULL,
-                        v = 5, repeats = 1, stratify = FALSE, nested = FALSE,
+                        v = 5, repeats = 1, stratify = FALSE, stratify_by = NULL,
+                        nested = FALSE,
                         seed = 1, horizon = 0, purge = 0, embargo = 0,
                         progress = TRUE, compact = FALSE,
                         strict = TRUE) {
@@ -326,9 +335,13 @@ make_split_plan <- function(x, outcome = NULL,
   }
   if (mode == "batch_blocked")   .need_col(batch, "batch")
   if (mode == "study_loocv")     .need_col(study, "study")
-  if (mode == "time_series")     .need_col(time, "time")
+  if (mode == "time_series") {
+    .need_col(time, "time")
+    if (!is.null(group)) .need_col(group, "group")
+  }
   if (mode == "combined") {
-    valid_axis_types <- c("subject", "batch", "study")
+    valid_axis_types <- c("subject", "batch", "study", "site", "region",
+                          "platform", "assay", "relatedness", "spatial", "group")
     .validate_axis <- function(ax, label) {
       if (is.null(ax) || !is.list(ax))
         .bio_stop(sprintf("'%s' must be a list with 'type' and 'col' elements.", label),
@@ -370,16 +383,22 @@ make_split_plan <- function(x, outcome = NULL,
     }
   }
 
-  if (isTRUE(stratify) && (is.null(outcome) || !outcome %in% names(cd)))
+  if (is.character(stratify) && length(stratify) == 1L) {
+    stratify_by <- stratify
+    stratify <- TRUE
+  }
+  strat_col <- stratify_by %||% outcome
+
+  if (isTRUE(stratify) && (is.null(strat_col) || !strat_col %in% names(cd)))
     .bio_warn("Stratification requested but 'outcome' not found; proceeding unstratified.",
               "bioLeak_fold_warning")
-  if (isTRUE(stratify) && !is.null(outcome) && length(outcome) == 2L) {
+  if (isTRUE(stratify) && !is.null(strat_col) && length(strat_col) == 2L) {
     .bio_warn("Stratification ignored for time/event outcomes; proceeding unstratified.",
               "bioLeak_fold_warning")
     stratify <- FALSE
   }
-  if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
-    if (inherits(cd[[outcome]], "Surv")) {
+  if (isTRUE(stratify) && !is.null(strat_col) && strat_col %in% names(cd)) {
+    if (inherits(cd[[strat_col]], "Surv")) {
       .bio_warn("Stratification ignored for survival outcomes; proceeding unstratified.",
                 "bioLeak_fold_warning")
       stratify <- FALSE
@@ -407,8 +426,8 @@ make_split_plan <- function(x, outcome = NULL,
     lev <- levels(gid)
 
     # Stratification
-    if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
-      y <- cd[[outcome]]
+    if (isTRUE(stratify) && !is.null(strat_col) && strat_col %in% names(cd)) {
+      y <- cd[[strat_col]]
       g_lab <- tapply(seq_len(n), gid, function(ix) .majority_class(y[ix]))
       g_lab <- factor(g_lab)
       if (length(unique(g_lab)) < 2) {
@@ -464,8 +483,8 @@ make_split_plan <- function(x, outcome = NULL,
 
     if (length(blevels) < v) v <- length(blevels)
 
-    if (isTRUE(stratify) && !is.null(outcome) && outcome %in% names(cd)) {
-      y <- cd[[outcome]]
+    if (isTRUE(stratify) && !is.null(strat_col) && strat_col %in% names(cd)) {
+      y <- cd[[strat_col]]
       b_lab <- tapply(seq_len(n), bid, function(ix) .majority_class(y[ix]))
       b_lab <- factor(b_lab)
       if (length(unique(b_lab)) < 2) {
@@ -583,6 +602,7 @@ make_split_plan <- function(x, outcome = NULL,
                 "bioLeak_input_error")
     ord <- order(tt)
     Xidx <- seq_len(n)[ord]
+    ts_group_vec <- if (!is.null(group)) cd[[group]] else NULL
 
     block_ids <- cut(seq_along(Xidx), breaks = v, include.lowest = TRUE, labels = FALSE)
     blocks <- split(Xidx, block_ids)
@@ -598,7 +618,8 @@ make_split_plan <- function(x, outcome = NULL,
         candidate_idx = Xidx,
         horizon = horizon,
         purge = purge,
-        embargo = embargo
+        embargo = embargo,
+        group_vec = ts_group_vec
       )
       if (length(train) < 1L) next
       if (length(test) < 3L) {
@@ -620,6 +641,74 @@ make_split_plan <- function(x, outcome = NULL,
         stringsAsFactors = FALSE
       )
     }
+
+    # Longitudinal panel fallback: when recurring groups span all time blocks so
+    # excluding test groups from earlier windows empties `train`, partition the
+    # distinct groups across `v` folds within the future time window and train on
+    # the remaining groups from strictly earlier timepoints.
+    if (length(indices) == 0L && !is.null(ts_group_vec)) {
+      tmin_global <- min(tt)
+      future_idx <- if (horizon == 0 && purge == 0) {
+        Xidx[tt[Xidx] > tmin_global]
+      } else {
+        Xidx[tt[Xidx] >= (tmin_global + horizon + purge)]
+      }
+      if (length(future_idx) > 0L) {
+        gid <- .as_factor(ts_group_vec)
+        lev <- levels(gid)
+        set.seed(seed + 1000L)
+        if (isTRUE(stratify) && !is.null(strat_col) && strat_col %in% names(cd)) {
+          y_ts <- cd[[strat_col]]
+          g_lab_ts <- factor(tapply(seq_len(n), gid, function(ix) .majority_class(y_ts[ix])))
+          if (length(unique(g_lab_ts)) >= 2L) {
+            gfold_ts <- integer(length(lev)); names(gfold_ts) <- lev
+            for (cl in levels(g_lab_ts)) {
+              g_in <- names(g_lab_ts)[g_lab_ts == cl]
+              gfold_ts[g_in] <- sample(rep(seq_len(v), length.out = length(g_in)))
+            }
+          } else {
+            gfold_ts <- sample(rep(seq_len(v), length.out = length(lev)))
+            names(gfold_ts) <- lev
+          }
+        } else {
+          gfold_ts <- sample(rep(seq_len(v), length.out = length(lev)))
+          names(gfold_ts) <- lev
+        }
+
+        if (isTRUE(compact)) fold_assign <- rep(NA_integer_, n)
+        for (k in seq_len(v)) {
+          test_g <- lev[gfold_ts == k]
+          test <- future_idx[gid[future_idx] %in% test_g]
+          if (!length(test)) next
+          train <- .bio_time_series_train_indices(
+            time_vec = tt,
+            test_idx = test,
+            candidate_idx = Xidx,
+            horizon = horizon,
+            purge = purge,
+            embargo = embargo,
+            group_vec = ts_group_vec
+          )
+          if (length(train) < 1L) next
+          if (isTRUE(compact)) {
+            fold_assign[test] <- k
+            indices[[length(indices) + 1L]] <- list(fold = as.integer(k), repeat_id = as.integer(1))
+          } else {
+            indices[[length(indices) + 1L]] <- list(
+              train = train, test = test, fold = as.integer(k), repeat_id = as.integer(1)
+            )
+          }
+          summary_rows[[length(summary_rows) + 1L]] <- data.frame(
+            fold = as.integer(k),
+            repeat_id = 1,
+            train_n = length(train),
+            test_n = length(test),
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }
+
     if (isTRUE(compact)) fold_assignments[[1]] <- fold_assign
   }
 
@@ -628,7 +717,7 @@ make_split_plan <- function(x, outcome = NULL,
     combined <- .bio_make_combined_splits(
       cd = cd, n = n,
       constraints = constraints,
-      v = v, repeats = repeats, stratify = stratify, outcome = outcome,
+      v = v, repeats = repeats, stratify = stratify, outcome = strat_col,
       seed = seed, compact = compact
     )
     indices <- combined$indices
@@ -647,7 +736,8 @@ make_split_plan <- function(x, outcome = NULL,
         x_inner, outcome = outcome, mode = mode, group = group,
         batch = batch, study = study, time = time, v = v,
         constraints = constraints,
-        repeats = 1, stratify = stratify, nested = FALSE,
+        repeats = 1, stratify = stratify, stratify_by = stratify_by,
+        nested = FALSE,
         seed = seed + 1L, horizon = horizon, purge = purge, embargo = embargo,
         progress = FALSE
       )
@@ -696,7 +786,8 @@ make_split_plan <- function(x, outcome = NULL,
     group = group, batch = batch, study = study, time = time,
     primary_axis = primary_axis, secondary_axis = secondary_axis,
     constraints = constraints,
-    stratify = stratify, nested = nested, horizon = horizon,
+    stratify = stratify, stratify_by = stratify_by,
+    nested = nested, horizon = horizon,
     purge = purge, embargo = embargo,
     summary = split_summary, hash = hash_val, inner = inner_indices,
     compact = compact, fold_assignments = fold_assignments,
@@ -781,6 +872,8 @@ check_split_overlap <- function(splits, coldata = NULL, cols = NULL,
     mode <- splits@mode
     cols <- character(0)
     if (mode == "subject_grouped" && !is.null(splits@info$group))
+      cols <- c(cols, splits@info$group)
+    if (mode == "time_series" && !is.null(splits@info$group))
       cols <- c(cols, splits@info$group)
     if (mode == "batch_blocked" && !is.null(splits@info$batch))
       cols <- c(cols, splits@info$batch)
