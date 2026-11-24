@@ -35,8 +35,11 @@ tune_resample(
 
 \item{splits}{LeakSplits object defining the outer resamples. If the splits
 do not already include inner folds, they are created from each outer
-training fold using the same split metadata. rsample splits must already
-include inner folds.}
+training fold using the same split metadata (for plans from
+[as_leaksplits()], the split_spec's design columns stored in the plan).
+An rsample object is also accepted: the inner resamples of
+`rsample::nested_cv()` are used as given; for other rsets, inner folds are
+built from the split mode and columns (see `split_cols`).}
 
 \item{learner}{A parsnip model_spec with tunable parameters, or a workflows
 workflow. When a model_spec is provided, a workflow is built using
@@ -111,7 +114,11 @@ A list of class `"LeakTune"` with components:
   \item{metrics}{Outer-fold metrics.}
   \item{metric_summary}{Mean/SD metrics across outer folds with columns
     \code{learner}, and \code{<metric>_mean} and \code{<metric>_sd} for
-    each metric.}
+    each metric, plus \code{<metric>_ci_lo}/\code{<metric>_ci_hi} from
+    [cv_ci()] when available. \code{_mean}/\code{_sd} summarize all outer
+    fold rows; the interval counts each distinct test set once (its centre
+    is the mean over distinct test sets) and uses the Nadeau-Bengio
+    corrected variance.}
   \item{best_params}{Best hyperparameters per outer fold.}
   \item{inner_results}{List of inner tuning results.}
   \item{outer_fits}{List of outer LeakFit objects.}

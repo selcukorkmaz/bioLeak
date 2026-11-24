@@ -1,6 +1,279 @@
-# bioLeak (development version)
+# bioLeak 0.4.0
+
+## Dependency changes
+
+* SummarizedExperiment moved from Imports to Suggests, so
+  `install.packages("bioLeak")` no longer fails when the Bioconductor package
+  is not installed (JSS review, J10). It is needed only for
+  SummarizedExperiment input; such input without it now stops with an
+  install hint.
 
 ## Bug fixes (results can change)
+
+* **The batch confounding alarm tested the wrong table** (JSS review,
+  L1.1-L1.3). `confounding_alignment` was flagged from a fold x batch
+  chi-square test, which ignores the outcome: it could not detect batch
+  confounding and fired for blocked designs (V = 1 by construction). It now
+  flags only when both conditions for batch-driven optimism hold: batch is
+  associated with the outcome (new batch-outcome test in `batch_assoc`:
+  chi-square with Cramer's V for classification, Kruskal-Wallis with
+  epsilon^2 for regression; run on the plan's independent units, one
+  observation per subject or group when the plan records one, including a
+  subject constraint of a combined plan; time-series plans without a group
+  and survival outcomes are not tested; Holm across batch columns,
+  p <= 0.05 and at least a small effect) and batches are shared by training
+  and test rows (new
+  `span_frac` > 0). Blocked designs have `span_frac = 0` and are never
+  flagged. The fold x batch test is still reported and described as a
+  fold-batch test. When batch varies within subjects, association within
+  subjects (e.g. paired tumour and normal samples in different batches) is
+  not tested; its row-level effect size is reported (`within_unit_effect`)
+  and printed by `summary()`. `audit_leakage_by_learner()` prints the
+  batch-outcome evidence instead of the fold-batch table. In simulations
+  (200 datasets per design) the null flag rate was 0.000-0.080 (limit
+  0.096) across 14 designs: one row per subject, repeated rows per subject,
+  batch varying within subjects (equal, unequal, 1-2 samples per subject,
+  time-ordered, pairs mixed with singletons), multiclass outcomes, rsample
+  grouped folds, leave-study-out and combined plans with a subject column,
+  and time series; blocked designs were never flagged; under a clear
+  batch-outcome association with shared batches the flag rate was 0.98-1.00.
+
+* **Plots were not drawn in knitted documents.** The `plot_*()` functions
+  printed only in interactive sessions, so the vignette and rendered reports
+  showed none of their figures; they now also print while knitting.
+* `summary(<LeakAudit>)` reported "Repeats: 1" for repeated plans (it read
+  the fit's metadata instead of the plan's).
+* `delta_lsi()` now warns when `M_boot`, `M_flip` or `seed` are supplied:
+  they belonged to the former bootstrap / sign-flip inference and have no
+  effect on the corrected t-test (they were silently ignored).
+* **Imputation did nothing when a training fold had no missing values.** The
+  guard then recorded "no imputation" whatever method was requested, so
+  missing values in the test rows stayed NA and those predictions were
+  dropped silently (in leave-study-out CV, a study that never measured a
+  feature disappeared from the results without a warning). The requested
+  method is now always fitted; missForest has no per-column model then and
+  falls back to the training medians with a warning.
+* **Stratified fold assignment lost folds.** Each class was dealt to folds
+  starting from fold 1, so classes with fewer groups than `v` left
+  high-numbered folds empty (6 of 10 requested folds) and fold sizes
+  uneven. Units are now dealt round-robin across classes, so all folds are
+  kept and get an almost equal number of groups, with each class spread as
+  evenly as possible (per-fold class proportions can vary slightly more
+  than before, the trade-off for equal fold sizes). Stratified plans can
+  differ from earlier versions for the same seed.
+* **`positive_class` set to the first level failed with recipes and
+  workflows** ("wrong attributes: `y`"): the outcome was releveled after the
+  recipe captured its level order. Recipes and workflows now receive the
+  original level order, and `tune_resample()` points tune's event level at
+  the positive class. Probability columns are now looked up by the exact
+  level name (`.pred_1`, `.pred_case 1`) before its `make.names()` form, and
+  a missing positive-class column is an error: falling back to "the second
+  column" would have scored the negative class for non-syntactic level
+  names (AUC 0.09 instead of 0.91 in a test).
+* **Multiclass yardstick metric sets with class probabilities failed**
+  ("Failed to compute `roc_auc()`") because the probability columns were
+  passed as named arguments.
+* **Audit p-values were too small with repeated CV, clustered samples or
+  autocorrelated series.** The fixed-prediction permutation gap
+  (`perm_refit = FALSE`, or "auto" without a stored refit specification or
+  with `B > 200`) shuffled pooled prediction rows independently: a sample's
+  copies from repeated CV got different labels, a subject's correlated
+  samples were treated as independent, and time order was ignored (type-I at
+  alpha = 0.05: 0.16-0.23 with 5 repeats, 0.17-0.19 with clustered samples,
+  0.27 with AR(0.9) series). Labels are now permuted per sample (copies share
+  one label); in subject-grouped plans (and combined plans, via their
+  primary axis, and time-series plans with a group) whole subjects swap
+  label vectors with subjects of the same size and labels are shuffled
+  within subjects, which keeps the class balance exact and lets paired
+  designs (one case and one control sample per subject) flip within pairs; a
+  warning says when few subjects can be exchanged; in time-series plans
+  without a group labels move in time blocks. Type-I: 0.058, 0.042, 0.083 (limit 0.11). The multivariate
+  target scan, which refits on each permuted outcome, used a free shuffle in
+  grouped, batch and study designs (0.31 with clustered samples); it now uses
+  the same subject-level scheme or the refit audits' restricted permutation
+  (0.025). The refit null's element-wise shuffle across subjects of unique
+  size (0.147 in small uneven cohorts) is replaced by the same scheme. When
+  every permutation gives the same value (e.g. subject size determines the
+  outcome) a warning says the p-value is uninformative.
+  `perm_summary = "fold_mean"` is not calibrated for fixed predictions
+  (0.11-0.14) and now falls back to "pooled" with a warning.
+* **Duplicate detection flagged ordinary tabular data.** Rows were compared
+  on uncentred columns, so unrelated patients looked near-identical (1803 of
+  11175 pairs without duplicates). Columns are now centred and pairs must
+  also lie at a similar distance from the column means (0 false pairs with 6
+  tabular features; true copies are still found). Pairs must also be much
+  closer than typical pairs (within 10% of the median distance), and with
+  fewer than 5 features, where close pairs arise by chance, only identical
+  rows are reported. Noisy technical replicates (e.g. low-depth
+  re-sequencing) can fall below `sim_threshold`; lower it to look for them.
+* **Leave-batch-out and leave-study-out plans were flagged as confounded.**
+  The batch association test flagged the column the split blocks on, which
+  aligns with the folds by design. Rows for the axis the split mode blocks on
+  (batch for batch_blocked, study for study_loocv, group, constraint axes),
+  and columns nested within that axis (e.g. site within study), are now
+  marked `by_design` and do not trigger `confounding_alignment`; a batch
+  merely recorded on a subject-grouped plan is still tested.
+* **The audit summary could overstate the result.** Its interpretation used
+  the gap size alone ("Strong non-random signal" at p = 0.15); it now prints
+  and uses the permutation p-value, and notes that a significant gap does not
+  rule out leakage. The report template said a non-significant gap "warns of
+  leakage" (leakage makes the gap larger); corrected. "Batch / Study
+  Association: none detected" is now "not tested" when no column was tested.
+* **`tune_resample()` tuned on an inverted AUC.** Its `auc` / `roc_auc` /
+  `pr_auc` metrics set `event_level = "second"` on the metric, but tune passes
+  the first class's probability column, so inner AUCs were 1 minus their
+  value (0.14 for a model with AUC 0.85) and the worst setting was chosen in
+  every outer fold (the default metrics). The event level is now set through
+  `control$event_level`, and the plain metrics are used.
+* **`tune_resample()` input fixes.** A numeric 0/1 outcome (accepted by
+  `fit_resample()`) now works; it failed every inner fit with a misleading
+  stratification hint (with a recipe or workflow, a non-factor class outcome
+  gets a clear error). Plans from `as_leaksplits()` now work without
+  `nested = TRUE` (inner folds are built from the spec's design columns
+  stored in the plan; before: "Column 'group_id' not found"). rsample input
+  works: rsample plans record no seed, which reached `set.seed()` as NA, and
+  `rsample::nested_cv()` inner resamples were never read. rsets without the
+  `bioLeak_mode` attribute now use the design inferred at import (as in
+  `fit_resample()`), and `nested_cv()` needs no inferable design column. When
+  single-class inner folds force AUC out of tuning, the remaining metrics
+  are kept (all were dropped and the call failed, e.g. with `bootstraps()`).
+  Inner folds now also use the plan's `stratify_by`.
+* **Split columns could reach the model through a recipe.** With
+  `preprocess = <recipe>`, the recipe was prepped on data that still held the
+  split columns (group, batch, study, time, `stratify_by`, sample id) and only
+  exact column names were removed afterwards, so a standard
+  `recipe(y ~ .) |> step_dummy(all_nominal_predictors())` passed their dummy
+  columns to the learner (CV AUC 1.0 on pure noise with an outcome-derived
+  stratum). Those columns now get the non-predictor role `"bioLeak_split"`
+  before `prep()`, in `fit_resample()`, `tune_resample()` and for workflows
+  whose recipe lists them; steps may still name them, but neither they nor
+  anything derived from them is a predictor. Steps that select by type
+  (`step_dummy(all_nominal(), -all_outcomes())`) bypass roles; such recipes
+  are now detected after `prep()` (predictors that change when the split
+  columns are shifted) and stop with an error naming the derived columns.
+* **`tune_resample()` used the group column as a predictor** when given a
+  parsnip model and no recipe (`outcome ~ .` on the full data), so held-out
+  subjects were new factor levels and outer folds were silently skipped
+  (6 of 15 in a test). Split columns are now removed, as in `fit_resample()`.
+  A recipe defined on the full data (`y ~ .`), given as `preprocess` or in a
+  workflow, also works in `tune_resample()` now; it failed with "Not all
+  variables in the recipe are present".
+* **`audit_leakage(perm_refit = TRUE)` on `as_leaksplits()` plans ignored or
+  broke the design.** The refit permutation metadata came from the user's
+  data, which lacks the spec's design columns (`group_id`, `batch_group`,
+  `study_group`): batch and study specs failed ("Batch column not found for
+  batch_blocked mode"), and subject specs fell back to an unrestricted label
+  shuffle with a warning. Those columns are now joined from the plan by
+  sample id (also into a user-supplied `perm_refit_spec$coldata`), giving
+  the same restricted null as an equivalent `make_split_plan()` plan. When a
+  design column is genuinely unavailable, batch, study and time designs now
+  fall back to the documented unrestricted shuffle with a warning instead of
+  erroring.
+* **`perm_stratify` made batch and study refit nulls the identity.** Refit
+  permutations for `batch_blocked` / `study_loocv` permute labels within each
+  batch or study; stratifying that by the outcome permuted within
+  batch x outcome cells, so no label moved and p was 1. `perm_stratify` is now
+  ignored there with a warning.
+* **`audit_leakage()` re-drawn plans kept the sample id as a predictor.** For
+  plans from `as_leaksplits()`, `perm_folds = "auto"` re-drew the folds
+  without the record that `sample_id` is an identifier, so every permutation
+  refit encoded it as a predictor (with `glm`, all permutation values and the
+  p-value were NA). The re-drawn plan now keeps it.
+* **`metric_summary` intervals could belong to another learner.** With
+  several learners given in non-alphabetical order (e.g.
+  `c("ranger", "glmnet")`), `fit_resample()` copied `cv_ci()`'s interval
+  columns by position into a summary sorted by learner name, so each learner
+  could be shown another learner's interval. They are now matched by name.
+* **Repeated rsample resamples had fold and repeat swapped.** rsample's
+  repeated designs (`vfold_cv(repeats = )`, `group_vfold_cv(repeats = )`) put
+  the repeat in `id` and the fold in `id2`; bioLeak read them the other way
+  round, so `delta_lsi()` and `cv_ci()` used the wrong number of folds per
+  repeat (e.g. 19 instead of 4 degrees of freedom for 5 folds x 20 repeats,
+  too-small p-values and too-narrow intervals). `as_rsample()` dropped the
+  repeat column for repeated plans (rsample's `manual_rset()` has none), so a
+  round trip also lost the repeats. Both directions now follow rsample's
+  convention; older exports with repeated `"FoldK"` ids are still read
+  correctly. `tibble` is added to Suggests for the export.
+* **`splits@info$stratify` now says whether stratification was applied.**
+  Rolling-origin `time_series` folds are never stratified; `stratify = TRUE`
+  there now warns and is recorded as `FALSE` (only the grouped panel fallback
+  stratifies). A missing `stratify_by` column is also recorded as
+  unstratified. A given `stratify_by` column is always recorded, applied or
+  not, so `fit_resample()` / `tune_resample()` keep it out of the predictors. `as_leaksplits()` no longer requests stratification for
+  ordered specs. Previously the plan claimed a stratification it did not have,
+  and `audit_leakage(perm_folds = "auto")` re-drew such plans needlessly.
+* **Survival C-index was inverted.** `survival::concordance()` treats higher
+  predictions as longer survival, but bioLeak's survival predictions are risk
+  scores, so every survival C-index (fit metrics, audits, `delta_lsi()`) was
+  reported as 1 minus its value; a strong risk model scored about 0.2. The
+  C-index now treats predictions as risk scores (higher = shorter survival),
+  the convention custom learners are documented to follow. Survival models
+  given as parsnip specs or workflows, which previously failed to predict,
+  now use `linear_pred` (else `time`). Engines do not agree on the direction
+  of these outputs (censored's rpart `time` rises with hazard, survreg's with
+  survival), so the direction is decided on each training fold and the
+  predictions are turned into a risk score; test rows are not used. When the
+  direction cannot be decided (e.g. no comparable pairs in an all-censored
+  training fold), that fold's predictions are NA and left out of the
+  metrics, reported in one warning across folds.
+* **`cv_ci()` counts repeated identical test sets once**, as `delta_lsi()`
+  does, and accepts a `LeakTune`; repeated leave-one-batch-out intervals were
+  too narrow.
+* **`plot(<LeakDeltaLSI>)` shows deltas on the inflation scale** for
+  lower-is-better metrics too (points were sign-flipped against the line and
+  band), and returns the object's `R_eff`.
+* **Grouped time series keeps the better of the regular folds and the panel
+  fallback** (the plan that tests more rows), instead of e.g. a single fold
+  training on 2 rows; tied times are named as a reason for dropped blocks.
+* **`nested = TRUE`** no longer fails the whole plan when an inner split
+  cannot be built for some outer fold.
+
+* **`as_leaksplits(use_block_constraints = )` can enforce a chosen subset.**
+  `spec$block_vars` lists the blocking annotations available in a splitGraph
+  spec, which can be many (batch, study, site, ...). `use_block_constraints`
+  now also takes a character vector naming the block_vars to enforce (`TRUE`
+  still enforces all; unknown names are an error that lists the available
+  ones). When excluding shared levels empties every fold's training set, the
+  error now names the axes and their level counts and suggests a smaller set,
+  instead of "No valid folds generated"; when only some folds survive and
+  rows are never tested, a warning reports the coverage. The option is
+  ignored for non-grouped specs with a warning (previously silently), and
+  overriding `mode` / `constraints` through `...` warns that it no longer
+  applies.
+
+* **Batch adjustment no longer skips rows silently.** `guard_fit()`'s
+  `steps$batch_adjust` now applies a policy, `unseen = c("warn", "error",
+  "grand_mean")`, to rows whose batch was not seen in training, rows with a
+  missing batch label, and `transform()` calls without batch labels. All of
+  these were left unadjusted with no message. Under batch-blocked or
+  study-held-out CV every test batch is unseen; `fit_resample()` reports this
+  once ("in k of K folds ...") instead of per fold. A single training batch
+  now applies no adjustment with a warning instead of failing.
+* **Batch adjustment warns when batch and outcome are confounded, and can
+  protect the outcome.** When batch is associated with `y` in the training
+  data (p < 0.01), removing batch effects also removes part of the outcome
+  signal, so performance is underestimated; this now warns. The new opt-in
+  `protect = TRUE` estimates batch effects net of the outcome
+  (`z ~ batch + y`, the role of ComBat's `mod`), which keeps the signal but
+  can bias cross-validated performance upward (Nygaard et al., 2016): about
+  +0.03 to +0.10 AUC with 80/20 confounding and no true signal in simulation
+  (more with more features),
+  and it warns about this too. The default stays unprotected, the
+  conservative choice. Under `protect = TRUE`, outcome effects are estimated
+  from within-batch variation only, only batch locations are adjusted (per-
+  batch scaling would rescale the protected outcome effect), and when every
+  batch holds a single class only differences between batches of the same
+  class are removed. A batch that cannot be separated from the outcome at all
+  is left unadjusted, with a warning. `fit_resample()` reports each kind of
+  batch/outcome diagnostic once across folds.
+* **`keep_batch_col = TRUE` keeps the batch column intact.** A kept batch
+  column was batch-adjusted along with the features, which zeroed it out; it
+  is now passed through unadjusted.
+* **Batch scale is measured as in ComBat.** Each batch's scale is now taken
+  relative to the pooled within-batch residual variance, not the grand
+  variance that included between-batch differences. The old version
+  over-inflated within-batch spread after adjustment whenever batches
+  differed in location.
 
 * **`delta_lsi()` inference replaced: corrected repeated-CV t-test.**
   Repeated cross-validation re-uses the same data, so fold and repeat
@@ -47,6 +320,122 @@
   explained-deviance (e.g. `brier_skill_score`) and yardstick names such as
   `kap`, `ccc` and `roc_aunp` as higher-is-better, and warns when a metric
   name is not recognised instead of silently assuming higher is better.
+
+* **`cv_ci(method = "nadeau_bengio")` uses calibrated degrees of freedom.**
+  Its t reference now uses `folds_per_repeat - 1` degrees of freedom (new
+  argument) instead of all folds - 1, and no longer switches to the normal
+  distribution at 30 or more folds; counting repeats as independent made the
+  intervals too narrow for repeated CV (the same issue fixed in
+  `delta_lsi()`); in a real-fit simulation of 5-fold x 10 CV, coverage of the
+  95% interval rose from 0.92 to 0.98. `fit_resample()` and `tune_resample()`
+  pass it. Invalid `n_train`, `n_test` or `folds_per_repeat` are now errors.
+  Requesting
+  `"nadeau_bengio"` without `n_train` / `n_test` now warns: the correction
+  cannot be applied and the uncorrected variance is used.
+* **`cv_ci()` defaults to `method = "nadeau_bengio"` and accepts a `LeakFit`.**
+  The previous default, `"normal"`, treats folds as independent; in a
+  real-fit simulation of repeated 5-fold CV its 95% interval covered the true
+  expected performance only 37% of the time (vs 98% for the corrected
+  method). Calls without a `method` now get the corrected interval. Passing
+  the fit itself (`cv_ci(fit)`) supplies the fold sizes and folds per repeat;
+  a bare metrics data frame without `n_train` / `n_test` warns. Use
+  `method = "normal"` to get the old behaviour.
+* **`tune_resample()` confidence intervals are corrected.** It requested the
+  Nadeau-Bengio correction without train/test sizes, so the uncorrected
+  variance was used silently; it now passes the outer folds' average sizes
+  and folds per repeat.
+* **Compact and explicit time-series plans train on the same row order.**
+  Compact plans rebuilt the training rows in row order instead of time
+  order, so order-dependent learners (e.g. ranger with a fixed seed) gave
+  different results for the same plan.
+* **Grouped time series reports lost folds.** In `make_split_plan(mode =
+  "time_series", group = )`, a later time block whose training set comes out
+  empty (every earlier row belongs to its own test groups, or horizon / purge
+  / embargo leave nothing) was dropped silently. It now warns with the number
+  of blocks lost, the reason, and how many rows are tested (e.g. 16 of 64
+  where 48 were expected); rolling-origin CV's untested first block is not
+  counted as a loss.
+* **Grouped time series: the panel fallback says what it does.** When every
+  group appears across the time range, `make_split_plan(mode = "time_series",
+  group = )` uses a panel fallback that tests every group but trains only on
+  rows before the earliest test time. It now warns with the training share it
+  achieves (often about 20%) and suggests alternatives. (Staggered
+  rolling-origin cutoffs were tried; they train on more history but leave
+  rows, and on unbalanced panels whole groups, never tested.) When regular
+  folds lose blocks, both plans are built and the one with the larger
+  `sum(test rows x training rows)` is kept, so a fallback that tests more rows
+  but trains on very few does not replace a well-trained regular plan; the
+  warning names the plan kept and both plans' coverage. Fallback folds now
+  follow the same minimum of 3 test rows as regular folds; the warning gives
+  the actual reasons blocks were lost, and when neither plan yields a fold
+  the error says why.
+* `fit_resample()`'s "No successful folds were completed" error now gives the
+  fold errors or the skip reason (e.g. every requested metric was NA on
+  single-class test folds). The `metric_summary` docs now say that `_mean` /
+  `_sd` summarize all fold rows while `_ci_lo` / `_ci_hi` count each distinct
+  test set once.
+
+## Breaking changes
+
+* **`delta_lsi()` tier labels renamed** to describe the test they report:
+  `"A_full_inference"` -> `"A_ttest_ge20_folds"`, `"B_signflip_ci"` ->
+  `"B_ttest_10_19_folds"`, `"C_signflip"` -> `"C_ttest_3_9_folds"`
+  (`"D_insufficient"` unchanged). The old names referred to the bootstrap and
+  sign-flip inference that the corrected t-test replaced; code comparing
+  `dlsi_tier()` or `@tier` with the old strings must be updated.
+
+* **`as_leaksplits()` requires the data's sample IDs to match the spec's
+  exactly.** Missing, duplicated or extra IDs (in either direction) are an
+  error; previously extra rows in `data` were dropped silently by the join.
+
+## New features
+
+* `audit_leakage()` with the default `perm_refit = "auto"` now says what a
+  refit costs before running it (`B` x folds model fits) and says when it
+  falls back to fixed-prediction permutations because `B` exceeds
+  `perm_refit_auto_max` (previously silent). The fallback message no longer
+  calls the fixed-prediction test "slightly liberal" (JSS review, K1).
+* `audit_leakage()` reports how many near-duplicate pairs are expected by
+  chance and the ratio observed / expected (`info$duplicate_null`; JSS review,
+  L3.4). The expected count applies the same rule to null rows drawn from a
+  Gaussian copula with the features' marginals and rank correlation;
+  `duplicate_null_reps` (default 3, `0` skips) sets the number of draws. On
+  data without duplicates (40 datasets each) the mean expected count was
+  within about 25% of the mean observed count for Gaussian, skewed and
+  discrete features. `summary()` prints both counts and, in the
+  interpretation, lists the flagged leakage mechanisms; the flag rules of the
+  mechanism summary are documented in `?audit_leakage` (L3.5).
+* `make_split_plan()` gains `stratify_method = c("groups", "rows")` (JSS
+  review, J8). The default `"groups"` keeps the current assignment (groups
+  labelled by majority class, dealt round-robin), which balances numbers of
+  groups, not rows. `"rows"` places groups largest first in the fold that
+  keeps each class's share of rows most even, as scikit-learn's
+  `StratifiedGroupKFold` does. In simulations with unequal group sizes and
+  mixed-outcome groups (40 groups, 5 folds, 200 seeds), the largest
+  deviation of a fold's case share from the overall share averaged 0.022,
+  against 0.134 for `"groups"` and 0.208 unstratified. Refit permutations,
+  nested plans and `tune_resample()` inner splits re-use the recorded
+  method.
+* **`as_leaksplits()` covers more of the splitGraph contract.** Specs with
+  `ordering_required = TRUE` map to `mode = "time_series"` with group
+  separation (train strictly earlier than test, no group in both);
+  `spec$stratum_var` is forwarded as `stratify_by`; additional block columns
+  (`site_group`, `region_group`, `platform_group`, `assay_group`) are carried;
+  and `use_block_constraints` enforces chosen `block_vars` as secondary axes
+  through `make_split_plan(mode = "combined")`.
+* **`make_split_plan()`** gains `stratify_by` (stratify on a column other than
+  the outcome), group-disjoint `time_series` splits (`group =` with `time =`)
+  with a longitudinal panel fallback, and more axis types for
+  `mode = "combined"` (site, region, platform, assay, relatedness, spatial).
+* **`guard_fit()`** gains train-only frozen normalisations
+  (`normalize$method = "quantile"`, `"log_cpm"`, `"clr"`) and train-only batch
+  adjustment (`steps$batch_adjust`; see the bug fixes above for its
+  behaviour).
+* **Recipe checks** flag recipes with already-trained steps and
+  `step_mutate()` / `step_filter()` calls to global summaries (`mean()`,
+  `sd()`, `quantile()`, ...), which leak test-set statistics at `bake()`.
+* `fit_resample()` and `tune_resample()` drop split metadata columns
+  (sample ID, stratification and constraint columns) from the predictors.
 
 # bioLeak 0.3.8
 

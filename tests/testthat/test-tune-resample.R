@@ -361,3 +361,129 @@ test_that("tune_resample tunes binomial thresholds from inner predictions", {
   expect_true(isTRUE(tuned$info$threshold_tuned))
   expect_equal(tuned$info$threshold_metric, "accuracy")
 })
+
+test_that("tune_resample keeps the split columns out of the predictors", {
+  skip_if_not_installed("tune")
+  skip_if_not_installed("glmnet")
+  skip_if_not_installed("recipes")
+  set.seed(3); n <- 120
+  df <- data.frame(subj = paste0("P", rep(1:40, each = 3)))
+  for (j in 1:5) df[[paste0("x", j)]] <- rnorm(n)
+  df$y <- factor(rbinom(n, 1, plogis(df$x1)))
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "subj", v = 4,
+                        progress = FALSE)
+  spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+    parsnip::set_engine("glmnet")
+  tr <- suppressWarnings(tune_resample(df, outcome = "y", splits = sp, learner = spec, grid = 2,
+                                       metrics = "auc", inner_v = 3, seed = 1, refit = TRUE))
+  expect_equal(nrow(tr$metrics), length(sp@indices))
+  mold <- workflows::extract_mold(tr$final_model)
+  expect_false("subj" %in% names(mold$predictors))
+  rec <- recipes::recipe(y ~ ., data = df)
+  tr2 <- suppressWarnings(tune_resample(df, outcome = "y", splits = sp, learner = spec, grid = 2,
+                                        preprocess = rec, metrics = "auc", inner_v = 3, seed = 1))
+  expect_equal(nrow(tr2$metrics), length(sp@indices))
+})
+
+test_that("tune_resample accepts a workflow whose recipe gives a split column the id role", {
+  skip_if_not_installed("tune")
+  skip_if_not_installed("glmnet")
+  skip_if_not_installed("recipes")
+  skip_if_not_installed("workflows")
+  set.seed(5); n <- 120
+  dat <- data.frame(y = factor(sample(c("a", "b"), n, TRUE)), subject = paste0("P", rep(1:30, each = 4)),
+                    x1 = rnorm(n), x2 = rnorm(n))
+  sp <- make_split_plan(dat, outcome = "y", mode = "subject_grouped", group = "subject", v = 3,
+                        progress = FALSE)
+  rec <- recipes::recipe(y ~ ., data = dat) |> recipes::update_role(subject, new_role = "id")
+  wf <- workflows::workflow() |> workflows::add_recipe(rec) |>
+    workflows::add_model(parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+                           parsnip::set_engine("glmnet"))
+  tr <- suppressWarnings(tune_resample(dat, outcome = "y", splits = sp, learner = wf, grid = 2,
+                                       metrics = "auc", inner_v = 3, seed = 1))
+  expect_equal(nrow(tr$metrics), length(sp@indices))
+})
+
+test_that("tune_resample ranks tuning settings by a correctly oriented AUC", {
+  skip_if_not_installed("tune")
+  skip_if_not_installed("glmnet")
+  set.seed(1); n <- 240
+  df <- data.frame(id = 1:n, x1 = rnorm(n), x2 = rnorm(n))
+  df$y <- factor(rbinom(n, 1, plogis(2 * df$x1)))
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "id", v = 3,
+                        progress = FALSE)
+  spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+    parsnip::set_engine("glmnet")
+  for (pc in c("1", "0")) {
+    tr <- suppressWarnings(tune_resample(df, outcome = "y", splits = sp, learner = spec,
+                                         grid = data.frame(penalty = c(0.001, 0.3)),
+                                         metrics = "auc", positive_class = pc, seed = 1))
+    inner <- tune::collect_metrics(tr$inner_results[[1]])
+    expect_gt(max(inner$mean[inner$.metric == "roc_auc"]), 0.7, label = pc)
+    expect_true(all(tr$best_params$penalty == 0.001), label = pc)
+    expect_gt(tr$metric_summary$roc_auc_mean, 0.75, label = pc)
+  }
+})
+
+test_that("tune_resample accepts numeric 0/1 outcomes, as_leaksplits plans and rsample input", {
+  skip_if_not_installed("tune")
+  skip_if_not_installed("glmnet")
+  skip_if_not_installed("rsample")
+  set.seed(2); n <- 120
+  df <- data.frame(subject = rep(1:40, each = 3), x1 = rnorm(n), x2 = rnorm(n))
+  df$y <- rbinom(n, 1, plogis(1.5 * df$x1))  # numeric 0/1
+  spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+    parsnip::set_engine("glmnet")
+  g <- data.frame(penalty = c(0.001, 0.05))
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "subject", v = 3,
+                        progress = FALSE)
+  tr <- suppressWarnings(tune_resample(df, "y", sp, learner = spec, grid = g, metrics = "auc", seed = 1))
+  expect_equal(nrow(tr$metrics), 3L)
+
+  df$y <- factor(df$y)
+  df$sample_id <- paste0("S", seq_len(n))
+  sd <- data.frame(sample_id = df$sample_id, group_id = paste0("P", df$subject), stringsAsFactors = FALSE)
+  spec_sg <- structure(list(sample_data = sd, group_var = "group_id", constraint_mode = "subject",
+                            ordering_required = FALSE), class = "split_spec")
+  dat <- df[, c("sample_id", "y", "x1", "x2")]
+  sp_al <- suppressWarnings(as_leaksplits(spec_sg, dat, "y", v = 3, progress = FALSE))
+  tr2 <- suppressWarnings(tune_resample(dat, "y", sp_al, learner = spec, grid = g, metrics = "auc", seed = 1))
+  expect_equal(nrow(tr2$metrics), 3L)
+
+  df$sample_id <- NULL  # a per-row id would be a predictor below
+  gv <- rsample::group_vfold_cv(df, group = subject, v = 3)  # design inferred, no attribute
+  tr3 <- suppressWarnings(tune_resample(df, "y", gv, learner = spec, grid = g, metrics = "auc"))
+  expect_equal(nrow(tr3$metrics), 3L)
+
+  nc <- rsample::nested_cv(df, outside = rsample::group_vfold_cv(group = subject, v = 3),
+                           inside = rsample::group_vfold_cv(group = subject, v = 3))
+  sp_nc <- bioLeak:::.bio_as_leaksplits_from_rsample(nc, n = n, coldata = df)
+  for (k in seq_along(sp_nc@indices)) {
+    for (f in sp_nc@info$inner[[k]]) {
+      expect_true(all(c(f$train, f$test) %in% sp_nc@indices[[k]]$train))
+      expect_length(intersect(df$subject[f$train], df$subject[f$test]), 0L)
+    }
+  }
+  tr4 <- suppressWarnings(tune_resample(df, "y", nc, learner = spec, grid = g, metrics = "auc"))
+  expect_equal(nrow(tr4$metrics), 3L)
+})
+
+test_that("tune_resample handles fine-grained rsample resamples and design-free nested_cv", {
+  skip_if_not_installed("tune")
+  skip_if_not_installed("glmnet")
+  skip_if_not_installed("rsample")
+  set.seed(5); n <- 120
+  d <- data.frame(subject = sprintf("s%02d", rep(1:30, each = 4)), x1 = rnorm(n), x2 = rnorm(n))
+  d$y <- factor(rbinom(n, 1, plogis(1.5 * d$x1)))
+  spec <- parsnip::logistic_reg(penalty = tune::tune(), mixture = 1) |>
+    parsnip::set_engine("glmnet")
+  # 25 bootstrap resamples -> 25 tiny inner folds; AUC is dropped from tuning
+  # with a warning instead of failing the whole call
+  tr <- suppressWarnings(tune_resample(d, "y", rsample::bootstraps(d, times = 25), learner = spec,
+                                       grid = 2, seed = 1))
+  expect_equal(nrow(tr$metrics), 25L)
+  d0 <- d[, c("x1", "x2", "y")]
+  nc <- rsample::nested_cv(d0, outside = rsample::vfold_cv(v = 3), inside = rsample::vfold_cv(v = 3))
+  tr2 <- suppressWarnings(tune_resample(d0, "y", nc, learner = spec, grid = 2, metrics = "auc"))
+  expect_equal(nrow(tr2$metrics), 3L)
+})

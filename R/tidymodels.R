@@ -38,6 +38,73 @@
   cls[[1]]
 }
 
+# Give split/metadata columns that a recipe would otherwise treat as predictors
+# (e.g. via `y ~ .`) a non-predictor role before prep(), so neither they nor
+# anything derived from them (dummies, PCA scores) reaches the learner. The
+# columns stay available to steps that name them. Trained recipes are left as
+# they are (they already trigger a leakage warning).
+.bio_recipe_exclude_cols <- function(recipe_obj, cols) {
+  if (!.bio_is_recipe(recipe_obj) || !length(cols) || .bio_recipe_is_trained(recipe_obj)) {
+    return(recipe_obj)
+  }
+  vi <- recipe_obj$var_info
+  if (is.null(vi) || !all(c("variable", "role") %in% names(vi))) return(recipe_obj)
+  hit <- unique(vi$variable[vi$variable %in% cols & vi$role %in% "predictor"])
+  if (!length(hit)) return(recipe_obj)
+  do.call(recipes::update_role,
+          c(list(recipe_obj), lapply(hit, as.name), list(new_role = "bioLeak_split")))
+}
+
+# Direct check that a prepped recipe's predictors do not depend on the split
+# columns: bake the training rows as they are and with each split column
+# shifted by one row; predictors that change were derived from a split column.
+# This catches steps that select by type (e.g. step_dummy(all_nominal(),
+# -all_outcomes())), which ignore the non-predictor role set above.
+.bio_recipe_meta_derived <- function(rec_prep, train_df, cols) {
+  cols <- intersect(cols, names(train_df))
+  n <- nrow(train_df)
+  if (!length(cols) || n < 2L) return(character())
+  bake_pred <- function(d) tryCatch(
+    as.data.frame(recipes::bake(rec_prep, new_data = d, recipes::all_predictors())),
+    error = function(e) NULL)
+  base <- bake_pred(train_df)
+  if (is.null(base)) return(character())
+  pert <- train_df
+  rot <- c(2:n, 1L)
+  for (cc in cols) pert[[cc]] <- pert[[cc]][rot]
+  alt <- bake_pred(pert)
+  if (is.null(alt)) return(character())
+  common <- intersect(names(base), names(alt))
+  common[!vapply(common, function(nm) isTRUE(all.equal(base[[nm]], alt[[nm]],
+                                                         check.attributes = FALSE)),
+                 logical(1))]
+}
+
+.bio_stop_meta_derived <- function(derived, cols, what = "The recipe") {
+  stop(sprintf(paste0(
+    "%s builds predictors from split columns (%s): %s. These would carry ",
+    "group, batch, study, time or stratum information into the model. Select ",
+    "predictors with all_predictors() / all_nominal_predictors() / ",
+    "all_numeric_predictors(), or remove the columns with step_rm()."),
+    what, paste(cols, collapse = ", "),
+    paste(utils::head(derived, 5L), collapse = ", "),
+    if (length(derived) > 5L) sprintf(" (and %d more)", length(derived) - 5L) else ""),
+    call. = FALSE)
+}
+
+# Probability column of one class in parsnip/workflow predictions. parsnip
+# names it ".pred_<level>" with the level as is (".pred_1", ".pred_case 1");
+# make.names() forms are accepted as well. Returns NULL when absent: callers
+# must not guess by position (with the user's level order kept for recipes
+# and workflows, the second column can be the negative class).
+.bio_prob_col <- function(cols, level) {
+  level <- as.character(level)
+  cand <- unique(c(paste0(".pred_", level), paste0(".pred_", make.names(level)),
+                   level, make.names(level)))
+  hit <- cand[cand %in% cols]
+  if (length(hit)) hit[[1]] else NULL
+}
+
 .bio_recipe_is_trained <- function(recipe_obj) {
   if (!.bio_is_recipe(recipe_obj)) return(FALSE)
   has_tr_info <- !is.null(recipe_obj$tr_info)
@@ -226,6 +293,18 @@
   list(train = as.integer(in_id), test = as.integer(out_id))
 }
 
+# Which rsample id column holds the fold and which the repeat. rsample's
+# repeated designs (vfold_cv(repeats = ), group_vfold_cv(repeats = )) put the
+# repeat in `id` ("Repeat1") and the fold in `id2` ("Fold1"). Older bioLeak
+# exports used the reverse; recognise it by the value prefixes.
+.bio_rsample_fold_repeat_ids <- function(id, id2) {
+  if (is.null(id2)) return(list(fold = id, repeat_id = NULL))
+  is_rep <- function(x) all(grepl("^Repeat", x))
+  is_fold <- function(x) all(grepl("^Fold", x))
+  if (is_fold(id) && is_rep(id2)) return(list(fold = id, repeat_id = id2))
+  list(fold = id2, repeat_id = id)
+}
+
 .bio_as_leaksplits_from_rsample <- function(splits, n = NULL, coldata = NULL, split_cols = NULL) {
   if (!requireNamespace("rsample", quietly = TRUE)) {
     stop("Package 'rsample' is required for rsample split objects.", call. = FALSE)
@@ -250,12 +329,14 @@
   if (is.null(split_ids)) {
     split_ids <- paste0("Fold", seq_along(split_list))
   }
-  fold_map <- as.integer(factor(split_ids, levels = unique(split_ids)))
-
-  if (is.null(split_ids2)) {
-    repeat_map <- rep(1L, length(split_list))
+  ids_fr <- .bio_rsample_fold_repeat_ids(split_ids, split_ids2)
+  fold_map <- as.integer(factor(ids_fr$fold, levels = unique(ids_fr$fold)))
+  repeat_map <- if (is.null(ids_fr$repeat_id)) {
+    # no repeat column: an id seen again starts a new repeat (older as_rsample()
+    # exports of repeated plans wrote only "FoldK" ids)
+    as.integer(stats::ave(seq_along(split_ids), split_ids, FUN = seq_along))
   } else {
-    repeat_map <- as.integer(factor(split_ids2, levels = unique(split_ids2)))
+    as.integer(factor(ids_fr$repeat_id, levels = unique(ids_fr$repeat_id)))
   }
 
   rsample_cols_attr <- .bio_rsample_split_cols(splits)
@@ -389,11 +470,36 @@
       if (length(candidates) == 1L) perm_mode <- candidates[[1]]
     }
   }
-  if (is.null(perm_mode)) {
+  # nested_cv() supplies both outer and inner folds, so fitting and tuning need
+  # no inferred design; audits without one fall back to their documented
+  # unrestricted null with a warning.
+  if (is.null(perm_mode) && !(.bio_is_rset(splits) && "inner_resamples" %in% names(splits))) {
     stop(paste0("rsample splits require an explicit perm_mode (set attr(splits, ",
                 "'bioLeak_perm_mode') or 'bioLeak_mode') or a single inferable ",
                 "group/batch/study/time column via split_cols."),
          call. = FALSE)
+  }
+
+  # rsample::nested_cv() carries inner resamples built on each outer analysis
+  # set; their positions index that analysis set, so map them to data rows.
+  inner_list <- NULL
+  if (.bio_is_rset(splits) && "inner_resamples" %in% names(splits)) {
+    inner_list <- lapply(seq_along(split_list), function(i) {
+      outer_tr <- .bio_rsplit_indices(split_list[[i]], n = n)$train
+      inner_rs <- splits$inner_resamples[[i]]
+      n_in <- length(outer_tr)
+      ids <- .bio_rsample_fold_repeat_ids(
+        as.character(inner_rs$id),
+        if ("id2" %in% names(inner_rs)) as.character(inner_rs$id2) else NULL)
+      f_map <- as.integer(factor(ids$fold, levels = unique(ids$fold)))
+      r_map <- if (is.null(ids$repeat_id)) rep(1L, nrow(inner_rs)) else
+        as.integer(factor(ids$repeat_id, levels = unique(ids$repeat_id)))
+      lapply(seq_len(nrow(inner_rs)), function(k) {
+        ix <- .bio_rsplit_indices(inner_rs$splits[[k]], n = n_in)
+        list(train = outer_tr[ix$train], test = outer_tr[ix$test],
+             fold = f_map[[k]], repeat_id = r_map[[k]])
+      })
+    })
   }
 
   indices <- vector("list", length(split_list))
@@ -434,7 +540,7 @@
     embargo = 0,
     summary = split_summary,
     hash = .bio_hash_indices(indices),
-    inner = NULL,
+    inner = inner_list,
     compact = FALSE,
     fold_assignments = NULL,
     coldata = coldata,
@@ -489,7 +595,7 @@
     train <- .bio_time_series_train_indices(
       time_vec = time_vec,
       test_idx = test,
-      candidate_idx = seq_len(n),
+      candidate_idx = order(time_vec),   # time order, as the explicit builder stores train
       horizon = split_horizon,
       purge = split_purge,
       embargo = split_embargo,
@@ -538,9 +644,11 @@
 #'   \describe{
 #'     \item{\code{splits}}{List-column of \code{rsplit} objects, each with
 #'       \code{analysis} (training indices) and \code{assessment} (test indices).}
-#'     \item{\code{id}}{Character column with fold identifiers (e.g., "Fold1").}
-#'     \item{\code{id2}}{Character column with repeat identifiers (e.g., "Repeat1")
-#'       when multiple repeats are present; otherwise absent.}
+#'     \item{\code{id}}{Character column with fold identifiers (e.g., "Fold1");
+#'       with several repeats, repeat identifiers (e.g., "Repeat1"), following
+#'       rsample's convention for repeated designs.}
+#'     \item{\code{id2}}{With several repeats, character column with fold
+#'       identifiers (e.g., "Fold1"); otherwise absent.}
 #'   }
 #'   The object also carries attributes for \code{group}, \code{batch},
 #'   \code{study}, \code{time} (when available from the original \code{LeakSplits}),
@@ -583,27 +691,26 @@ as_rsample.LeakSplits <- function(x, data = NULL, ...) {
     .bio_resolve_fold_indices(x, fold, n = n, data = data)
   })
 
-  ids <- vapply(resolved, function(fold) {
-    paste0("Fold", fold$fold)
-  }, character(1))
-  repeats <- vapply(resolved, function(fold) fold$repeat_id %||% 1L, integer(1))
-  ids2 <- if (length(unique(repeats)) > 1L) {
-    paste0("Repeat", repeats)
-  } else {
-    NULL
-  }
+  fold_ids <- vapply(resolved, function(fold) paste0("Fold", fold$fold), character(1))
+  repeats <- vapply(resolved, function(fold) as.integer(fold$repeat_id %||% 1L), integer(1))
+  multi_rep <- length(unique(repeats)) > 1L
 
   split_objs <- lapply(seq_along(resolved), function(i) {
     fold <- resolved[[i]]
-    .bio_make_rsplit(fold$train, fold$test, data = data, id = ids[[i]])
+    .bio_make_rsplit(fold$train, fold$test, data = data, id = fold_ids[[i]])
   })
 
-  manual_rset <- utils::getFromNamespace("manual_rset", "rsample")
-  args <- list(splits = split_objs, ids = ids)
-  if (!is.null(ids2) && "ids2" %in% names(formals(manual_rset))) {
-    args$ids2 <- ids2
+  if (multi_rep) {
+    # rsample's convention for repeated designs: id = "RepeatR", id2 = "FoldK"
+    if (!requireNamespace("tibble", quietly = TRUE)) {
+      stop("Package 'tibble' is required to export repeated splits to rsample.", call. = FALSE)
+    }
+    id_tbl <- tibble::tibble(id = paste0("Repeat", repeats), id2 = fold_ids)
+    rset <- rsample::new_rset(split_objs, ids = id_tbl, subclass = c("manual_rset", "rset"))
+  } else {
+    manual_rset <- utils::getFromNamespace("manual_rset", "rsample")
+    rset <- manual_rset(split_objs, ids = fold_ids)
   }
-  rset <- do.call(manual_rset, args)
   info <- x@info
   if (!is.null(info$group)) attr(rset, "group") <- info$group
   if (!is.null(info$batch)) attr(rset, "batch") <- info$batch

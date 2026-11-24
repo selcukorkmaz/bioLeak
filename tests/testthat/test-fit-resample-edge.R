@@ -280,3 +280,135 @@ test_that("fit_resample supports parsnip learners when available", {
   expect_true(nrow(fit@metrics) > 0)
   expect_true(any(nzchar(fit@metrics$learner)))
 })
+
+test_that("'No successful folds' says why when every metric is NA", {
+  set.seed(1)
+  df <- data.frame(id = 1:40, g = rep(1:4, each = 10), x = rnorm(40))
+  df$y <- factor(ifelse(df$g <= 2, "a", "b"))  # every test fold is single-class
+  sp <- make_split_plan_quiet(df, outcome = "y", mode = "subject_grouped", group = "g", v = 4)
+  expect_error(suppressWarnings(fit_resample(df, outcome = "y", splits = sp, learner = "glm",
+                                             metrics = "auc", refit = FALSE)),
+               "Skipped 4 folds: every requested metric was NA")
+})
+
+test_that("'No successful folds' flattens multi-line errors and counts the rest", {
+  set.seed(1)
+  df <- data.frame(id = 1:40, x = rnorm(40), y = factor(rep(c("a", "b"), 20)))
+  sp <- make_split_plan_quiet(df, outcome = "y", mode = "subject_grouped", group = "id", v = 5)
+  k <- 0L
+  custom <- list(bad = list(
+    fit = function(x, y, task, weights, ...) { k <<- k + 1L; stop(sprintf("err %d\n  detail", k)) },
+    predict = function(object, newdata, task, ...) rep(0.5, nrow(newdata))))
+  e <- tryCatch(suppressWarnings(fit_resample(df, outcome = "y", splits = sp, learner = "bad",
+                                              custom_learners = custom, metrics = "auc",
+                                              refit = FALSE)),
+                error = function(e) conditionMessage(e))
+  expect_match(e, "err 1 detail | err 2 detail | err 3 detail (and 2 more).", fixed = TRUE)
+})
+
+test_that("split and stratify columns never reach the learner through a recipe", {
+  skip_if_not_installed("recipes")
+  set.seed(7); n <- 200
+  df <- data.frame(subject = paste0("s", rep(1:50, each = 4)))
+  df$outcome <- factor(rep(rbinom(50, 1, 0.5), each = 4), labels = c("ctrl", "case"))
+  df$subtype <- ifelse(df$outcome == "case", sample(c("A", "B"), n, TRUE), "none")
+  for (j in 1:6) df[[paste0("g", j)]] <- rnorm(n)
+  sp <- make_split_plan(df, outcome = "outcome", mode = "subject_grouped", group = "subject",
+                        v = 5, stratify = TRUE, stratify_by = "subtype", progress = FALSE)
+  seen <- list()
+  cl <- list(rec = list(
+    fit = function(x, y, task, weights, ...) {
+      seen[[length(seen) + 1L]] <<- colnames(x)
+      stats::glm(y ~ ., data = data.frame(y = y, x), family = stats::binomial())
+    },
+    predict = function(object, newdata, task, ...) {
+      stats::predict(object, newdata = data.frame(newdata), type = "response")
+    }))
+  rec <- recipes::recipe(outcome ~ ., data = df) |>
+    recipes::step_dummy(recipes::all_nominal_predictors())
+  fit <- suppressWarnings(fit_resample(df, outcome = "outcome", splits = sp, learner = "rec",
+                                       custom_learners = cl, metrics = "auc", preprocess = rec))
+  cols <- unique(unlist(seen))
+  expect_setequal(cols, paste0("g", 1:6))
+  expect_lt(mean(fit@metrics$auc), 0.75)
+})
+
+test_that("recipes that derive predictors from split columns by type selectors stop loudly", {
+  skip_if_not_installed("recipes")
+  set.seed(11); n <- 120
+  df <- data.frame(subject = paste0("s", rep(1:30, each = 4)))
+  df$outcome <- factor(rep(rbinom(30, 1, 0.5), each = 4), labels = c("ctrl", "case"))
+  df$strat <- paste(df$outcome, rep(sample(c("x", "y"), 30, TRUE), each = 4))
+  for (j in 1:4) df[[paste0("g", j)]] <- rnorm(n)
+  sp <- make_split_plan(df, outcome = "outcome", mode = "subject_grouped", group = "subject",
+                        v = 4, stratify = TRUE, stratify_by = "strat", progress = FALSE)
+  base <- recipes::recipe(outcome ~ ., data = df)
+  legacy <- base |> recipes::step_dummy(recipes::all_nominal(), -recipes::all_outcomes())
+  expect_error(suppressWarnings(fit_resample(df, outcome = "outcome", splits = sp, learner = "glm",
+                                             custom_learners = make_custom_learners(),
+                                             preprocess = legacy, metrics = "auc")),
+               "builds predictors from split columns")
+  ok <- base |> recipes::step_rm(subject, strat) |>
+    recipes::step_dummy(recipes::all_nominal(), -recipes::all_outcomes())
+  fit <- suppressWarnings(fit_resample(df, outcome = "outcome", splits = sp, learner = "glm",
+                                       custom_learners = make_custom_learners(),
+                                       preprocess = ok, metrics = "auc"))
+  expect_equal(nrow(fit@metrics), length(sp@indices))
+})
+
+test_that("recipes and workflows accept positive_class set to the first level", {
+  skip_if_not_installed("recipes")
+  skip_if_not_installed("workflows")
+  set.seed(1); n <- 120
+  df <- data.frame(id = 1:n, x1 = rnorm(n), x2 = rnorm(n))
+  df$y <- factor(ifelse(df$x1 + rnorm(n) > 0, "b", "a"))
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "id", v = 4,
+                        progress = FALSE)
+  rec <- recipes::recipe(y ~ x1 + x2, data = df)
+  spec <- parsnip::logistic_reg() |> parsnip::set_engine("glm")
+  wf <- workflows::workflow() |> workflows::add_recipe(rec) |> workflows::add_model(spec)
+  f_rec <- suppressWarnings(fit_resample(df, "y", sp, learner = spec, preprocess = rec,
+                                         metrics = "auc", positive_class = "a"))
+  f_wf <- suppressWarnings(fit_resample(df, "y", sp, learner = wf, metrics = "auc",
+                                        positive_class = "a"))
+  f_g <- suppressWarnings(fit_resample(df, "y", sp, learner = spec, metrics = "auc",
+                                       positive_class = "a"))
+  expect_equal(f_rec@metric_summary$auc_mean, f_g@metric_summary$auc_mean, tolerance = 1e-6)
+  expect_equal(f_wf@metric_summary$auc_mean, f_g@metric_summary$auc_mean, tolerance = 1e-6)
+  expect_gt(f_rec@metric_summary$auc_mean, 0.7)
+})
+
+test_that("multiclass yardstick metric sets with class probabilities work", {
+  skip_if_not_installed("yardstick")
+  skip_if_not_installed("glmnet")
+  set.seed(2); n <- 150
+  df <- data.frame(id = 1:n, x1 = rnorm(n), x2 = rnorm(n))
+  df$y <- factor(c("a", "b", "c")[1 + (df$x1 > -0.4) + (df$x1 > 0.4)])
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "id", v = 3,
+                        progress = FALSE)
+  ms <- yardstick::metric_set(yardstick::roc_auc, yardstick::accuracy)
+  f <- suppressWarnings(fit_resample(df, "y", sp,
+                                     learner = parsnip::multinom_reg(penalty = 0.01) |>
+                                       parsnip::set_engine("glmnet"),
+                                     metrics = ms))
+  expect_true(all(c("roc_auc_mean", "accuracy_mean") %in% names(f@metric_summary)))
+  expect_gt(f@metric_summary$roc_auc_mean, 0.8)
+})
+
+test_that("positive_class works with non-syntactic level names in workflows", {
+  skip_if_not_installed("workflows")
+  set.seed(1); n <- 120
+  df <- data.frame(subject = rep(1:60, each = 2), x1 = rnorm(n))
+  df$y <- factor(ifelse(runif(n) < plogis(3 * df$x1), "1", "2"), levels = c("1", "2"))
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "subject", v = 5,
+                        seed = 1, progress = FALSE)
+  wf <- workflows::workflow() |> workflows::add_formula(y ~ x1) |>
+    workflows::add_model(parsnip::logistic_reg())
+  auc <- vapply(c("1", "2"), function(pc) {
+    f <- suppressWarnings(fit_resample(df, outcome = "y", splits = sp, learner = wf,
+                                       metrics = "auc", positive_class = pc, refit = FALSE))
+    f@metric_summary$auc_mean
+  }, numeric(1))
+  expect_gt(min(auc), 0.8)            # never inverted
+  expect_equal(auc[[1]], auc[[2]], tolerance = 1e-8)
+})

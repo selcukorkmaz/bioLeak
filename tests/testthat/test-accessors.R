@@ -125,7 +125,7 @@ make_leakdeltalsi_fixture <- function() {
   bioLeak:::LeakDeltaLSI(
     metric          = "auc",
     exchangeability = "iid",
-    tier            = "B_signflip_ci",
+    tier            = "B_ttest_10_19_folds",
     strict          = FALSE,
     R_eff           = 3L,
     delta_lsi       = 0.310,
@@ -263,7 +263,7 @@ test_that("dlsi_p_value() returns the @p_value slot", {
 test_that("dlsi_tier() returns the @tier slot", {
   dlsi <- make_leakdeltalsi_fixture()
   expect_identical(dlsi_tier(dlsi), dlsi@tier)
-  expect_equal(dlsi_tier(dlsi), "B_signflip_ci")
+  expect_equal(dlsi_tier(dlsi), "B_ttest_10_19_folds")
 })
 
 test_that("dlsi_R_eff() returns the @R_eff slot", {

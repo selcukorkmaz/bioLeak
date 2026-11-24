@@ -31,7 +31,7 @@ test_that("plot(<LeakDeltaLSI>) dispatches and returns the expected shape", {
   dlsi <- methods::new("LeakDeltaLSI",
     metric          = "auc",
     exchangeability = "iid",
-    tier            = "A_full_inference",
+    tier            = "A_ttest_ge20_folds",
     strict          = FALSE,
     R_eff           = 20L,
     delta_lsi       = 0.181,
@@ -81,4 +81,23 @@ test_that("plot(<LeakDeltaLSI>) is the same as plot_dlsi_repeats()", {
   expect_equal(out_method$deltas, out_func$deltas)
   expect_equal(out_method$delta_robust, out_func$delta_robust)
   expect_equal(out_method$bca_ci, out_func$bca_ci)
+})
+
+test_that("plot_dlsi_repeats puts lower-is-better deltas on the inflation scale", {
+  skip_if_not_installed("ggplot2")
+  mk <- function(sp, m) methods::new("LeakFit", splits = sp,
+    metrics = data.frame(fold = seq_along(m), learner = "lm", rmse = m),
+    outcome = "y", task = "gaussian")
+  df <- data.frame(id = 1:40, y = rnorm(40), x = rnorm(40))
+  sp <- make_split_plan(df, outcome = "y", mode = "subject_grouped", group = "id",
+                        v = 4, repeats = 3, progress = FALSE)
+  set.seed(3)
+  leaky <- runif(12, 0.30, 0.35); guarded <- leaky + 0.13      # leaky RMSE lower = inflation
+  d <- delta_lsi(mk(sp, leaky), mk(sp, guarded), metric = "rmse")
+  out <- suppressWarnings(plot_dlsi_repeats(d))
+  expect_true(all(out$deltas > 0))
+  expect_gt(out$delta_robust, 0)
+  expect_equal(out$R_eff, d@R_eff)
+  expect_equal(out$n_repeats, 3L)
+  expect_equal(out$ci, out$bca_ci)
 })

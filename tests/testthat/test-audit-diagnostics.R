@@ -1,3 +1,14 @@
+# The class fixture gives every subject the labels (0, 1) in the same order,
+# so subject-level permutations cannot move a label and audit_leakage() warns
+# that the null is degenerate. These tests check other behaviour with B = 2.
+audit_leakage_nd <- function(...) {
+  withCallingHandlers(audit_leakage(...), bioLeak_input_warning = function(w) {
+    if (grepl("every permutation gave the same", conditionMessage(w), fixed = TRUE)) {
+      invokeRestart("muffleWarning")
+    }
+  })
+}
+
 test_that("audit_leakage reports batch association and duplicates", {
   set.seed(2)
   X <- matrix(rnorm(24), nrow = 12, ncol = 2)
@@ -120,7 +131,7 @@ test_that("audit_leakage supports refit-based permutations", {
                             learner = "glm", custom_learners = custom,
                             metrics = "auc", refit = FALSE, seed = 1)
 
-  audit <- audit_leakage(
+  audit <- audit_leakage_nd(
     fit,
     metric = "auc",
     B = 2,
@@ -148,7 +159,7 @@ test_that("audit_leakage supports perm_refit auto mode", {
                             learner = "glm", custom_learners = custom,
                             metrics = "auc", refit = FALSE, seed = 1)
 
-  audit_fixed <- audit_leakage(
+  audit_fixed <- audit_leakage_nd(
     fit,
     metric = "auc",
     B = 5,
@@ -159,7 +170,7 @@ test_that("audit_leakage supports perm_refit auto mode", {
   expect_true(identical(audit_fixed@info$perm_method, "fixed"))
   expect_true(grepl("^auto", audit_fixed@info$perm_refit_mode))
 
-  audit_refit <- audit_leakage(
+  audit_refit <- audit_leakage_nd(
     fit,
     metric = "auc",
     B = 2,
@@ -186,7 +197,7 @@ test_that("audit_leakage multivariate target scan runs", {
   fit <- fit_resample_quiet(df, outcome = "outcome", splits = splits,
                             learner = "glm", custom_learners = custom,
                             metrics = "auc", refit = FALSE, seed = 1)
-  aud <- audit_leakage(
+  aud <- audit_leakage_nd(
     fit,
     metric = "auc",
     B = 3,
@@ -224,7 +235,7 @@ test_that("audit_leakage adds mechanism taxonomy and FDR-adjusted target flags",
     seed = 7
   )
 
-  aud <- audit_leakage(
+  aud <- audit_leakage_nd(
     fit,
     metric = "auc",
     B = 3,
@@ -252,4 +263,121 @@ test_that("audit_leakage adds mechanism taxonomy and FDR-adjusted target flags",
   expect_true(all(c("mechanism_class", "evidence_slot") %in% names(aud@info$taxonomy)))
   expect_true(is.data.frame(aud@info$mechanism_summary))
   expect_true(all(c("mechanism_class", "flagged", "evidence") %in% names(aud@info$mechanism_summary)))
+})
+
+test_that("duplicate detection ignores column scale and still finds real duplicates", {
+  set.seed(5); n <- 120
+  cl <- data.frame(id = 1:n, age = round(rnorm(n, 55, 10)), bmi = round(rnorm(n, 27, 4), 1),
+                   sbp = round(rnorm(n, 130, 15)), glucose = round(rnorm(n, 100, 15)),
+                   chol = round(rnorm(n, 200, 30)))
+  cl$y <- factor(rbinom(n, 1, 0.4))
+  X <- cl[, c("age", "bmi", "sbp", "glucose", "chol")]
+  sp <- make_split_plan(cl, outcome = "y", mode = "subject_grouped", group = "id", v = 5,
+                        progress = FALSE)
+  capture.output(fit <- suppressWarnings(fit_resample(cl, outcome = "y", splits = sp, learner = "glm",
+    custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+  capture.output(a <- suppressWarnings(audit_leakage(fit, metric = "auc", B = 10, X_ref = X,
+                                                     target_scan = FALSE)))
+  expect_equal(nrow(a@duplicates), 0L)  # unscaled tabular data, no duplicates
+  X2 <- X; X2[3, ] <- X2[110, ]
+  capture.output(a2 <- suppressWarnings(audit_leakage(fit, metric = "auc", B = 10, X_ref = X2,
+                                                      target_scan = FALSE)))
+  expect_gte(nrow(a2@duplicates), 1L)
+})
+
+test_that("batch alignment the split creates on purpose is not flagged", {
+  set.seed(6); n <- 120
+  d <- data.frame(batch = rep(paste0("B", 1:6), each = 20), x1 = rnorm(n), x2 = rnorm(n))
+  d$y <- factor(rbinom(n, 1, .5)); d$subj <- rep(1:6, each = 20)
+  sp <- make_split_plan(d, outcome = "y", mode = "batch_blocked", batch = "batch", v = 6,
+                        progress = FALSE)
+  capture.output(f <- suppressWarnings(fit_resample(d[, c("y", "x1", "x2", "batch")], outcome = "y",
+    splits = sp, learner = "glm", custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+  capture.output(a <- suppressWarnings(audit_leakage(f, metric = "auc", B = 10, coldata = d,
+                                                     target_scan = FALSE)))
+  ms <- audit_info(a)$mechanism_summary
+  expect_true(all(a@batch_assoc$by_design))
+  expect_false(ms$flagged[ms$mechanism_class == "confounding_alignment"])
+  # a subject split whose batches each span two subjects (batch not nested in
+  # subject): batches are shared by train and test, but the outcome is random,
+  # so fold-batch alignment alone is not confounding (JSS review, L1.3)
+  set.seed(7)
+  d2 <- data.frame(subj = rep(1:30, each = 4), batch = rep(paste0("b", 1:15), each = 8),
+                   x1 = rnorm(120), x2 = rnorm(120))
+  d2$y <- factor(rbinom(120, 1, .5))
+  sp2 <- make_split_plan(d2, outcome = "y", mode = "subject_grouped", group = "subj", v = 5,
+                         progress = FALSE)
+  capture.output(f2 <- suppressWarnings(fit_resample(d2[, c("y", "x1", "x2", "subj")], outcome = "y",
+    splits = sp2, learner = "glm", custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+  capture.output(a2 <- suppressWarnings(audit_leakage(f2, metric = "auc", B = 10, coldata = d2,
+                                                      target_scan = FALSE)))
+  ms2 <- audit_info(a2)$mechanism_summary
+  expect_false(any(a2@batch_assoc$by_design))
+  expect_true(all(a2@batch_assoc$span_frac > 0))
+  expect_false(ms2$flagged[ms2$mechanism_class == "confounding_alignment"])
+  # a batch nested in subjects is kept apart by the subject split: by design
+  d2$batch <- paste0("b", d2$subj)
+  capture.output(a3 <- suppressWarnings(audit_leakage(f2, metric = "auc", B = 10, coldata = d2,
+                                                      target_scan = FALSE)))
+  expect_true(all(a3@batch_assoc$by_design))
+  out <- capture.output(summary(a))
+  expect_true(any(grepl("permutation p =", out)))
+  expect_true(any(grepl("blocked by the split", out)))
+  expect_false(any(grepl("Strong non-random signal", out)))
+})
+
+test_that("design permutations move whole same-size subjects and keep class balance", {
+  key <- c("1", "1", "0", "0", "1", "0", "1", "1", "0", "0", "0")
+  grp <- c("a", "a", "b", "b", "c", "c", "d", "e", "e", "e", "e")
+  set.seed(1)
+  for (i in 1:30) {
+    d <- bioLeak:::.design_perm_donor(key, grp)
+    # each subject takes the whole label vector of one subject of its size
+    for (g in unique(grp)) {
+      donors <- unique(grp[d[grp == g]])
+      expect_length(donors, 1L)
+      expect_equal(sum(grp == donors), sum(grp == g))
+    }
+    # row-level class balance is unchanged
+    expect_equal(sort(key[d]), sort(key))
+    # a subject without a same-size partner stays within itself
+    expect_setequal(d[grp == "d"], which(grp == "d"))
+  }
+  # paired design (one sample of each class per subject): labels flip within pairs
+  pk <- rep(c("0", "1"), 10); pg <- rep(1:10, each = 2)
+  flips <- vapply(1:50, function(i) {
+    d <- bioLeak:::.design_perm_donor(pk, pg)
+    expect_equal(sort(pk[d]), sort(pk))
+    !identical(pk[d], pk)
+  }, logical(1))
+  expect_true(any(flips))
+  if (FALSE) {
+  }
+  expect_equal(bioLeak:::.design_perm_coverage(grp), 6 / 11)
+})
+
+test_that("duplicate detection with few features reports only identical rows", {
+  set.seed(9); n <- 150
+  d <- data.frame(id = 1:n, x1 = rnorm(n), x2 = rnorm(n), x3 = rnorm(n))
+  d$y <- factor(rbinom(n, 1, .5))
+  sp <- make_split_plan(d, outcome = "y", mode = "subject_grouped", group = "id", v = 5,
+                        progress = FALSE)
+  capture.output(fit <- suppressWarnings(fit_resample(d, outcome = "y", splits = sp, learner = "glm",
+    custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+  X <- d[, c("x1", "x2", "x3")]
+  capture.output(a <- suppressWarnings(audit_leakage(fit, metric = "auc", B = 10, X_ref = X,
+                                                     target_scan = FALSE, duplicate_scope = "all")))
+  expect_equal(nrow(a@duplicates), 0L)
+  X2 <- X; X2[40, ] <- X2[7, ]
+  capture.output(a2 <- suppressWarnings(audit_leakage(fit, metric = "auc", B = 10, X_ref = X2,
+                                                      target_scan = FALSE, duplicate_scope = "all")))
+  expect_equal(nrow(a2@duplicates), 1L)
+  # the summary reports repeats from the plan
+  sp5 <- make_split_plan(d, outcome = "y", mode = "subject_grouped", group = "id", v = 5,
+                         repeats = 3, progress = FALSE)
+  capture.output(f5 <- suppressWarnings(fit_resample(d, outcome = "y", splits = sp5, learner = "glm",
+    custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+  capture.output(a5 <- suppressWarnings(audit_leakage(f5, metric = "auc", B = 5, target_scan = FALSE,
+                                                      target_scan_multivariate = FALSE)))
+  expect_true(any(grepl("Repeats: 3", capture.output(summary(a5)), fixed = TRUE)))
 })

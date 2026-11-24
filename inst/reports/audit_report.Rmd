@@ -189,11 +189,16 @@ section targets a different aspect of data leakage and confounding:
   Confidence intervals (when present) use the Nadeau-Bengio (2003) corrected
   variance to account for training-set overlap.
 - **Permutation-Gap Test**: Compares observed performance to a null built by
-  shuffling labels. A significant gap indicates the model captures genuine
-  signal; a non-significant gap warns of potential overfitting or leakage.
-- **Batch / Study Association**: Chi-squared tests for confounding between fold
-  assignment and batch or study labels. Significant associations suggest the
-  experimental design may inflate performance.
+  shuffling labels. A significant gap shows that the predictions carry
+  non-random signal; it cannot tell genuine signal from leakage, which also
+  inflates the gap. A non-significant gap means performance is not
+  distinguishable from chance. Use the sections below to look for leakage.
+- **Batch / Study Association**: For each batch or study column, a test of
+  batch-outcome association, a fold-batch test describing how batches are
+  spread over folds, and the share of test rows whose batch also occurs in
+  training (`span_frac`). Batch effects can inflate performance only when
+  batch is associated with the outcome and batches are shared by training and
+  test rows; the mechanism assessment flags confounding only then.
 - **Confounder Sensitivity**: Quantifies how much each confounder contributes to
   apparent model performance.
 - **Calibration**: (Binomial tasks only.) Compares predicted probabilities to

@@ -44,62 +44,63 @@
   names(tab)[which.max(tab)]
 }
 
-.permute_subject_grouped <- function(y, subj, strata = NULL) {
-  subj   <- factor(subj)
-  blocks <- split(seq_along(y), subj)
-  values <- lapply(blocks, function(ix) y[ix])
-  ord    <- seq_along(blocks)
-  sizes  <- vapply(blocks, length, integer(1L))
-
-  # Two-stage permutation:
-  # Stage 1 — block-swap subjects of equal size within each stratum.
-  #   Only same-size blocks are swapped to avoid R recycling and label
-  #   corruption.
-  # Stage 2 — any subject whose block could not be swapped (unique size
-  #   within its stratum) has its own observations element-wise shuffled
-  #   within the stratum. Under H0 labels are exchangeable, so this is
-  #   valid and avoids an over-conservative test at small n.
-  perm_ord <- ord
-  swapped  <- logical(length(ord))
-
-  if (!is.null(strata)) {
-    block_strata <- vapply(ord,
-                           function(i) .majority_level(strata[blocks[[i]]]),
-                           character(1L))
-    for (nm in unique(block_strata)) {
-      in_stratum <- ord[block_strata == nm]
-      for (sz in unique(sizes[in_stratum])) {
-        eligible <- in_stratum[sizes[in_stratum] == sz]
-        if (length(eligible) > 1L) {
-          perm_ord[eligible] <- sample(eligible)
-          swapped[eligible]  <- TRUE
-        }
-      }
-    }
+# Donor index for a label permutation that keeps each unit's labels together.
+# Returns d such that key[d] (or y[d]) is the permuted labelling.
+# Units (e.g. subjects) of the same size swap their whole label vectors, and
+# every unit's labels are then shuffled within the unit (labels within a unit
+# are exchangeable under H0; without this, paired designs such as one tumour
+# and one normal sample per patient could not move any label). Exchanging only
+# equal-size units keeps the row-level label multiset (class balance) exact:
+# swapping labels between units of different sizes changes it whenever unit
+# size is related to the outcome (type-I 1.0 for accuracy when cases had five
+# samples and controls one), and shuffling rows across units made the null
+# too narrow for clustered outcomes. With `strata`, units are exchanged only
+# within the stratum of their majority level. Without `groups` every row is
+# its own unit (a plain shuffle).
+.design_perm_donor <- function(key, groups = NULL, strata = NULL) {
+  n <- length(key)
+  if (n <= 1L) return(seq_len(n))
+  if (is.null(groups)) return(sample.int(n))
+  blocks <- split(seq_len(n), factor(groups))
+  donor <- seq_len(n)
+  bstrata <- if (!is.null(strata)) {
+    vapply(blocks, function(ix) .majority_level(strata[ix]), character(1))
   } else {
-    for (sz in unique(sizes)) {
-      eligible <- ord[sizes == sz]
-      if (length(eligible) > 1L) {
-        perm_ord[eligible] <- sample(eligible)
-        swapped[eligible]  <- TRUE
+    rep("all", length(blocks))
+  }
+  sizes <- lengths(blocks)
+  for (st in unique(bstrata)) {
+    in_st <- which(bstrata == st)
+    for (sz in unique(sizes[in_st])) {
+      el <- in_st[sizes[in_st] == sz]
+      src <- if (length(el) > 1L) el[sample.int(length(el))] else el
+      for (k in seq_along(el)) {
+        from <- blocks[[src[k]]]
+        donor[blocks[[el[k]]]] <- from[sample.int(length(from))]
       }
     }
   }
+  donor
+}
 
-  # Apply block swaps for swapped blocks
-  out <- y
-  for (i in ord[swapped]) out[blocks[[i]]] <- values[[perm_ord[i]]]
-
-  # Element-wise shuffle for un-swapped blocks (no stratum constraint).
-  # Stratifying the fallback shuffle by the binary outcome would be identity
-  # (all zeros stay zeros, all ones stay ones), so we shuffle all unswapped
-  # positions together.  Under H0 labels are exchangeable, making this valid.
-  unswapped_pos <- unlist(blocks[!swapped], use.names = FALSE)
-  if (length(unswapped_pos) > 1L) {
-    out[unswapped_pos] <- sample(out[unswapped_pos])
+# Share of rows whose unit has at least one same-size partner (within its
+# stratum), i.e. rows whose labels the design permutation can move between
+# units. When it is small the null is close to the identity and conservative.
+.design_perm_coverage <- function(groups, strata = NULL) {
+  if (is.null(groups) || !length(groups)) return(1)
+  blocks <- split(seq_along(groups), factor(groups))
+  bstrata <- if (!is.null(strata)) {
+    vapply(blocks, function(ix) .majority_level(strata[ix]), character(1))
+  } else {
+    rep("all", length(blocks))
   }
+  cls <- paste(bstrata, lengths(blocks))
+  movable <- cls %in% cls[duplicated(cls)]
+  sum(lengths(blocks)[movable]) / length(groups)
+}
 
-  out
+.permute_subject_grouped <- function(y, subj, strata = NULL) {
+  y[.design_perm_donor(y, subj, strata)]
 }
 
 .permute_within_group <- function(y, group, strata = NULL) {
@@ -221,6 +222,18 @@
     }
   } else if (isTRUE(verbose)) {
     message("[permute_labels] Stratification disabled for outcome '", outcome, "'.")
+  }
+  # Refit nulls for batch/study designs permute labels within each batch or
+  # study; stratifying that by the outcome itself permutes within
+  # batch x outcome cells, which leaves every label in place (p = 1).
+  if (!is.null(strata_vec) && isTRUE(perm_refit) &&
+      mode %in% c("batch_blocked", "study_loocv")) {
+    .bio_warn(sprintf(paste0(
+      "perm_stratify is ignored for %s refit permutations: labels are permuted within ",
+      "each %s, and stratifying that by the outcome would leave every label in place."),
+      mode, if (identical(mode, "batch_blocked")) "batch" else "study"),
+      "bioLeak_input_warning")
+    strata_vec <- NULL
   }
   if (identical(mode, "time_series")) {
     time_col_use <- time_col

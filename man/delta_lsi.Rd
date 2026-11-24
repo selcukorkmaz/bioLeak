@@ -57,9 +57,11 @@ that a positive \code{delta_lsi} always indicates leakage inflation
 \item{block_size}{Ignored; retained for compatibility (a warning is issued
 when supplied).}
 
-\item{M_boot}{Ignored; retained for compatibility (no bootstrap is used).}
+\item{M_boot}{Ignored; retained for compatibility (no bootstrap is used).
+A warning is issued when it is supplied.}
 
-\item{M_flip}{Ignored; retained for compatibility (no sign-flip test is used).}
+\item{M_flip}{Ignored; retained for compatibility (no sign-flip test is used).
+A warning is issued when it is supplied.}
 
 \item{strict}{Logical. If \code{TRUE}, error on insufficient R_eff instead
 of a warning.}
@@ -68,7 +70,8 @@ of a warning.}
 \eqn{\Delta_r} vector, the paired fold deltas and the original fit objects
 in the \code{info} slot.}
 
-\item{seed}{Ignored; retained for compatibility (the method is deterministic).}
+\item{seed}{Ignored; retained for compatibility (the method is deterministic).
+A warning is issued when it is supplied.}
 
 \item{...}{Unused. Reserved for deprecated aliases such as
 \code{fit_naive}.}
@@ -90,8 +93,8 @@ A \code{\linkS4class{LeakDeltaLSI}} object. Use
     \item \code{\link{dlsi_p_value}(dlsi)} -- corrected repeated-CV
       t-test p-value.
     \item \code{\link{dlsi_tier}(dlsi)} -- inference-tier label
-      (\code{"A_full_inference"}, \code{"B_signflip_ci"},
-      \code{"C_signflip"}, or \code{"D_insufficient"}).
+      (\code{"A_ttest_ge20_folds"}, \code{"B_ttest_10_19_folds"},
+      \code{"C_ttest_3_9_folds"}, or \code{"D_insufficient"}).
     \item \code{\link{dlsi_R_eff}(dlsi)} -- effective number of
       independent units (folds per repeat).
     \item \code{\link{dlsi_repeats}(dlsi, which = "naive" | "guarded")}
@@ -152,12 +155,13 @@ independent units.
 }
 
 \subsection{Inference tiers}{
-Tier labels are kept from earlier versions for compatibility; every tier
-except D reports a p-value and both CIs.
+Tiers A-C all report the corrected t-test p-value and both CIs; they differ
+only in how many folds per repeat (independent test sets) back the test.
+Tier D reports the point estimate only.
 \describe{
-  \item{\code{"A_full_inference"}}{R_eff >= 20}
-  \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20}
-  \item{\code{"C_signflip"}}{3 <= R_eff < 10}
+  \item{\code{"A_ttest_ge20_folds"}}{R_eff >= 20}
+  \item{\code{"B_ttest_10_19_folds"}}{10 <= R_eff < 20}
+  \item{\code{"C_ttest_3_9_folds"}}{3 <= R_eff < 10}
   \item{\code{"D_insufficient"}}{R_eff < 3 or unpaired: point estimate only}
 }
 \code{inference_ok} is \code{TRUE} whenever a finite p-value and CI were

@@ -1335,7 +1335,7 @@ The overlap line remains flat at zero across all folds. This confirms that `subj
 `audit_leakage()` combines four diagnostics in one object:
 
 - permutation gap: tests whether model signal is non-random
-- batch or study association with folds (chi-square and Cramers V)
+- batch or study association: with the outcome (confounding) and with folds (how batches are spread)
 - target leakage scan: feature-wise outcome association to flag proxy columns
 - duplicate and near-duplicate detection across train/test (by default) using feature similarity
 
@@ -1402,7 +1402,7 @@ if (!is.null(pg) && nrow(pg) > 0) {
 }
 ba <- audit_batch_assoc(audit)
 if (!is.null(ba) && nrow(ba) > 0) {
-  # Batch/study association with folds (Cramer's V)
+  # Batch-outcome and fold-batch tests, and span_frac per batch column
   ba
 } else {
   cat("No batch or study associations detected.\n")
@@ -1469,9 +1469,13 @@ info$perm_folds_reason
 info$perm_gap_summaries
 ```
 
-The batch association table reports chi-square statistics and Cramer's V. Large
-p-values and small V values indicate that folds are not aligned with batch or
-study labels (which is the desired outcome when these should be independent).
+The batch association table has, per batch column, a batch-outcome test
+(`outcome_*` columns), a fold-batch test (`stat`, `pval`, `cramer_v`) that
+describes how batches are spread over folds, and `span_frac`, the share of
+test rows whose batch also occurs in training. Batch effects can inflate
+performance only when batch is associated with the outcome and batches are
+shared by training and test rows; a blocked design (`batch_blocked`,
+`study_loocv`) has `span_frac = 0` and a fold-batch V of 1 by construction.
 
 The target scan table lists features with the strongest associations with the
 outcome. For numeric features, the score is \(|\mathrm{AUC} - 0.5| \times 2\) for
@@ -1492,7 +1496,7 @@ classifies leakage evidence into four mechanism classes:
 | Mechanism class | Evidence slot | Flagging rule |
 |---|---|---|
 | `non_random_signal` | permutation gap | p ≤ 0.05 and gap > 0 |
-| `confounding_alignment` | batch association | p ≤ 0.05 and Cramér's V ≥ 0.1 |
+| `confounding_alignment` | batch association | batch-outcome Holm p ≤ 0.05, effect ≥ small (Cramér's V ≥ 0.1 or ε² ≥ 0.01), and `span_frac` > 0 |
 | `proxy_target_leakage` | target scan | any feature flagged (FDR or raw) |
 | `duplicate_overlap` | duplicates | any cross-fold duplicates present |
 | `temporal_lookahead` | duplicates | cross-fold duplicates in time-series splits |
@@ -1525,8 +1529,10 @@ The histogram shows the null distribution (gray bars) of the performance metric 
 
 The blue dashed line represents the average performance of a random model (the permuted mean). The red solid line represents the observed performance of the fitted model.
 
-A genuine signal is indicated when the red line lies well to the right of the
-gray distribution; overlap suggests weak or unstable signal.
+Non-random signal is indicated when the red line lies well to the right of the
+gray distribution; overlap suggests weak or unstable signal. The test cannot
+tell genuine signal from leakage, which also moves the red line to the right;
+the batch, target and duplicate checks address leakage.
 
 Use the mechanism risk assessment (`audit@info$mechanism_summary`) as a quick
 triage tool: flagged mechanisms point you to the specific audit slots that
@@ -1690,56 +1696,40 @@ requires numeric predictions and time metadata aligned to the fit.
 ## Cross-validation uncertainty with `cv_ci()`
 
 Standard cross-validation yields one metric value per fold. Because folds share
-training data, the per-fold values are positively correlated: the naive standard
-error `sd / sqrt(K)` systematically underestimates variability, making the
-resulting confidence intervals too narrow. `cv_ci()` addresses this with two
-approaches:
+training data, and repeats re-partition the same samples, the per-fold values
+are positively correlated: the naive standard error `sd / sqrt(K)`
+underestimates variability badly. `cv_ci()` offers two methods:
 
-- **`"normal"`** (default): uses the naive SEM `sd / sqrt(K)` with a
-  *t*-distribution on `K − 1` degrees of freedom. Fast and appropriate when
-  fold overlap is low (large datasets, many folds).
+- **`"nadeau_bengio"`** (default): the Nadeau–Bengio (2003) corrected variance
+  `(1/K + n_test / n_train) × var(x)`, with a *t* reference on
+  `folds per repeat − 1` degrees of freedom (repeats sharpen the estimate but
+  add no independent information). In a simulation of repeated 5-fold CV the
+  95% interval covered the true expected performance about 98% of the time.
 
-- **`"nadeau_bengio"`**: applies the Nadeau–Bengio (2003) variance correction
-  `(1/K + n_test / n_train) × var(x)`, explicitly accounting for the fraction of
-  training samples shared across folds. Recommended for small datasets or
-  few-fold CV where fold correlation is non-negligible.
+- **`"normal"`**: the naive `sd / sqrt(K)`. It ignores fold correlation and in
+  the same simulation covered only about 37% of the time; it is kept for
+  comparison.
 
-The function accepts any data frame with `fold` and `learner` columns — such as
-`fit@metrics` from a `LeakFit` object — and returns one row per learner with
-four columns per metric: `<metric>_mean`, `<metric>_sd`, `<metric>_ci_lo`, and
-`<metric>_ci_hi`.
+Pass the `LeakFit` itself: `cv_ci()` then reads the fold sizes and the number
+of folds per repeat from the fit. It returns one row per learner with four
+columns per metric: `<metric>_mean`, `<metric>_sd`, `<metric>_ci_lo`, and
+`<metric>_ci_hi`. A plain metrics data frame (such as `fit@metrics`) also
+works, with `n_train`, `n_test` and `folds_per_repeat` supplied by hand.
 
 ```{r cv-ci}
-# Standard 95% CI from the leakage-safe fit
-ci_std <- cv_ci(fit_safe@metrics, level = 0.95, method = "normal")
-cat("Standard 95% CI:\n")
-print(ci_std)
-
-# Nadeau-Bengio corrected CI
-# For K-fold CV: n_train ≈ (K-1)/K × n, n_test ≈ n/K
-K_folds  <- length(unique(fit_safe@metrics$fold))
-n_total  <- nrow(fit_safe@splits@info$coldata)
-
-ci_nb <- cv_ci(
-  fit_safe@metrics,
-  level   = 0.95,
-  method  = "nadeau_bengio",
-  n_train = round(n_total * (K_folds - 1L) / K_folds),
-  n_test  = round(n_total / K_folds)
-)
+# Corrected 95% CI (default), sizes and folds per repeat taken from the fit
+ci_nb <- cv_ci(fit_safe)
 cat("Nadeau-Bengio corrected 95% CI:\n")
 print(ci_nb)
+
+# Naive CI, for comparison only: too narrow for cross-validation
+ci_naive <- cv_ci(fit_safe@metrics, method = "normal")
+cat("Naive 95% CI (ignores fold correlation):\n")
+print(ci_naive)
 ```
 
-The Nadeau–Bengio interval is typically wider because it correctly inflates the
-variance to account for fold overlap. Use it whenever the training-set fraction
-shared between consecutive folds is large — for example, 5-fold CV reuses 80%
-of training data across fold pairs, so correcting for this correlation matters.
-
-When multiple learners were fit, `cv_ci()` returns one row per learner.
-For repeated K-fold CV, average `n_train` and `n_test` across folds before
-passing them in; `fit@metrics` already stores per-fold counts if `audit_leakage()`
-annotated the object.
+The corrected interval is wider because it accounts for the training data that
+folds share; with 5-fold CV, any two training sets share three-quarters of their rows.
 
 # Delta Leakage Sensitivity Index: Quantifying Performance Inflation
 
@@ -1945,10 +1935,7 @@ cat("Guarded AUC:", round(mean(fit_dlsi_guarded@metrics$auc, na.rm = TRUE), 3), 
 result_dlsi <- delta_lsi(
   fit_leaky   = fit_dlsi_naive,
   fit_guarded = fit_dlsi_guarded,
-  metric      = "auc",
-  M_boot      = 300L,
-  M_flip      = 300L,
-  seed        = 1L
+  metric      = "auc"
 )
 
 summary(result_dlsi)
@@ -1990,9 +1977,9 @@ estimate but do **not** add independent units or raise the tier:
 
 - **Tier D** (`D_insufficient`, point estimates only): fewer than 3 folds per
   repeat, or unpaired fits.
-- **Tier C** (`C_signflip`): 3-9 folds per repeat, e.g. 5-fold CV.
-- **Tier B** (`B_signflip_ci`): 10-19 folds per repeat, e.g. 10-fold CV.
-- **Tier A** (`A_full_inference`): 20 or more folds per repeat, e.g.
+- **Tier C** (`C_ttest_3_9_folds`): 3-9 folds per repeat, e.g. 5-fold CV.
+- **Tier B** (`B_ttest_10_19_folds`): 10-19 folds per repeat, e.g. 10-fold CV.
+- **Tier A** (`A_ttest_ge20_folds`): 20 or more folds per repeat, e.g.
   leave-one-study-out with 20+ studies.
 
 Tiers A-C all report a p-value and CIs; the tier labels are kept from earlier
@@ -2068,10 +2055,12 @@ section above. Its inferential properties in this context are:
   identical), the algorithm returns $\operatorname{median}(\boldsymbol{\Delta})$
   directly, which equals the common value.
 
-The `delta_lsi` and `delta_metric` estimates always have the same sign because
-the Huber estimator and the arithmetic mean agree on direction. They differ only
-in magnitude, and then only when one or more $\Delta_r$ are extreme relative to
-the bulk of the distribution.
+The `delta_lsi` and `delta_metric` estimates usually agree closely. They differ
+when one or more $\Delta_r$ are extreme relative to the bulk of the
+distribution: the Huber estimate down-weights those values, and a single large
+$\Delta_r$ can even give the two estimates opposite signs (for example
+$\Delta = (-0.02, -0.01, -0.03, -0.02, 0.5)$ has a positive mean but a negative
+Huber estimate).
 
 ### Pairing condition and the inference tier system
 
@@ -2090,9 +2079,9 @@ $R_{\text{eff}} = 0$ and all inference is disabled.
 | Tier | Folds per repeat ($R_{\text{eff}}$) | `@delta_metric` | `@delta_lsi` | `@p_value` | CIs | `@inference_ok` |
 |---|---|:---:|:---:|:---:|:---:|:---:|
 | `D_insufficient` | $< 3$, or unpaired | ✓ | ✓ | `NA` | `NA` | `FALSE` |
-| `C_signflip` | $3$-$9$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
-| `B_signflip_ci` | $10$-$19$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
-| `A_full_inference` | $\geq 20$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `C_ttest_3_9_folds` | $3$-$9$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `B_ttest_10_19_folds` | $10$-$19$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `A_ttest_ge20_folds` | $\geq 20$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
 
 The code below shows direct slot access to confirm that the numbers correspond
 exactly to the quantities defined above:
@@ -2115,8 +2104,10 @@ cat("p-value:       ",
 
 **Paired** (recommended): both fits are produced from the same `LeakSplits`
 object. The per-repeat inflation scores $\Delta_r$ are computed as within-repeat
-differences, eliminating between-fold variability. $R_{\text{eff}} = R$ and all
-inference tiers are reachable. Equal repeat counts with differing index patterns
+differences, eliminating between-fold variability. $R_{\text{eff}}$ is the number
+of folds per repeat (repeats re-partition the same data, so they sharpen the
+estimate without adding independent units), and all inference tiers are
+reachable. Equal repeat counts with differing index patterns
 produce a warning and fall back to unpaired mode automatically.
 
 **Unpaired**: the two fits have different fold structures or different repeat
@@ -2137,17 +2128,20 @@ splits_rand <- make_split_plan(
   repeats = 5L
 )
 
+# subject is not a split column here (folds are by row), so name it as an
+# identifier; otherwise its dummy columns would become predictors
 fit_naive_rand <- fit_resample(
   df_dlsi_naive,
   outcome = "outcome",
   splits  = splits_rand,
   learner = spec,
   metrics = "auc",
+  id_cols = "subject",
   seed    = 1L
 )
 
 r_unpaired <- suppressWarnings(
-  delta_lsi(fit_naive_rand, fit_dlsi_guarded, metric = "auc", seed = 1L)
+  delta_lsi(fit_naive_rand, fit_dlsi_guarded, metric = "auc")
 )
 
 cat(sprintf("Paired:        %s\n", r_unpaired@info$paired))
@@ -2174,14 +2168,12 @@ performance — indicating leakage):
 r_hib_true  <- suppressWarnings(delta_lsi(
   fit_dlsi_naive, fit_dlsi_guarded,
   metric           = "auc",
-  higher_is_better = TRUE,
-  seed             = 1L
+  higher_is_better = TRUE
 ))
 r_hib_false <- suppressWarnings(delta_lsi(
   fit_dlsi_naive, fit_dlsi_guarded,
   metric           = "auc",
-  higher_is_better = FALSE,
-  seed             = 1L
+  higher_is_better = FALSE
 ))
 
 cat(sprintf("hib = TRUE:   delta_metric = %+.4f  (positive = naive inflated)\n",
@@ -2206,7 +2198,7 @@ directly for programmatic downstream use:
 |------|------|-------------|
 | `@metric` | character | Metric name used (e.g. `"auc"`, `"rmse"`) |
 | `@exchangeability` | character | Exchangeability setting requested (`"iid"`, `"by_group"`, `"within_batch"`, `"blocked_time"`). Reported only: every setting uses the corrected repeated-CV t-test |
-| `@tier` | character | Inference tier: `"A_full_inference"`, `"B_signflip_ci"`, `"C_signflip"`, or `"D_insufficient"` |
+| `@tier` | character | Inference tier: `"A_ttest_ge20_folds"`, `"B_ttest_10_19_folds"`, `"C_ttest_3_9_folds"`, or `"D_insufficient"` |
 | `@R_eff` | integer | Effective independent units: folds per repeat (studies for `study_loocv`); 0 when unpaired |
 | `@delta_metric` | numeric | Arithmetic mean of per-repeat inflation scores $\bar{\Delta}$; interpret directly in metric units |
 | `@delta_lsi` | numeric | Huber M-estimate of per-repeat inflation scores; more robust than `delta_metric` when repeat-level outliers are present |

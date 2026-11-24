@@ -116,3 +116,41 @@ test_that("fit_resample accepts yardstick metric sets", {
                             metrics = ys, refit = FALSE)
   expect_true(all(c("accuracy", "roc_auc") %in% colnames(fit@metrics)))
 })
+
+test_that("rsample repeated designs map id to repeat and id2 to fold", {
+  skip_if_not_installed("rsample")
+  set.seed(1)
+  d <- data.frame(id = 1:60, x1 = rnorm(60), y = factor(rbinom(60, 1, 0.5)))
+  rs <- rsample::vfold_cv(d, v = 5, repeats = 3)
+  attr(rs, "bioLeak_perm_mode") <- "subject_grouped"
+  sp <- bioLeak:::.bio_as_leaksplits_from_rsample(rs, n = nrow(d))
+  rep_id <- vapply(sp@indices, function(f) f$repeat_id, integer(1))
+  fold <- vapply(sp@indices, function(f) f$fold, integer(1))
+  expect_equal(as.vector(table(rep_id)), c(5L, 5L, 5L))
+  expect_equal(fold[1:5], 1:5)
+  expect_equal(rep_id[[2]], 1L)
+})
+
+test_that("as_rsample() keeps repeats through a round trip", {
+  skip_if_not_installed("rsample")
+  skip_if_not_installed("tibble")
+  set.seed(1)
+  d <- data.frame(id = 1:60, x1 = rnorm(60), y = factor(rbinom(60, 1, 0.5)))
+  sp <- make_split_plan(d, outcome = "y", mode = "subject_grouped", group = "id", v = 5,
+                        repeats = 3, progress = FALSE)
+  rs <- as_rsample(sp, data = d)
+  expect_s3_class(rs, "rset")
+  expect_equal(unique(rs$id), paste0("Repeat", 1:3))
+  expect_equal(rs$id2[1:5], paste0("Fold", 1:5))
+  back <- bioLeak:::.bio_as_leaksplits_from_rsample(rs, n = nrow(d))
+  expect_equal(vapply(back@indices, function(f) f$repeat_id, integer(1)),
+               vapply(sp@indices, function(f) f$repeat_id, integer(1)))
+  expect_true(all(mapply(function(a, b) identical(sort(a$test), sort(b$test)),
+                         sp@indices, back@indices)))
+  # an older export with only repeated "FoldK" ids still recovers the repeats
+  legacy <- rsample::manual_rset(rs$splits, ids = rs$id2)
+  attr(legacy, "bioLeak_perm_mode") <- "subject_grouped"
+  b2 <- bioLeak:::.bio_as_leaksplits_from_rsample(legacy, n = nrow(d))
+  expect_equal(as.vector(table(vapply(b2@indices, function(f) f$repeat_id, integer(1)))),
+               c(5L, 5L, 5L))
+})

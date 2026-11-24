@@ -117,20 +117,35 @@ test_that("combined splits pass through to fit_resample successfully", {
 
 test_that("stratification works with combined mode", {
   set.seed(42)
+  # each subject lies in one batch: 4 batch components for v = 3 folds
   df <- data.frame(
     subject = rep(1:20, each = 3),
-    batch = rep(rep(c("A", "B", "C", "D"), each = 5), 3),
-    outcome = rep(c(0, 1), 30),
+    batch = rep(c("A", "B", "C", "D"), each = 15),
+    outcome = rep(rep(c(0, 1), 10), each = 3),
     x1 = rnorm(60),
     x2 = rnorm(60)
   )
-  splits <- suppressWarnings(make_split_plan(
+  splits <- make_split_plan(
     df, outcome = "outcome",
     mode = "combined",
     primary_axis = list(type = "subject", col = "subject"),
     secondary_axis = list(type = "batch", col = "batch"),
     v = 3, stratify = TRUE, progress = FALSE
-  ))
+  )
   expect_s4_class(splits, "LeakSplits")
   expect_gt(length(splits@indices), 0)
+  expect_true(splits@info$stratify)
+  for (f in splits@indices) {
+    expect_length(intersect(df$batch[f$train], df$batch[f$test]), 0L)
+    expect_length(intersect(df$subject[f$train], df$subject[f$test]), 0L)
+  }
+  # when batches link every subject into one component, combined splitting
+  # cannot keep both apart and says so
+  df2 <- df; df2$batch <- rep(rep(c("A", "B", "C", "D"), each = 5), 3)
+  expect_warning(
+    try(make_split_plan(df2, outcome = "outcome", mode = "combined",
+                        primary_axis = list(type = "subject", col = "subject"),
+                        secondary_axis = list(type = "batch", col = "batch"),
+                        v = 3, stratify = TRUE, progress = FALSE), silent = TRUE),
+    "constraint-linked component")
 })

@@ -40,7 +40,8 @@
 #' \code{study_group}, \code{site_group}, \code{region_group},
 #' \code{platform_group}, \code{assay_group}), stratification (\code{stratum}
 #' or \code{spec$stratum_var}), and ordering (\code{order_rank}) are forwarded
-#' automatically when relevant. When \code{use_block_constraints = TRUE},
+#' automatically when relevant; stratification is not requested for ordered
+#' specs, whose time-series folds are contiguous time blocks. When \code{use_block_constraints = TRUE},
 #' non-missing \code{spec$block_vars} on a grouped spec are enforced as
 #' secondary exclusion axes via \code{make_split_plan(mode = "combined")}.
 #'
@@ -52,10 +53,19 @@
 #' @param sample_id_col Name of the sample-id column in \code{data}
 #'   (default \code{"sample_id"}).
 #' @param v Number of CV folds to request from \code{make_split_plan()}.
-#' @param use_block_constraints Logical (default \code{FALSE}). When
-#'   \code{TRUE} and the spec uses a grouped mode with non-empty
-#'   \code{spec$block_vars}, converts \code{group_var} and \code{block_vars}
-#'   into multi-axis \code{constraints} in \code{make_split_plan(mode = "combined")}.
+#' @param use_block_constraints \code{FALSE} (default), \code{TRUE}, or a
+#'   character vector of block variable names. \code{spec$block_vars} lists
+#'   the blocking annotations available in the spec (batch_group, study_group,
+#'   ...), not axes the split already enforces. For a grouped spec,
+#'   \code{TRUE} enforces all of them and a character vector enforces the
+#'   named ones, as secondary exclusion axes in
+#'   \code{make_split_plan(mode = "combined")}: training rows sharing a level of
+#'   any enforced axis with the test rows are excluded. Enforcing many axes at
+#'   once can leave no training data (an error names the axes) or leave some
+#'   rows never tested (a warning reports how many). Names are checked against
+#'   the spec's usable block_vars for every spec. For
+#'   non-grouped specs (ordered, batch, study) the option does not apply and a
+#'   warning is issued.
 #' @param ... Additional arguments forwarded to \code{\link{make_split_plan}}
 #'   (e.g. \code{stratify}, \code{seed}, \code{horizon}, \code{purge}).
 #'
@@ -235,15 +245,50 @@ as_leaksplits <- function(spec, data, outcome,
       nzchar(stratum_col) && stratum_col %in% names(merged) &&
       !all(is.na(merged[[stratum_col]]))) {
     args$stratify_by <- stratum_col
-    if (!identical(stratum_col, outcome)) {
+    # Ordered specs give rolling-origin time-series folds, which are not
+    # stratified; pass stratify = TRUE through `...` to request it anyway.
+    if (!identical(stratum_col, outcome) && !identical(bl_mode, "time_series")) {
       args$stratify <- TRUE
     }
   }
 
-  # Optional multi-axis block constraints via mode = "combined"
-  if (isTRUE(use_block_constraints) && identical(bl_mode, "subject_grouped")) {
-    block_cols <- intersect(as.character(spec$block_vars), names(merged))
-    block_cols <- block_cols[vapply(block_cols, function(cn) !all(is.na(merged[[cn]])), logical(1))]
+  # Optional multi-axis block constraints via mode = "combined".
+  # spec$block_vars lists the blocking annotations available; enforcing all of
+  # them at once can be infeasible, so a subset can be named.
+  ubc_axes <- NULL
+  if (is.character(use_block_constraints)) {
+    ubc_axes <- unique(use_block_constraints)
+    ubc_on <- length(ubc_axes) > 0L
+  } else if (is.logical(use_block_constraints) && length(use_block_constraints) == 1L &&
+             !is.na(use_block_constraints)) {
+    ubc_on <- use_block_constraints
+  } else {
+    stop("`use_block_constraints` must be TRUE, FALSE, or a character vector of block_vars.",
+         call. = FALSE)
+  }
+  usable_bv <- intersect(as.character(spec$block_vars), names(merged))
+  usable_bv <- usable_bv[vapply(usable_bv, function(cn) !all(is.na(merged[[cn]])), logical(1))]
+  if (!is.null(ubc_axes)) {
+    unknown <- setdiff(ubc_axes, usable_bv)
+    if (length(unknown)) {
+      stop(sprintf("use_block_constraints: %s %s not among the spec's usable block_vars (available: %s).",
+                   paste(unknown, collapse = ", "), if (length(unknown) == 1L) "is" else "are",
+                   if (length(usable_bv)) paste(usable_bv, collapse = ", ") else "none"),
+           call. = FALSE)
+    }
+  }
+  if (ubc_on && !identical(bl_mode, "subject_grouped")) {
+    warning(sprintf(paste0(
+      "use_block_constraints is ignored: it applies to grouped specs only, and this spec ",
+      "maps to make_split_plan(mode = \"%s\")."), bl_mode), call. = FALSE)
+  }
+  block_cols <- character()
+  if (ubc_on && identical(bl_mode, "subject_grouped")) {
+    block_cols <- if (!is.null(ubc_axes)) ubc_axes else usable_bv
+    if (!length(block_cols)) {
+      warning("use_block_constraints = TRUE has no effect: the spec has no usable block_vars.",
+              call. = FALSE)
+    }
     if (length(block_cols) > 0L) {
       block_type_map <- c(
         batch_group    = "batch",
@@ -268,9 +313,80 @@ as_leaksplits <- function(spec, data, outcome,
   }
 
   user <- list(...)
+  if (length(block_cols) && any(c("mode", "constraints") %in% names(user))) {
+    warning(paste0(
+      "use_block_constraints: `mode` / `constraints` passed through `...` replace the ",
+      "block constraints it built; the block_vars are not enforced as such."), call. = FALSE)
+  }
   args[names(user)] <- user
+  ubc_applied <- length(block_cols) > 0L && identical(args$mode, "combined") &&
+    !"constraints" %in% names(user)
 
-  res <- do.call(make_split_plan, args)
+  res <- tryCatch(
+    do.call(make_split_plan, args),
+    bioLeak_split_error = function(e) {
+      # Only explain failures of the outer split this option built; a nested
+      # inner split or user-supplied constraints can fail for other reasons.
+      if (ubc_applied && !isTRUE(args$nested) &&
+          grepl("No valid folds generated", conditionMessage(e), fixed = TRUE)) {
+        .bio_stop(sprintf(paste0(
+          "use_block_constraints: excluding training rows that share a level of %s with the ",
+          "test rows left no usable folds (every fold's training set was emptied). %s"),
+          .ubc_axis_text(block_cols, merged), .ubc_advice(block_cols, merged, args$v %||% v)),
+          "bioLeak_split_error")
+      }
+      stop(e)
+    }
+  )
+  # Partial loss: constraints can leave fewer folds than requested, so part of
+  # the data is never tested. Say so instead of returning a degenerate CV.
+  if (ubc_applied) {
+    # folds possible without the block constraints: at most one per group
+    n_req <- min(args$v %||% v, n_groups) * (res@info$repeats %||% 1L)
+    n_got <- length(res@indices)
+    # test rows of every fold, explicit or compact
+    tested <- length(unique(unlist(lapply(seq_along(res@indices), function(i)
+      .dlsi_fold_test_idx(res, i)))))
+    if (tested < nrow(merged)) {   # rows never tested; fewer folds alone lose no data
+      warning(sprintf(paste0(
+        "use_block_constraints: only %d of %d requested folds have usable training data, and ",
+        "%d of %d rows are ever tested, after excluding training rows that share a level of %s ",
+        "with the test rows. %s"),
+        n_got, n_req, tested, nrow(merged), .ubc_axis_text(block_cols, merged),
+        .ubc_advice(block_cols, merged, args$v %||% v)), call. = FALSE)
+    }
+  }
   res@info$sample_id_col <- sample_id_col
   res
+}
+
+# "batch_group (6 levels), ..." counting real levels only (not NA fill-ins).
+.ubc_axis_text <- function(block_cols, merged) {
+  lv <- vapply(block_cols, function(cn) {
+    x <- as.character(merged[[cn]])
+    length(unique(x[!is.na(x) & !startsWith(x, "__unlinked_")]))
+  }, integer(1))
+  paste(sprintf("%s (%d levels)", block_cols, lv), collapse = ", ")
+}
+
+# Advice that never suggests the axis set that just failed.
+.ubc_advice <- function(block_cols, merged, v = NULL) {
+  real_lv <- vapply(block_cols, function(cn) {
+    x <- as.character(merged[[cn]])
+    length(unique(x[!is.na(x) & !startsWith(x, "__unlinked_")]))
+  }, integer(1))
+  fewer_v <- if (!is.null(v) && is.finite(v) && min(real_lv) < v && min(real_lv) >= 2L) {
+    sprintf(" Fewer folds may also work: %s has only %d levels, so try v <= %d.",
+            block_cols[which.min(real_lv)], min(real_lv), min(real_lv))
+  } else ""
+  base <- if (length(block_cols) > 1L) {
+    sprintf(paste0("Enforce fewer axes, e.g. use_block_constraints = \"%s\", or derive a ",
+                   "composite split_spec over the axes you need in splitGraph."),
+            block_cols[which.max(real_lv)])
+  } else {
+    paste0("This axis cannot be held out alongside the groups at this number of folds; use a ",
+           "split_spec whose grouping includes it (e.g. splitGraph mode = \"composite\") ",
+           "or drop use_block_constraints.")
+  }
+  paste0(base, fewer_v)
 }

@@ -1,7 +1,7 @@
 Package: bioLeak
 Type: Package
 Title: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data
-Version: 0.3.8
+Version: 0.4.0
 Authors@R: c(
     person("Selcuk", "Korkmaz", role = c("aut","cre"), email = "selcukorkmaz@gmail.com",
            comment = c(ORCID = "0000-0003-4632-6850"))
@@ -22,12 +22,12 @@ Imports:
     methods,
     stats,
     utils,
-    SummarizedExperiment,
     graphics,
     hardhat,
     parsnip
 Suggests:
     BiocParallel,
+    censored,
     splitGraph,
     cli,
     dials,
@@ -52,10 +52,12 @@ Suggests:
     yardstick,
     pROC,
     PRROC,
+    SummarizedExperiment,
     survival,
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    tibble
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3

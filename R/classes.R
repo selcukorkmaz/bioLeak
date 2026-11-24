@@ -136,7 +136,7 @@ LeakAudit <- function(...) methods::new("LeakAudit", ...)
 #' @section Plot method (LeakDeltaLSI): \code{plot(<LeakDeltaLSI>)}
 #'   dispatches to [plot_dlsi_repeats()], rendering the per-repeat
 #'   \eqn{\Delta_r} scatter with the Huber-robust point estimate, the
-#'   arithmetic mean, and the BCa bootstrap confidence interval band.
+#'   arithmetic mean, and the corrected-t confidence interval band.
 #' @seealso [delta_lsi()], [dlsi_metric()], [dlsi_ci()],
 #'   [plot_dlsi_repeats()]
 #' @exportClass LeakDeltaLSI

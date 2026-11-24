@@ -46,3 +46,20 @@ test_that("classification helper predicates behave as expected", {
   expect_true(bioLeak:::.bio_is_regression(c(1.1, 2.2, 3.3)))
   expect_false(bioLeak:::.bio_is_regression(factor(c("a", "b"))))
 })
+
+test_that("SE input without SummarizedExperiment installed gives a clear error (J10)", {
+  fake_se <- structure(list(), class = "SummarizedExperiment")
+  local_mocked_bindings(.bio_se_available = function() FALSE)
+  expect_error(.bio_is_se(fake_se), class = "bioLeak_dependency_error")
+  expect_error(.bio_get_x(fake_se), "BiocManager::install")
+  # non-SE inputs never need the package
+  expect_false(.bio_is_se(data.frame(a = 1)))
+  expect_false(.bio_is_se(matrix(1)))
+})
+
+test_that("SummarizedExperiment is not a hard dependency (J10)", {
+  desc <- read.dcf(system.file("DESCRIPTION", package = "bioLeak"))
+  imports <- if ("Imports" %in% colnames(desc)) desc[, "Imports"] else ""
+  expect_false(grepl("SummarizedExperiment", imports))
+  expect_true(grepl("SummarizedExperiment", desc[, "Suggests"]))
+})

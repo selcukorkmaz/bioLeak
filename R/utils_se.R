@@ -1,6 +1,22 @@
 # Utilities to work with SummarizedExperiment (SE) or plain matrices
 
-.bio_is_se <- function(x) inherits(x, "SummarizedExperiment")
+.bio_se_available <- function() {
+  requireNamespace("SummarizedExperiment", quietly = TRUE)
+}
+
+# TRUE for SummarizedExperiment input. SummarizedExperiment is in Suggests,
+# so every SE code path goes through here and fails with an install hint
+# when the package is missing.
+.bio_is_se <- function(x) {
+  if (!inherits(x, "SummarizedExperiment")) return(FALSE)
+  if (!.bio_se_available()) {
+    .bio_stop(paste0(
+      "SummarizedExperiment input requires the Bioconductor package ",
+      "'SummarizedExperiment': BiocManager::install(\"SummarizedExperiment\")."
+    ), class = "bioLeak_dependency_error")
+  }
+  TRUE
+}
 
 .bio_coldata_df <- function(x) {
   cd <- if (.bio_is_se(x)) SummarizedExperiment::colData(x) else x

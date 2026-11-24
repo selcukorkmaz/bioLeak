@@ -42,7 +42,7 @@ strict, composite min_cut, subject + time ordering), every fold produced by
 - with `use_block_constraints = TRUE`: no `block_vars` level in both;
 - when `ordering_required`: `max(train order) < min(test order)`;
 - `stratum_var` forwarded (`splits@info$stratify_by`);
-- training fraction not degenerate (WARN below 40% of the available data).
+- training fraction not degenerate (WARN when the mean over folds is below 30%; rolling-origin folds start small by design).
 
 ## Rounds
 

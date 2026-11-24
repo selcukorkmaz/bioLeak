@@ -7,24 +7,42 @@
 cv_ci(
   metrics_df,
   level = 0.95,
-  method = c("normal", "nadeau_bengio"),
+  method = c("nadeau_bengio", "normal"),
   n_train = NULL,
-  n_test = NULL
+  n_test = NULL,
+  folds_per_repeat = NULL
 )
 }
 \arguments{
-\item{metrics_df}{Data.frame with columns \code{fold}, \code{learner}, and
-one or more numeric metric columns.}
+\item{metrics_df}{A \code{\linkS4class{LeakFit}} or a \code{LeakTune}
+(recommended: fold sizes, folds per repeat and repeated test sets are then
+taken from the object's splits), or a data.frame with columns \code{fold},
+\code{learner}, and one or more numeric metric columns, such as
+\code{fit@metrics}. An optional character column \code{test_set}
+identifies each fold's test set: folds sharing a test set (repeats that
+re-use the same partition) are averaged and counted once.}
 
 \item{level}{Confidence level (default 0.95).}
 
-\item{method}{One of \code{"normal"} or \code{"nadeau_bengio"}.}
+\item{method}{\code{"nadeau_bengio"} (default) or \code{"normal"}.
+\code{"normal"} treats folds as independent and is far too narrow for
+cross-validation (about 37\% coverage of a nominal 95\% interval for
+repeated 5-fold CV in simulation); it is kept for comparison.}
 
 \item{n_train}{Average number of training samples per fold. Used only when
 \code{method = "nadeau_bengio"}. NULL to use fallback variance.}
 
 \item{n_test}{Average number of test samples per fold. Used only when
-\code{method = "nadeau_bengio"}. NULL to use fallback variance.}
+\code{method = "nadeau_bengio"}. Without \code{n_train} and
+\code{n_test} the correction cannot be applied: a warning is issued and
+the uncorrected variance \code{var / K} is used.}
+
+\item{folds_per_repeat}{Number of folds in one CV repeat (e.g. 5 for
+5-fold CV repeated 10 times). Used only when
+\code{method = "nadeau_bengio"} to set the degrees of freedom. The
+resulting intervals are slightly conservative in simulation (about 98\%
+coverage at the 95\% level for repeated 5-fold CV). Intervals are not
+clipped to a metric's range (e.g. an AUC bound can exceed 1).}
 }
 \value{
 A data.frame with \code{learner} and, for each metric, columns
@@ -35,4 +53,15 @@ A data.frame with \code{learner} and, for each metric, columns
 Computes per-learner confidence intervals for each metric column in a
 per-fold metrics data.frame. Supports the standard normal/t approach and the
 Nadeau-Bengio (2003) corrected variance for repeated K-fold CV.
+}
+\details{
+Fold metrics from cross-validation are correlated: training sets overlap,
+and repeats re-partition the same data. \code{"normal"} ignores this
+(\code{sd / sqrt(K)} over all folds) and is too narrow for repeated CV.
+\code{"nadeau_bengio"} inflates the variance to
+\code{(1/K + n_test/n_train) * var} and uses a t reference on
+\code{folds_per_repeat - 1} degrees of freedom (calibrated degrees of
+freedom, Bouckaert 2003): repeats sharpen the estimate but add no
+independent information. Without \code{folds_per_repeat} all folds are
+treated as one repeat.
 }

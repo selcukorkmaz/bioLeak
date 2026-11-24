@@ -28,10 +28,19 @@ column.}
 
 \item{v}{Number of CV folds to request from \code{make_split_plan()}.}
 
-\item{use_block_constraints}{Logical (default \code{FALSE}). When
-\code{TRUE} and the spec uses a grouped mode with non-empty
-\code{spec$block_vars}, converts \code{group_var} and \code{block_vars}
-into multi-axis \code{constraints} in \code{make_split_plan(mode = "combined")}.}
+\item{use_block_constraints}{\code{FALSE} (default), \code{TRUE}, or a
+character vector of block variable names. \code{spec$block_vars} lists
+the blocking annotations available in the spec (batch_group, study_group,
+...), not axes the split already enforces. For a grouped spec,
+\code{TRUE} enforces all of them and a character vector enforces the
+named ones, as secondary exclusion axes in
+\code{make_split_plan(mode = "combined")}: training rows sharing a level of
+any enforced axis with the test rows are excluded. Enforcing many axes at
+once can leave no training data (an error names the axes) or leave some
+rows never tested (a warning reports how many). Names are checked against
+the spec's usable block_vars for every spec. For
+non-grouped specs (ordered, batch, study) the option does not apply and a
+warning is issued.}
 
 \item{...}{Additional arguments forwarded to \code{\link{make_split_plan}}
 (e.g. \code{stratify}, \code{seed}, \code{horizon}, \code{purge}).}
@@ -74,7 +83,8 @@ Blocking variables declared on the spec (\code{batch_group},
 \code{study_group}, \code{site_group}, \code{region_group},
 \code{platform_group}, \code{assay_group}), stratification (\code{stratum}
 or \code{spec$stratum_var}), and ordering (\code{order_rank}) are forwarded
-automatically when relevant. When \code{use_block_constraints = TRUE},
+automatically when relevant; stratification is not requested for ordered
+specs, whose time-series folds are contiguous time blocks. When \code{use_block_constraints = TRUE},
 non-missing \code{spec$block_vars} on a grouped spec are enforced as
 secondary exclusion axes via \code{make_split_plan(mode = "combined")}.
 }

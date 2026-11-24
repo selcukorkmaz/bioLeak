@@ -80,7 +80,10 @@
   if (!inherits(truth, "Surv")) return(NA_real_)
   if (!requireNamespace("survival", quietly = TRUE)) return(NA_real_)
   df <- data.frame(pred = as.numeric(pred))
-  concord <- try(survival::concordance(truth ~ pred, data = df), silent = TRUE)
+  # Survival predictions are risk scores (higher = higher hazard, shorter
+  # survival); survival::concordance() assumes higher = longer survival, so
+  # the comparison is reversed.
+  concord <- try(survival::concordance(truth ~ pred, data = df, reverse = TRUE), silent = TRUE)
   if (inherits(concord, "try-error")) return(NA_real_)
   as.numeric(concord$concordance)
 }

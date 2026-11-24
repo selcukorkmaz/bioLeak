@@ -19,6 +19,7 @@ make_split_plan(
   repeats = 1,
   stratify = FALSE,
   stratify_by = NULL,
+  stratify_method = c("groups", "rows"),
   nested = FALSE,
   seed = 1,
   horizon = 0,
@@ -38,15 +39,28 @@ metadata are taken from x (columns referenced by \code{group}, \code{batch}, \co
 
 \item{mode}{one of "subject_grouped","batch_blocked","study_loocv","time_series","combined".}
 
-\item{group}{subject/group id column (for subject_grouped). Required when
-mode is `subject_grouped`; use `group = "row_id"` to explicitly request
-sample-wise CV.}
+\item{group}{subject/group id column. Required when mode is
+`subject_grouped` (use `group = "row_id"` to explicitly request sample-wise
+CV). With `mode = "time_series"` it makes the folds group-disjoint: no
+group appears in both the training and test rows of a fold. When regular
+rolling-origin folds lose time blocks (typically because groups recur
+across the time range), a panel fallback (each fold tests its groups' rows
+after the earliest timepoint and trains on other groups' earlier rows) is
+built too, and the plan with the larger sum over folds of (test rows x
+training rows) is used, so a plan that tests more rows but trains on very
+few does not win. A warning reports the lost blocks and their reasons; when
+the fallback is used, it also gives the fallback's coverage and training
+share.}
 
 \item{batch}{batch/plate/center column (for batch_blocked).}
 
 \item{study}{study id column (for study_loocv).}
 
-\item{time}{time column (numeric or POSIXct) for time_series.}
+\item{time}{time column (numeric, Date or POSIXct) for time_series. Rows
+are split into \code{v} contiguous blocks in time order; block 1 is never
+tested (nothing earlier to train on). A later block whose training set
+comes out empty is dropped with a warning giving the reason (tied times,
+group separation, or horizon/purge/embargo) and the number of rows tested.}
 
 \item{primary_axis}{List with elements \code{type} (one of \code{"subject"},
 \code{"batch"}, \code{"study"}) and \code{col} (column name). Used only
@@ -61,8 +75,10 @@ test set. Deprecated in favor of \code{constraints}; still supported for
 backward compatibility.}
 
 \item{constraints}{A list of constraint specifications for \code{mode = "combined"}.
-Each element is a list with \code{type} (one of \code{"subject"}, \code{"batch"},
-\code{"study"}) and \code{col} (column name). The first element defines the
+Each element is a list with \code{type} (one of \code{"subject"},
+\code{"batch"}, \code{"study"}, \code{"site"}, \code{"region"},
+\code{"platform"}, \code{"assay"}, \code{"relatedness"},
+\code{"spatial"}, \code{"group"}) and \code{col} (column name). The first element defines the
 primary grouping axis (fold driver); subsequent elements define exclusion
 constraints (training samples sharing constraint-axis levels with the test
 set are removed). Requires at least 2 elements. Cannot be used together with
@@ -73,12 +89,34 @@ set are removed). Requires at least 2 elements. Cannot be used together with
 \item{repeats}{integer, number of repeats (>=1) for non-LOOCV modes.}
 
 \item{stratify}{logical, keep outcome (or \code{stratify_by}) proportions
-similar across folds. For grouped modes, stratification is applied at the
-group level (by majority class per group) if \code{outcome} or
-\code{stratify_by} is provided; otherwise ignored.}
+similar across folds. Groups are never split; how they are assigned is
+set by \code{stratify_method}.
+For \code{mode = "time_series"}, rolling-origin folds are contiguous
+time blocks and are never stratified (a warning says so); only the
+grouped panel fallback stratifies its groups. \code{splits@info$stratify}
+is \code{TRUE} only when stratification was applied.}
 
 \item{stratify_by}{optional character column name in metadata to stratify on
 instead of \code{outcome} when \code{stratify = TRUE}.}
+
+\item{stratify_method}{how grouped modes stratify when
+\code{stratify = TRUE}.
+\code{"groups"} (default) labels each group with its majority class and
+deals the groups of each class to folds round-robin in random order:
+folds get almost equal numbers of groups and each class's groups are
+spread evenly, but rows are not counted, so with unequal group sizes or
+mixed-outcome groups the per-fold class proportions in rows can be
+poorly balanced.
+\code{"rows"} balances rows: groups are shuffled, ordered largest first,
+and each is placed in the fold that keeps every class's share of rows
+most even across folds (the smallest mean standard deviation over
+classes; ties go to the fold with fewer rows), using the group's row
+count in each class. This is the approach of scikit-learn's
+\code{StratifiedGroupKFold}; it gives closer class proportions and fold
+sizes in rows, while the number of groups per fold may differ more.
+Applies to \code{subject_grouped}, \code{batch_blocked},
+\code{combined} (constraint-linked components are the units) and the
+grouped fallback of \code{time_series}.}
 
 \item{nested}{logical, whether to attach inner CV splits (per outer fold)
 using the same \code{mode} on the outer training set (with \code{v} folds, 1 repeat).}
@@ -119,7 +157,7 @@ A \code{\linkS4class{LeakSplits}} S4 object containing:
     \item{\code{info}}{List of metadata including \code{outcome}, \code{v},
       \code{repeats}, \code{seed}, grouping columns (\code{group},
       \code{batch}, \code{study}, \code{time}), \code{stratify},
-      \code{nested}, \code{horizon}, \code{purge}, \code{embargo},
+      \code{stratify_method} (when stratified), \code{nested}, \code{horizon}, \code{purge}, \code{embargo},
       \code{summary} (data.frame of fold
       sizes), \code{hash} (reproducibility checksum), \code{inner}
       (nested inner splits if \code{nested = TRUE}), and \code{coldata}

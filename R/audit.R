@@ -55,6 +55,193 @@
        pval = unname(cs$p.value), cramer_v = as.numeric(v))
 }
 
+# Expected number of near-duplicate pairs under a no-duplicate null (JSS
+# review, L3.4). Null rows come from a Gaussian copula fitted to the data:
+# each column is turned into normal scores, rows with the scores' covariance
+# are drawn (rows of G %*% Z / sqrt(n - 1), G standard normal), and each
+# column is mapped back through the data's empirical quantiles (interpolated
+# for columns without ties; observed values for columns with ties, so chance
+# ties are kept). Null rows share the features' marginal distributions and
+# rank dependence, but no row copies another. They pass through the same
+# feature-space transform and rule as the data. With m = min(n, 1000) null
+# rows, the chance rate per pair is scaled to the pairs in scope: all pairs,
+# or the train/test pairs of the split (fraction from 20000 random pairs).
+# RNG state is restored.
+.dup_null_expected <- function(X_cent, to_space, find_candidates, cross_fold_fn,
+                               scope, reps, seed) {
+  n <- nrow(X_cent)
+  m <- min(n, 1000L)
+  old_seed <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+  on.exit(if (is.null(old_seed)) {
+    if (exists(".Random.seed", envir = globalenv())) rm(".Random.seed", envir = globalenv())
+  } else assign(".Random.seed", old_seed, envir = globalenv()), add = TRUE)
+  set.seed(seed + 7919L)
+  Z <- apply(X_cent, 2, function(x) stats::qnorm(rank(x, ties.method = "average") / (n + 1)))
+  Z <- sweep(Z, 2, colMeans(Z), "-")
+  z_sd <- apply(Z, 2, stats::sd)
+  z_sd[!is.finite(z_sd) | z_sd == 0] <- 1
+  tied <- apply(X_cent, 2, anyDuplicated) > 0
+  X_sorted <- apply(X_cent, 2, sort)
+  # empirical quantiles of every column at once: type 7 (interpolated) for
+  # columns without ties, type 1 (observed values) for columns with ties;
+  # same values as stats::quantile(), without a loop over columns
+  to_margins <- function(Z0) {
+    U <- stats::pnorm(sweep(Z0, 2, z_sd, "/"))
+    cols <- rep(seq_len(ncol(U)), each = nrow(U))
+    h <- (n - 1) * U + 1
+    lo <- pmin(floor(h), n)
+    hi <- pmin(lo + 1, n)
+    v7 <- X_sorted[cbind(as.vector(lo), cols)] +
+      (as.vector(h) - as.vector(lo)) *
+      (X_sorted[cbind(as.vector(hi), cols)] - X_sorted[cbind(as.vector(lo), cols)])
+    j1 <- pmax(1, ceiling(n * U - 1e-9))
+    v1 <- X_sorted[cbind(as.vector(j1), cols)]
+    out <- ifelse(rep(tied, each = nrow(U)), v1, v7)
+    matrix(out, nrow(U), ncol(U))
+  }
+  counts <- vapply(seq_len(reps), function(r) {
+    G <- matrix(stats::rnorm(m * n), m, n)
+    X0 <- to_margins((G %*% Z) / sqrt(n - 1))
+    cp <- find_candidates(to_space(X0))
+    if (is.null(cp)) 0 else nrow(cp)
+  }, numeric(1))
+  frac <- 1
+  if (identical(scope, "train_test")) {
+    n_s <- 20000L
+    si <- sample.int(n, n_s, replace = TRUE)
+    sj <- sample.int(n, n_s, replace = TRUE)
+    ok <- si != sj
+    cf <- cross_fold_fn(data.frame(i = pmin(si[ok], sj[ok]), j = pmax(si[ok], sj[ok])))
+    frac <- if (length(cf) && !all(is.na(cf))) mean(cf %in% TRUE) else NA_real_
+  }
+  rate <- mean(counts) / (m * (m - 1) / 2)
+  data.frame(scope = scope, observed = NA_integer_,
+             expected = rate * frac * n * (n - 1) / 2, enrichment = NA_real_,
+             null_rows = m, reps = reps, stringsAsFactors = FALSE)
+}
+
+# Batch x outcome association (JSS review, L1.2). Classification outcomes:
+# chi-square test of the batch x class table, effect size Cramer's V.
+# Regression: Kruskal-Wallis test of the outcome across batches, effect size
+# epsilon^2 = H / (n - 1). Survival outcomes are not tested (NA).
+# `outcome_effect_min` is the "small effect" bound used by the
+# confounding_alignment rule (V >= 0.1, epsilon^2 >= 0.01).
+# Rows of one subject are not independent (CLAUDE.md section 3; testing rows
+# gave a 68-74% false-alarm rate with repeated rows per subject). The test
+# runs on the plan's own independent units (`unit`): each unit counts once,
+# with its most frequent batch and its majority class (or mean outcome)
+# ("units"). This is valid whenever the plan's units are independent, which
+# the split itself assumes. When batch varies within units, within-unit
+# association is not tested (a within-unit permutation assumed exchangeable
+# rows and gave false alarms with time-ordered visits); the row-level effect
+# size is reported as `within_unit_effect`. Without `unit`, rows are the
+# units ("rows"), or the test is skipped when `dependent_rows` ("not_tested":
+# time-series rows without a group are autocorrelated). See the L1.2
+# contract in dev/jss-revision/TRACKER.md.
+.batch_outcome_assoc <- function(batch, y, task, unit = NULL, dependent_rows = FALSE,
+                                 seed = 1L) {
+  na_row <- data.frame(outcome_test = NA_character_, outcome_stat = NA_real_,
+                       outcome_df = NA_real_, outcome_pval = NA_real_,
+                       outcome_effect = NA_real_, outcome_effect_min = NA_real_,
+                       outcome_n = NA_integer_, outcome_method = NA_character_,
+                       within_unit_effect = NA_real_, stringsAsFactors = FALSE)
+  if (identical(task, "survival") || inherits(y, "Surv")) {
+    na_row$outcome_method <- "not_tested_survival"
+    return(na_row)
+  }
+  if (is.null(batch) || is.null(y) || length(batch) != length(y)) {
+    return(na_row)
+  }
+  has_unit <- !is.null(unit) && length(unit) == length(y)
+  if (!has_unit && isTRUE(dependent_rows)) {
+    na_row$outcome_method <- "not_tested"
+    return(na_row)
+  }
+  regression <- identical(task, "gaussian") ||
+    (is.numeric(y) && !identical(task, "binomial") && !identical(task, "multiclass"))
+  test_of <- function(b, yy) {
+    b <- as.factor(as.character(b))
+    if (nlevels(b) < 2L || length(unique(yy)) < 2L) return(NULL)
+    if (regression) {
+      kw <- suppressWarnings(stats::kruskal.test(as.numeric(yy), b))
+      h <- unname(kw$statistic)
+      return(list(test = "kruskal", stat = h, df = unname(kw$parameter),
+                  p = unname(kw$p.value), effect = h / (length(yy) - 1), effect_min = 0.01))
+    }
+    cs <- .chisq_assoc(table(b, as.factor(as.character(yy))))
+    if (!is.finite(cs$pval)) return(NULL)
+    list(test = "chisq", stat = cs$stat, df = cs$df, p = cs$pval,
+         effect = cs$cramer_v, effect_min = 0.1)
+  }
+  ok <- !is.na(batch) & !is.na(y)
+  if (has_unit) ok <- ok & !is.na(unit)
+  b_ok <- as.character(batch[ok])
+  y_ok <- y[ok]
+  method <- "rows"
+  within <- NA_real_
+  if (has_unit) {
+    method <- "units"
+    u <- as.character(unit[ok])
+    if (any(tapply(b_ok, u, function(v) length(unique(v))) > 1L)) {
+      r_row <- test_of(b_ok, y_ok)
+      within <- if (is.null(r_row)) NA_real_ else r_row$effect
+    }
+    # most frequent value; ties broken at random, separately for batch and
+    # class (a fixed tie rule tied both to unit size and gave a 0.25 null
+    # rejection rate with 1-2 samples per subject). RNG state is restored.
+    old_seed <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (is.null(old_seed)) {
+      if (exists(".Random.seed", envir = globalenv())) rm(".Random.seed", envir = globalenv())
+    } else assign(".Random.seed", old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+    mode_of <- function(v) {
+      tv <- table(as.character(v))
+      top <- names(tv)[tv == max(tv)]
+      if (length(top) == 1L) top else top[sample.int(length(top), 1L)]
+    }
+    b_ok <- vapply(split(b_ok, u), mode_of, character(1))
+    y_ok <- if (regression) {
+      vapply(split(as.numeric(y_ok), u), mean, numeric(1))
+    } else {
+      vapply(split(y_ok, u), mode_of, character(1))
+    }
+  }
+  r <- test_of(b_ok, y_ok)
+  if (is.null(r)) {
+    na_row$outcome_test <- if (regression) "kruskal" else "chisq"
+    na_row$outcome_method <- method
+    na_row$outcome_n <- length(y_ok)
+    na_row$within_unit_effect <- within
+    return(na_row)
+  }
+  data.frame(outcome_test = r$test, outcome_stat = r$stat, outcome_df = r$df,
+             outcome_pval = r$p, outcome_effect = r$effect,
+             outcome_effect_min = r$effect_min, outcome_n = length(y_ok),
+             outcome_method = method, within_unit_effect = within,
+             stringsAsFactors = FALSE)
+}
+
+# Share of test rows, per repeat, whose batch level also occurs among that
+# fold's training rows (JSS review, L1.3: condition (ii) for confounding).
+# `batch_row` holds the batch of every split row; NULL when unknown.
+.batch_span <- function(folds, batch_row, resolve_test, resolve_train) {
+  if (is.null(batch_row) || !length(folds)) return(NULL)
+  rows <- lapply(folds, function(z) {
+    te <- resolve_test(z)
+    tr <- resolve_train(z, te)
+    bt <- batch_row[te]
+    bt <- bt[!is.na(bt)]
+    btr <- unique(batch_row[tr])
+    btr <- btr[!is.na(btr)]
+    c(repeat_id = as.integer(z$repeat_id %||% 1L), n_test = length(bt),
+      n_span = sum(bt %in% btr))
+  })
+  m <- do.call(rbind, rows)
+  agg <- stats::aggregate(cbind(n_test, n_span) ~ repeat_id, data = as.data.frame(m), FUN = sum)
+  agg$span_frac <- ifelse(agg$n_test > 0, agg$n_span / agg$n_test, NA_real_)
+  agg
+}
+
 # Oriented rank AUC for a 0/1 outcome (1 = positive class); delegates to the
 # shared .auc_binary() so the target scans use the same orientation as the
 # performance metric.
@@ -81,6 +268,31 @@
   2 * stats::pt(-abs(tval), df = n - 2)
 }
 
+# Column whose units the permutation nulls keep together: the subject/group
+# axis of subject_grouped plans, of combined plans (their primary axis) and of
+# time_series plans with a group.
+.audit_unit_group_col <- function(info, mode) {
+  col <- switch(mode %||% "",
+    subject_grouped = info$group,
+    combined = info$group %||% info$primary_axis$col,
+    time_series = info$group,
+    NULL)
+  if (is.null(col) || !length(col) || is.na(col[[1]]) || !nzchar(col[[1]])) NULL else col[[1]]
+}
+
+# Independent unit of a plan for the batch-outcome test (L1.2 contract): the
+# recorded group in any mode; for combined plans a constraint axis of type
+# "subject" before the primary axis; otherwise the design's unit column.
+.audit_independent_unit_col <- function(info, mode) {
+  ok_col <- function(col) !is.null(col) && length(col) && !is.na(col[[1]]) && nzchar(col[[1]])
+  if (ok_col(info$group)) return(info$group[[1]])
+  axes <- info$constraints %||% list()
+  for (ax in axes) {
+    if (identical(ax$type, "subject") && ok_col(ax$col)) return(ax$col[[1]])
+  }
+  .audit_unit_group_col(info, mode)
+}
+
 .bio_leakage_taxonomy <- function() {
   data.frame(
     mechanism_class = c(
@@ -99,14 +311,14 @@
     ),
     primary_statistics = c(
       "gap,p_value",
-      "pval,cramer_v",
+      "outcome_pval_adj,outcome_effect,span_frac",
       "score,p_value,p_value_adj",
       "similarity,cross_fold",
       "cross_fold,time-aware split"
     ),
     description = c(
       "Model signal exceeds permutation null.",
-      "Fold assignments align with batch/study metadata.",
+      "Batch/study is associated with the outcome and shared by training and test rows.",
       "Predictor-outcome association indicates potential target proxy leakage.",
       "Near-duplicate samples bridge train/test partitions.",
       "Similarity links violate temporal ordering constraints."
@@ -129,18 +341,25 @@
     stringsAsFactors = FALSE
   )
 
-  # One chi-square test is run per batch column and repeat. Taking the raw
-  # minimum p over those rows inflates the false-positive rate, so the rule
-  # uses Holm-adjusted p-values across all rows (family-wise error <= 0.05).
+  # Confounding needs both conditions (JSS review, L1.3): (i) batch is
+  # associated with the outcome (Holm-adjusted p <= 0.05 across batch
+  # columns, with at least a small effect: Cramer's V >= 0.1 or
+  # epsilon^2 >= 0.01) and (ii) the batch spans train and test (some test row
+  # shares its batch with that fold's training rows). Blocked designs
+  # (leave-batch-out, leave-study-out) fail (ii) and are never flagged. The
+  # fold x batch table does not enter the rule.
   batch_p <- NA_real_
   batch_v <- NA_real_
   batch_flag <- FALSE
-  if (!is.null(batch_df) && nrow(batch_df) && "pval" %in% names(batch_df)) {
-    p_adj <- if ("pval_adj" %in% names(batch_df)) batch_df$pval_adj else .holm_adjust(batch_df$pval)
-    v_all <- if ("cramer_v" %in% names(batch_df)) batch_df$cramer_v else rep(NA_real_, nrow(batch_df))
+  if (!is.null(batch_df) && nrow(batch_df) &&
+      all(c("outcome_pval_adj", "outcome_effect", "span_frac") %in% names(batch_df))) {
+    spans <- is.finite(batch_df$span_frac) & batch_df$span_frac > 0
+    p_adj <- ifelse(spans, batch_df$outcome_pval_adj, NA_real_)
+    eff <- ifelse(spans, batch_df$outcome_effect, NA_real_)
+    eff_min <- batch_df$outcome_effect_min %||% rep(0.1, nrow(batch_df))
     batch_p <- suppressWarnings(min(p_adj, na.rm = TRUE))
-    batch_v <- suppressWarnings(max(v_all, na.rm = TRUE))
-    batch_flag <- any(is.finite(p_adj) & p_adj <= 0.05 & is.finite(v_all) & v_all >= 0.1)
+    batch_v <- suppressWarnings(max(eff, na.rm = TRUE))
+    batch_flag <- any(is.finite(p_adj) & p_adj <= 0.05 & is.finite(eff) & eff >= eff_min)
   }
   if (!is.finite(batch_p)) batch_p <- NA_real_
   if (!is.finite(batch_v)) batch_v <- NA_real_
@@ -748,7 +967,11 @@
 #'   available). If FALSE, no stratification is used. Defaults to FALSE.
 #'   Stratification only applies when `coldata` supplies the outcome. It has no
 #'   effect on fixed-prediction permutations (`perm_refit = FALSE`), which
-#'   always use a global label shuffle; a warning is raised if it is set there.
+#'   shuffle labels across the whole dataset (see `perm_mode`); a warning is
+#'   raised if it is set there.
+#'   It is also ignored, with a warning, for \code{batch_blocked} and
+#'   \code{study_loocv} refit nulls, which permute within each batch or study:
+#'   stratifying those by the outcome would leave every label in place.
 #' @param perm_refit Logical scalar or `"auto"`. If FALSE, permutations keep
 #'   predictions fixed and shuffle labels (association test). If TRUE, each
 #'   permutation refits the model on permuted outcomes using `perm_refit_spec`.
@@ -756,7 +979,9 @@
 #'   distribution. The default is `"auto"`, which refits only when
 #'   `perm_refit_spec` is provided and `B` is less than or equal to
 #'   `perm_refit_auto_max`; otherwise it falls back to fixed-prediction
-#'   permutations.
+#'   permutations. A refit costs `B` x (number of folds) model fits; a
+#'   message reports this number when `"auto"` refits and says when it
+#'   falls back.
 #' @param perm_refit_auto_max Integer scalar. Maximum `B` allowed for
 #'   `perm_refit = "auto"` to trigger refitting. Defaults to 200.
 #' @param perm_refit_spec List of inputs used when `perm_refit = TRUE`.
@@ -770,8 +995,17 @@
 #'   used for restricted shuffles. One of `"subject_grouped"`, `"batch_blocked"`,
 #'   `"study_loocv"`, or `"time_series"`. Defaults to the split metadata when
 #'   available (including rsample-derived modes). Restricted shuffles are used
-#'   by refit-based permutations and by the multivariate target scan; the
-#'   fixed-prediction permutation gap always uses a global label shuffle.
+#'   by refit-based permutations and by the multivariate target scan. The
+#'   fixed-prediction permutation gap shuffles labels across the whole dataset
+#'   at the level of samples (all copies of a sample from repeated CV share one
+#'   label); for `"subject_grouped"` (and `"combined"` with a group axis) whole
+#'   subjects swap label vectors with subjects of the same size, and a subject
+#'   with no same-size partner is shuffled within itself, which keeps the
+#'   class balance exact (a warning says when few subjects can be exchanged);
+#'   for `"time_series"` labels move in time blocks (`time_block`,
+#'   `block_len`). The multivariate scan, which refits on each permutation,
+#'   uses the subject-level scheme for grouped designs and the restricted
+#'   permutation of refit audits otherwise.
 #' @param time_block Character scalar, `"circular"` or `"stationary"`. Controls
 #'   block permutation for `time_series` splits; ignored for other split modes
 #'   and by the fixed-prediction permutation gap (a warning is raised if it is
@@ -796,8 +1030,9 @@
 #'   Default is 1.
 #' @param return_perm Logical scalar. If TRUE (default), stores the permutation
 #'   distribution in `audit@perm_values`. Set FALSE to reduce memory use.
-#' @param batch_cols Character vector. Names of `coldata` columns to test for
-#'   association with fold assignment. If NULL, defaults to any of
+#' @param batch_cols Character vector. Names of `coldata` batch/study columns
+#'   to test for association with the outcome and with fold assignment (see
+#'   `batch_assoc` in Details). If NULL, defaults to any of
 #'   `"batch"`, `"plate"`, `"center"`, `"site"`, `"study"` found in `coldata`.
 #'   Changing this controls which batch tests appear in `batch_assoc`.
 #' @param coldata Optional data.frame of sample-level metadata. Rows must align
@@ -853,6 +1088,10 @@
 #'   `"all"`. `"train_test"` retains only near-duplicate pairs that appear in
 #'   train vs test in at least one repeat; `"all"` reports all near-duplicate
 #'   pairs in `X_ref` regardless of fold assignment.
+#' @param duplicate_null_reps Integer scalar. Number of null draws used to
+#'   estimate how many pairs would pass the duplicate rule by chance (stored
+#'   in `info$duplicate_null`, see Details). `0` skips the estimate. Default
+#'   is 3.
 #' @param learner Optional character scalar. When predictions include multiple
 #'   learner IDs, selects the learner to audit. If NULL and multiple learners
 #'   are present, the function errors; if predictions lack learner IDs, this
@@ -884,7 +1123,9 @@
 #'   single-class test folds for AUC, are dropped). The fold mean does not
 #'   compare predictions from different fold models, so it is insensitive to
 #'   between-fold baseline shifts. Refit-based audits report both summaries in
-#'   `audit_info(audit)$perm_gap_summaries` whichever is chosen.
+#'   `audit_info(audit)$perm_gap_summaries` whichever is chosen. The fold mean
+#'   requires a refit null: with fixed predictions (`perm_refit = FALSE`) it is
+#'   not calibrated, so `"pooled"` is used with a warning.
 #' @return A \code{\linkS4class{LeakAudit}} S4 object containing:
 #'   \describe{
 #'     \item{\code{fit}}{The \code{LeakFit} object that was audited.}
@@ -899,11 +1140,11 @@
 #'     \item{\code{perm_values}}{Numeric vector of length \code{B} containing
 #'       the metric value from each permutation. Useful for plotting the null
 #'       distribution. Empty if \code{return_perm = FALSE}.}
-#'     \item{\code{batch_assoc}}{Data.frame of chi-square association tests
-#'       between fold assignment and batch/study metadata, with columns:
-#'       \code{variable}, \code{stat} (chi-square statistic), \code{df}
-#'       (degrees of freedom), \code{pval}, and \code{cramer_v} (effect size).
-#'       Small p-values indicate potential confounding by design.}
+#'     \item{\code{batch_assoc}}{Data.frame, one row per batch/study column
+#'       and repeat: the fold-batch association test (how batches are spread
+#'       over folds), the batch-outcome association test, and the share of
+#'       test rows whose batch also occurs in training (\code{span_frac}).
+#'       See Details.}
 #'     \item{\code{target_assoc}}{Data.frame of per-feature outcome associations
 #'       with columns: \code{feature}, \code{type} (\code{"numeric"} or
 #'       \code{"categorical"}), \code{metric} (AUC, correlation, eta_sq, or
@@ -1001,12 +1242,40 @@
 #' value, null mean and SD, gap, and p-value for both the pooled and the
 #' fold-mean summary.
 #'
-#' `batch_assoc` contains chi-square tests between fold assignment and each
-#' `batch_cols` variable (`stat`, `df`, `pval`, `cramer_v`), one row per
-#' variable and repeat, plus `pval_adj`, the Holm-adjusted p-value across all
-#' rows. The `confounding_alignment` rule of the mechanism summary flags only
-#' when some row has `pval_adj <= 0.05` and `cramer_v >= 0.1`, so repeated CV
-#' does not inflate the false-positive rate. `target_assoc`
+#' `batch_assoc` has one row per `batch_cols` variable and repeat, with
+#' three parts.
+#' (1) Fold-batch association: a chi-square test of the fold x batch table
+#' (`stat`, `df`, `pval`, `cramer_v`; `pval_adj` Holm-adjusted across rows)
+#' and `by_design`, TRUE for columns the split blocks on (e.g. the batch of a
+#' leave-batch-out plan) or that are nested in such a column. It describes
+#' how batches are spread over folds; it does not test confounding (a
+#' blocked design gives `cramer_v = 1` by construction).
+#' (2) Batch-outcome association, computed once per variable on the
+#' predicted samples, on the plan's independent units: the recorded group
+#' column, a constraint axis of type `"subject"` of a combined plan (else its
+#' primary axis), or the group of an rsample plan. Each unit counts once, with
+#' its most frequent batch and its majority class or mean outcome, ties
+#' broken at random (`outcome_method = "units"`); without such a column rows are tested
+#' (`"rows"`), except time-series plans, whose rows are autocorrelated
+#' (`"not_tested"`). When batch varies within units, association within units
+#' (e.g. paired tumour and normal samples in different batches) is not
+#' tested: its row-level effect size is reported as `within_unit_effect` and
+#' does not enter the flag.
+#' `outcome_n` is the number
+#' of rows or units tested. Columns: `outcome_test` (`"chisq"` for classification, with
+#' Cramer's V as `outcome_effect`; `"kruskal"` for regression, with
+#' epsilon^2 = H / (n - 1)), `outcome_stat`, `outcome_df`, `outcome_pval`,
+#' `outcome_pval_adj` (Holm across variables) and `outcome_effect_min`, the
+#' small-effect bound (0.1 for V, 0.01 for epsilon^2). Not computed for
+#' survival outcomes.
+#' (3) `span_frac`: the share of test rows whose batch level also occurs
+#' among the training rows of their fold, pooled over the folds of the
+#' repeat (0 for blocked designs).
+#' The `confounding_alignment` rule of the mechanism summary flags when some
+#' variable has `span_frac > 0`, `outcome_pval_adj <= 0.05` and
+#' `outcome_effect >= outcome_effect_min`, that is, when batch is associated
+#' with the outcome and shared by training and test rows, the two conditions
+#' under which batch effects can inflate performance. `target_assoc`
 #' reports feature-wise outcome associations on `X_ref`; numeric features use
 #' AUC (binomial), `eta_sq` (multiclass), or correlation (gaussian), while
 #' categorical features use Cramer's V (binomial/multiclass) or `eta_sq` from a
@@ -1021,13 +1290,49 @@
 #' covers features present in `X_ref`.
 #'
 #' Duplicate detection compares rows of `X_ref` using the chosen `sim_method`
-#' (cosine on L2-normalized rows, or Pearson via row-centering), optionally after
-#' rank transformation (`feature_space = "rank"`). By default,
+#' (cosine on L2-normalized rows, or Pearson via row-centering) after each
+#' column is centred (constant columns dropped), optionally followed by rank
+#' transformation (`feature_space = "rank"`). Centring keeps the shared offset
+#' of positive-valued features from making unrelated samples look
+#' near-identical. A pair is reported when its similarity reaches
+#' `sim_threshold`; noisy technical replicates (e.g. re-sequenced low-depth
+#' libraries) can fall below it, so lower `sim_threshold` to look for them.
+#' Both rows must also lie at a
+#' similar distance from the column means (lengths within 10%), since cosine
+#' ignores length, and be much closer to each other than typical pairs
+#' (within 10% of the median distance between random rows; with fewer than 5
+#' features, where close pairs arise by chance, only identical rows are
+#' reported). Columns are not rescaled, so
+#' features with larger spread weigh more; with only a few features, cosine
+#' similarity is a weak duplicate criterion and chance matches are more
+#' likely. By default,
 #' `duplicate_scope = "train_test"` filters to pairs that appear in train vs test
 #' in at least one repeat; set `duplicate_scope = "all"` to include within-fold
 #' duplicates. The `duplicates` slot returns index pairs and similarity values
 #' for near-duplicate samples. Only duplicates present in `X_ref` can be
 #' detected, and checks are skipped if inputs cannot be aligned to splits.
+#'
+#' `info$duplicate_null` compares the number of pairs found in scope
+#' (`observed`, counted before the `max_pairs` cap) with the number expected
+#' by chance (`expected`) and gives their ratio (`enrichment`; NA when
+#' `expected` is 0). The expected count applies the same rule to null rows
+#' in which no sample copies another: `duplicate_null_reps` draws of
+#' `min(n, 1000)` rows from a Gaussian copula with the features' empirical
+#' marginal distributions and rank correlation, scaled to the number of
+#' pairs in scope. Dependence beyond rank correlation (e.g. clusters of
+#' similar samples such as studies or batches) is not reproduced, so
+#' clustered data can show enrichment without copied samples.
+#'
+#' The mechanism summary (`info$mechanism_summary`) flags each class by a
+#' fixed rule: `non_random_signal` when the permutation p-value is
+#' <= 0.05 and the gap is positive; `confounding_alignment` as described for
+#' `batch_assoc` above; `proxy_target_leakage` when any feature is flagged
+#' by the target scan, by `flag_fdr` or by the unadjusted `flag` (so the flag
+#' does not depend on `target_p_adjust`); `duplicate_overlap` when at least one reported pair crosses
+#' train and test in some repeat (this does not compare the count with
+#' `info$duplicate_null`); `temporal_lookahead` when such a pair exists in a
+#' time-series split. The interpretation printed by `summary()` restates
+#' the permutation result and then lists the flagged classes.
 #' @references
 #' Parker, B. J., \enc{Günter}{Gunter}, S. and Bedo, J. (2007). Stratification bias in low
 #' signal microarray studies. \emph{BMC Bioinformatics}, 8, 326.
@@ -1100,6 +1405,7 @@ audit_leakage <- function(fit,
                           nn_k = 50,
                           max_pairs = 5000,
                           duplicate_scope = c("train_test", "all"),
+                          duplicate_null_reps = 3L,
                           learner = NULL,
                           strict_align = FALSE,
                           perm_folds = c("auto", "fixed", "redraw"),
@@ -1182,6 +1488,11 @@ audit_leakage <- function(fit,
   feature_space <- match.arg(feature_space)
   sim_method    <- match.arg(sim_method)
   duplicate_scope <- match.arg(duplicate_scope)
+  if (!is.numeric(duplicate_null_reps) || length(duplicate_null_reps) != 1L ||
+      !is.finite(duplicate_null_reps) || duplicate_null_reps < 0) {
+    stop("duplicate_null_reps must be a single non-negative number.", call. = FALSE)
+  }
+  duplicate_null_reps <- as.integer(duplicate_null_reps)
   time_block_supplied <- !missing(time_block)
   time_block <- match.arg(time_block)
   ci_method <- match.arg(ci_method)
@@ -1277,17 +1588,25 @@ audit_leakage <- function(fit,
     if (is.null(perm_refit_spec) || !is.list(perm_refit_spec)) {
       perm_refit_reason <- "perm_refit_spec missing; using fixed predictions."
       message("audit_leakage(): perm_refit_spec not supplied; using fixed-prediction ",
-              "permutations (perm_refit = FALSE). This test can be slightly liberal ",
-              "(type I error above nominal). For tighter calibration, supply ",
-              "perm_refit_spec to enable refit-based permutations.")
+              "permutations (no refitting). Supply perm_refit_spec for a refit null.")
       perm_refit <- FALSE
     } else if (!is.finite(B) || B > perm_refit_auto_max) {
       perm_refit_reason <- sprintf("B=%s exceeds perm_refit_auto_max=%s; using fixed predictions.",
                                    as.character(B), as.character(perm_refit_auto_max))
+      message(sprintf(paste0("audit_leakage(): B = %s exceeds perm_refit_auto_max = %s; ",
+                             "using fixed-prediction permutations (no refitting)."),
+                      as.character(B), as.character(perm_refit_auto_max)))
       perm_refit <- FALSE
     } else {
       perm_refit <- TRUE
       perm_refit_mode <- "auto-refit"
+      # JSS review, K1: say what "auto" costs before it runs
+      n_fold_fits <- length(fit@splits@indices)
+      message(sprintf(paste0("audit_leakage(): perm_refit = \"auto\" refits the model on each ",
+                             "permuted outcome: %s permutations x %d folds = %s model fits, ",
+                             "which can be slow. Set perm_refit = FALSE for the fixed-prediction ",
+                             "test (no refitting)."),
+                      format(B), n_fold_fits, format(B * n_fold_fits, big.mark = ",")))
     }
   } else if (isTRUE(perm_refit_raw)) {
     perm_refit <- TRUE
@@ -1299,6 +1618,17 @@ audit_leakage <- function(fit,
     stop("perm_refit must be TRUE, FALSE, or \"auto\".", call. = FALSE)
   }
   perm_method <- if (isTRUE(perm_refit)) "refit" else "fixed"
+  # The fold-mean summary is calibrated only for refit nulls: with fixed
+  # predictions each fold's model was trained on the other folds' labels, and
+  # a label shuffle cannot reproduce how the fold AUCs then co-vary (type-I
+  # 0.11-0.14 at alpha = 0.05 in simulation). Use the pooled summary instead.
+  if (!isTRUE(perm_refit) && identical(perm_summary, "fold_mean")) {
+    .bio_warn(paste0(
+      "audit_leakage(): perm_summary = \"fold_mean\" is not calibrated for fixed-prediction ",
+      "permutations (perm_refit = FALSE); using \"pooled\". Supply perm_refit_spec and ",
+      "perm_refit = TRUE to use the fold-mean summary."), "bioLeak_input_warning")
+    perm_summary <- "pooled"
+  }
 
   refit_x <- NULL
   refit_outcome <- NULL
@@ -1659,6 +1989,23 @@ audit_leakage <- function(fit,
       }
     }
 
+    # Plans from as_leaksplits() take their design columns (group_id,
+    # batch_group, ...) from the split_spec, not from the user's data; the plan
+    # stores them in info$coldata with the sample-id column. Join the missing
+    # ones by sample id (also into user-supplied coldata) so the refit null
+    # keeps the design.
+    plan_cd <- fit@splits@info$coldata
+    sid <- fit@splits@info$sample_id_col
+    if (is.data.frame(refit_coldata) && is.data.frame(plan_cd) && !is.null(sid) &&
+        sid %in% names(refit_coldata) && sid %in% names(plan_cd)) {
+      design_cols <- unique(unlist(fit@splits@info[c("group", "batch", "study", "time")]))
+      miss <- setdiff(intersect(design_cols, names(plan_cd)), names(refit_coldata))
+      idx <- match(as.character(refit_coldata[[sid]]), as.character(plan_cd[[sid]]))
+      if (length(miss) && !anyNA(idx)) {
+        for (cc in miss) refit_coldata[[cc]] <- plan_cd[[cc]][idx]
+      }
+    }
+
     y_base <- NULL
     if (!is.null(refit_coldata) && refit_outcome %in% names(refit_coldata)) {
       y_base <- refit_coldata[[refit_outcome]]
@@ -1689,6 +2036,13 @@ audit_leakage <- function(fit,
       perm_scheme_reason <- sprintf(
         "no refit metadata carries the outcome; supply perm_refit_spec$coldata with columns '%s' and '%s', aligned to perm_refit_spec$x",
         refit_outcome, design_col)
+    } else if (perm_mode_use %in% c("batch_blocked", "study_loocv", "time_series") &&
+               !design_col %in% names(refit_coldata) &&
+               !c(batch_blocked = "batch", study_loocv = "study",
+                  time_series = "time")[[perm_mode_use]] %in% names(refit_coldata)) {
+      perm_scheme_reason <- sprintf(
+        "the refit metadata has no design column '%s'; supply perm_refit_spec$coldata with columns '%s' and '%s', aligned to perm_refit_spec$x",
+        design_col, refit_outcome, design_col)
     } else {
       folds_perm <- list(list(test = seq_len(n_refit), fold = 1L, repeat_id = 1L))
       perm_full_source <- .permute_labels_factory(
@@ -1785,19 +2139,25 @@ audit_leakage <- function(fit,
       cd_b[[split_outcome]] <- .coerce_truth_like(split_cd[[split_outcome]], y_perm)
       is_combined <- identical(fit@splits@mode, "combined")
       # Warnings repeat those already raised when the observed plan was built.
-      suppressWarnings(make_split_plan(
+      sp_b <- suppressWarnings(make_split_plan(
         cd_b, outcome = split_outcome, mode = fit@splits@mode,
         group = split_info$group, batch = split_info$batch,
         study = split_info$study, time = split_info$time,
         constraints = if (is_combined) split_info$constraints else NULL,
         v = split_info$v, repeats = split_info$repeats %||% 1L,
         stratify = split_stratified, stratify_by = split_info$stratify_by,
+        stratify_method = split_info$stratify_method %||% "groups",
         nested = isTRUE(split_info$nested),
         seed = split_info$seed + b,
         horizon = split_info$horizon %||% 0, purge = split_info$purge %||% 0,
         embargo = split_info$embargo %||% 0,
         progress = FALSE, compact = isTRUE(split_info$compact)
       ))
+      # make_split_plan() re-records every column fit_resample() keeps out of
+      # the predictors except an adapter's sample-id column (as_leaksplits());
+      # carry it over so permutation refits use the same predictors.
+      if (!is.null(split_info$sample_id_col)) sp_b@info$sample_id_col <- split_info$sample_id_col
+      sp_b
     }
 
     permute_outcome <- function(b) {
@@ -1891,36 +2251,102 @@ audit_leakage <- function(fit,
     perm_mat <- do.call(rbind, perm_list)
     perm_vals <- as.numeric(perm_mat[, perm_summary])
   } else {
-    # Fixed-prediction permutations always use a global label shuffle (see
+    # Fixed-prediction permutations shuffle labels across the dataset (see
     # below), so the restricted-permutation arguments cannot shape this null.
     # Tell the user rather than silently ignoring an explicit request.
     ignored_args <- character(0)
     if (!isFALSE(perm_stratify)) ignored_args <- c(ignored_args, "perm_stratify")
-    if (time_block_supplied) ignored_args <- c(ignored_args, "time_block")
-    if (!is.null(block_len)) ignored_args <- c(ignored_args, "block_len")
+    # time_block / block_len shape the fixed null of time_series plans
+    if (time_block_supplied && !identical(perm_mode_use, "time_series")) {
+      ignored_args <- c(ignored_args, "time_block")
+    }
+    if (!is.null(block_len) && !identical(perm_mode_use, "time_series")) {
+      ignored_args <- c(ignored_args, "block_len")
+    }
     if (length(ignored_args)) {
       warning(sprintf(paste0(
         "audit_leakage(): %s %s no effect on the fixed-prediction permutation ",
-        "null (perm_refit = FALSE), which always uses a global label shuffle. ",
+        "null (perm_refit = FALSE), which shuffles labels across the dataset. ",
         "Restricted permutations are applied only when perm_refit = TRUE."),
         paste(ignored_args, collapse = ", "),
         if (length(ignored_args) == 1L) "has" else "have"),
         call. = FALSE)
     }
 
-    # Global label shuffle: concatenate all fold predictions and permute
-    # labels across the full dataset.  Per-fold shuffling would preserve
-    # within-fold class balance, inflating the null when fold structure
-    # correlates with the outcome (e.g., study_loocv with unequal class
-    # proportions across studies).  A global shuffle gives the correct
-    # null: E[AUC] = 0.5, testing whether predictions are associated with
-    # labels without conditioning on fold membership.
+    # Label shuffle across the full dataset (not within folds: per-fold
+    # shuffling keeps within-fold class balance and inflates the null when
+    # fold structure correlates with the outcome). The shuffle permutes
+    # samples, not prediction rows: with repeated CV a sample appears once
+    # per repeat and all its copies keep one label, and in subject-grouped
+    # designs a subject's labels move together (.design_perm_donor()).
+    # Shuffling rows independently made the null too narrow (type-I 0.16 with
+    # 5 repeats, 0.19 with clustered samples, at alpha = 0.05).
     agg_base <- do.call(rbind, pred_list)
+    unit_ids <- agg_base$id %||% NULL
+    use_units <- !is.null(unit_ids) && !anyNA(unit_ids)
+    if (use_units) {
+      uid <- unique(unit_ids)
+      unit_pos <- match(unit_ids, uid)
+      unit_first <- match(uid, unit_ids)
+      unit_key <- if (identical(task, "survival") &&
+                      all(c("truth_time", "truth_event") %in% names(agg_base))) {
+        paste(agg_base$truth_time[unit_first], agg_base$truth_event[unit_first])
+      } else {
+        as.character(agg_base$truth[unit_first])
+      }
+      unit_group <- NULL
+      unit_time_perm <- NULL
+      grp_col <- .audit_unit_group_col(fit@splits@info, perm_mode_use)
+      time_col <- fit@splits@info$time
+      cd_units <- fit@splits@info$coldata
+      row_idx <- NULL
+      if (is.data.frame(cd_units)) {
+        row_idx <- if (is.numeric(uid)) {
+          as.integer(uid)
+        } else if ("row_id" %in% names(cd_units)) {
+          match(as.character(uid), as.character(cd_units$row_id))
+        } else {
+          match(as.character(uid), rownames(cd_units))
+        }
+        if (anyNA(row_idx) || any(row_idx < 1L | row_idx > nrow(cd_units))) row_idx <- NULL
+      }
+      if (!is.null(row_idx) && !is.null(grp_col) && grp_col %in% names(cd_units)) {
+        unit_group <- cd_units[[grp_col]][row_idx]
+        cov <- .design_perm_coverage(unit_group)
+        if (cov < 0.5) {
+          .bio_warn(sprintf(paste0(
+            "audit_leakage(): only %.0f%% of samples belong to a subject that has another ",
+            "subject of the same size, so the subject-level permutation null leaves most ",
+            "labels in place and the p-value is conservative. Use perm_refit = TRUE with ",
+            "perm_folds = \"redraw\", or more subjects per size."), 100 * cov),
+            "bioLeak_input_warning")
+        }
+      }
+      if (!is.null(row_idx) && is.null(unit_group) && identical(perm_mode_use, "time_series") &&
+          !is.null(time_col) && time_col %in% names(cd_units)) {
+        # Autocorrelated series: permute in time blocks, as the refit null
+        # does (a sample-level shuffle gave type-I 0.27 with AR(0.9) data).
+        # The "outcome" handed to the factory is the unit index, so the
+        # permuted vector is a donor index.
+        cd_t <- data.frame(.unit = seq_along(uid), .time = cd_units[[time_col]][row_idx])
+        unit_time_perm <- .permute_labels_factory(
+          cd = cd_t, outcome = ".unit", mode = "time_series",
+          folds = list(list(test = seq_along(uid), fold = 1L, repeat_id = 1L)),
+          perm_stratify = FALSE, time_block = time_block, block_len = block_len,
+          seed = seed, time_col = ".time", perm_refit = TRUE)
+      }
+    }
     perm_eval <- function(b) {
       n <- nrow(agg_base)
       if (n <= 1L) return(NA_real_)
       agg <- agg_base
-      perm_idx <- sample.int(n)
+      perm_idx <- if (use_units && !is.null(unit_time_perm)) {
+        unit_first[as.integer(unit_time_perm(b)[[1]])][unit_pos]
+      } else if (use_units) {
+        unit_first[.design_perm_donor(unit_key, unit_group)][unit_pos]
+      } else {
+        sample.int(n)
+      }
       if (identical(task, "survival") &&
           all(c("truth_time", "truth_event") %in% names(agg))) {
         agg$truth_time <- agg$truth_time[perm_idx]
@@ -1941,6 +2367,13 @@ audit_leakage <- function(fit,
     }
   }
 
+  pv_fin <- perm_vals[is.finite(perm_vals)]
+  if (length(pv_fin) > 1L && diff(range(pv_fin)) < 1e-12) {
+    .bio_warn(paste0(
+      "audit_leakage(): every permutation gave the same metric value, so the permutation null ",
+      "is degenerate (e.g. constant predictions, or a design in which subject size or grouping ",
+      "fixes every label) and the p-value is uninformative."), "bioLeak_input_warning")
+  }
   gap_stats <- .perm_gap_stats(metric_obs, perm_vals, higher_better)
   perm_mean <- gap_stats$perm_mean
   perm_sd <- gap_stats$perm_sd
@@ -2177,6 +2610,107 @@ audit_leakage <- function(fit,
         batch_df <- do.call(rbind, Map(function(nm, df) { df$batch_col <- nm; df }, names(batch_results), batch_results))
         batch_df <- batch_df[, c("batch_col", "repeat_id", "stat", "df", "pval", "cramer_v")]
         batch_df$pval_adj <- .holm_adjust(batch_df$pval)
+        # Columns the split itself blocks on (leave-batch-out, leave-study-out,
+        # group or constraint axes) align with the folds by construction;
+        # that is the intended design, not confounding.
+        si <- fit@splits@info
+        # only the axis the split mode actually blocks on: a subject-grouped
+        # plan may record a batch column (as_leaksplits() does) without
+        # keeping batches apart, and then batch alignment is real evidence
+        design_cols <- switch(fit@splits@mode,
+          subject_grouped = si$group,
+          batch_blocked = si$batch,
+          study_loocv = si$study,
+          combined = vapply(si$constraints %||% list(), function(ax) ax$col %||% "", character(1)),
+          time_series = si$group,
+          character(0))
+        design_cols <- unique(as.character(design_cols %||% character(0)))
+        design_cols <- design_cols[nzchar(design_cols) & design_cols %in% colnames(coldata_pred)]
+        # a column nested in a blocked axis (e.g. site within study for
+        # leave-study-out) is kept apart by the same split
+        nested_in_design <- function(bc) {
+          if (bc %in% design_cols) return(TRUE)
+          if (!bc %in% colnames(coldata_pred)) return(FALSE)
+          any(vapply(design_cols, function(dc) {
+            ok <- !is.na(coldata_pred[[bc]]) & !is.na(coldata_pred[[dc]])
+            if (!any(ok)) return(FALSE)
+            all(tapply(as.character(coldata_pred[[dc]][ok]), as.character(coldata_pred[[bc]][ok]),
+                       function(v) length(unique(v))) == 1L)
+          }, logical(1)))
+        }
+        nest_flag <- vapply(unique(batch_df$batch_col), nested_in_design, logical(1))
+        batch_df$by_design <- unname(nest_flag[batch_df$batch_col])
+
+        # Confounding needs (i) batch associated with the outcome and (ii) a
+        # batch present in both the training and the test rows of a fold
+        # (JSS review, L1.2-L1.3). The fold x batch table above measures
+        # neither; it is kept as a description of the split.
+        y_ba <- NULL
+        if (!is.null(outcome_col) && outcome_col %in% names(coldata)) {
+          y_ba <- coldata[[outcome_col]]
+        } else if (!identical(task, "survival")) {
+          id_first <- !duplicated(as.character(all_pred$id))
+          truth_map <- all_pred$truth[id_first]
+          names(truth_map) <- as.character(all_pred$id[id_first])
+          y_ba <- truth_map[ids_all_chr]
+        }
+        # independent units: the plan's group axis, when it has one
+        # the plan's subject/group column, in any mode (perm_mode_use
+        # resolves the design of rsample plans; study_loocv and
+        # batch_blocked plans can record a group too)
+        unit_col <- .audit_independent_unit_col(fit@splits@info, perm_mode_use)
+        unit_ba <- NULL
+        if (!is.null(unit_col)) {
+          if (unit_col %in% names(coldata)) {
+            unit_ba <- coldata[[unit_col]]
+          } else {
+            scd <- fit@splits@info$coldata
+            rid <- resolve_sample_ids(fit, fallback_n = if (is.data.frame(scd)) nrow(scd) else NULL)
+            if (is.data.frame(scd) && unit_col %in% names(scd) && length(rid) == nrow(scd)) {
+              unit_ba <- unname(stats::setNames(as.character(scd[[unit_col]]), rid)[ids_all_chr])
+            }
+          }
+        }
+        bo <- do.call(rbind, lapply(unique(batch_df$batch_col), function(bc) {
+          res <- .batch_outcome_assoc(coldata[[bc]], y_ba, task, unit = unit_ba,
+                                      dependent_rows = identical(perm_mode_use, "time_series"),
+                                      seed = seed)
+          res$batch_col <- bc
+          res
+        }))
+        bo$outcome_pval_adj <- .holm_adjust(bo$outcome_pval)
+        batch_df <- cbind(batch_df, bo[match(batch_df$batch_col, bo$batch_col),
+                                       setdiff(names(bo), "batch_col"), drop = FALSE])
+        n_rows_split <- if (isTRUE(compact) && length(fold_assignments)) {
+          max(vapply(fold_assignments, length, integer(1)))
+        } else {
+          suppressWarnings(max(vapply(folds, function(z) {
+            idx <- c(z$train, resolve_test_idx(z))
+            if (length(idx)) max(idx) else 0L
+          }, integer(1))))
+        }
+        split_cd <- fit@splits@info$coldata
+        row_ids <- resolve_sample_ids(fit, fallback_n = n_rows_split)
+        span_by_col <- lapply(unique(batch_df$batch_col), function(bc) {
+          batch_row <- if (is.data.frame(split_cd) && bc %in% names(split_cd) &&
+                           nrow(split_cd) == n_rows_split) {
+            as.character(split_cd[[bc]])
+          } else if (!is.null(row_ids) && length(row_ids) == n_rows_split) {
+            unname(stats::setNames(as.character(coldata[[bc]]), ids_all_chr)[row_ids])
+          } else {
+            NULL
+          }
+          .batch_span(folds, batch_row, resolve_test_idx,
+                      function(z, te) z$train %||%
+                        .bio_compact_train_indices(fit@splits, te, n_rows_split))
+        })
+        names(span_by_col) <- unique(batch_df$batch_col)
+        batch_df$span_frac <- vapply(seq_len(nrow(batch_df)), function(i) {
+          sp <- span_by_col[[batch_df$batch_col[i]]]
+          if (is.null(sp)) return(NA_real_)
+          v <- sp$span_frac[sp$repeat_id == batch_df$repeat_id[i]]
+          if (length(v)) v[[1]] else NA_real_
+        }, numeric(1))
       }
     }
   }
@@ -2244,7 +2778,18 @@ audit_leakage <- function(fit,
       X_scan_mv <- .align_by_ids(X_ref, sample_ids_scan, sample_ids = sample_ids_scan)
       if (!is.null(X_scan_mv)) {
         permute_outcome <- NULL
-        if (!is.null(coldata_scan) && !is.null(outcome_col) &&
+        scan_group_col <- .audit_unit_group_col(fit@splits@info, perm_mode_use)
+        if (!is.null(scan_group_col) && !is.null(coldata_scan) &&
+            !is.null(scan_group_col) && scan_group_col %in% names(coldata_scan) &&
+            length(coldata_scan[[scan_group_col]]) == length(y_outcome_scan)) {
+          # The scan refits its model on each permuted outcome, so the
+          # permutation must keep each subject's labels together (a free
+          # shuffle gave type-I 0.31 with clustered samples).
+          scan_groups <- coldata_scan[[scan_group_col]]
+          permute_outcome <- function(b) {
+            y_outcome_scan[.design_perm_donor(y_outcome_scan, scan_groups)]
+          }
+        } else if (!is.null(coldata_scan) && !is.null(outcome_col) &&
             outcome_col %in% names(coldata_scan) &&
             perm_mode_use %in% c("subject_grouped", "batch_blocked", "study_loocv", "time_series")) {
           folds_perm <- list(list(test = seq_len(length(y_outcome_scan)), fold = 1L, repeat_id = 1L))
@@ -2254,7 +2799,9 @@ audit_leakage <- function(fit,
             block_len = block_len, seed = seed,
             group_col = fit@splits@info$group, batch_col = fit@splits@info$batch,
             study_col = fit@splits@info$study, time_col = fit@splits@info$time,
-            perm_refit = FALSE
+            # the scan refits on each permuted outcome, so it needs the
+            # design-restricted permutation (within batch / study, time blocks)
+            perm_refit = TRUE
           )
           permute_outcome <- function(b) perm_source(b)[[1]]
         }
@@ -2303,6 +2850,7 @@ audit_leakage <- function(fit,
 
   # --- Duplicate / near-duplicate detection ---------------------------------
   dup_df <- data.frame()
+  dup_null <- NULL
   if (is.null(X_ref) && !is.null(fit@info$X_ref)) X_ref <- fit@info$X_ref
   if (!is.null(X_ref)) {
     n_samples <- NA_integer_
@@ -2358,20 +2906,55 @@ audit_leakage <- function(fit,
       col_med <- apply(X, 2, function(v) { v <- v[is.finite(v)]; if (length(v)) stats::median(v) else 0 })
       for (j in seq_len(ncol(X))) { bad <- !is.finite(X[, j]); if (any(bad)) X[bad, j] <- col_med[j] }
     }
-    # choose feature space
-    if (feature_space == "rank") {
-      X <- t(apply(X, 1, function(row) rank(row, ties.method = "average", na.last = "keep")))
-      X[is.na(X)] <- 0
+    # Centre the columns first: on uncentred tabular data (age, glucose,
+    # cholesterol, ...) every row points in nearly the same direction, so
+    # unrelated rows looked like near-duplicates (1803 of 11175 pairs in a
+    # test without duplicates). Columns are not scaled to unit variance: that
+    # inflates noisy low-variance features (e.g. low-count genes) and hid
+    # technical replicates. Identical rows stay identical.
+    col_sd <- apply(X, 2, stats::sd)
+    keep_col <- is.finite(col_sd) & col_sd > 0
+    if (any(keep_col)) {
+      X <- sweep(X[, keep_col, drop = FALSE], 2, colMeans(X[, keep_col, drop = FALSE]), "-")
     }
-    if (sim_method == "pearson") {
-      X <- .row_center(X)
+    X_cent <- X
+    # choose feature space (also applied to the null rows below)
+    to_space <- function(X) {
+      if (feature_space == "rank") {
+        X <- t(apply(X, 1, function(row) rank(row, ties.method = "average", na.last = "keep")))
+        X[is.na(X)] <- 0
+      }
+      if (sim_method == "pearson") {
+        X <- .row_center(X)
+      }
+      X
     }
-    # standardize to enable similarity via Euclidean NN
+    X <- to_space(X)
+    # typical distance between two rows, from random pairs (RNG state kept)
+    ref_dist <- NA_real_
+    if (nrow(X) >= 10L) {
+      old_seed <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+      set.seed(seed)
+      n_ref <- min(2000L, nrow(X) * (nrow(X) - 1L) / 2L)
+      ri <- sample.int(nrow(X), n_ref, replace = TRUE)
+      rj <- sample.int(nrow(X), n_ref, replace = TRUE)
+      if (is.null(old_seed)) rm(".Random.seed", envir = globalenv()) else assign(".Random.seed", old_seed, envir = globalenv())
+      ok_ref <- ri != rj
+      ref_dist <- stats::median(sqrt(rowSums((X[ri[ok_ref], , drop = FALSE] - X[rj[ok_ref], , drop = FALSE])^2)))
+    }
+    # Candidate pairs of one matrix under the full rule (angle, length,
+    # distance); reused on null rows for the expected chance count.
+    find_candidates <- function(X) {
+    # row lengths (distance from the column means) before normalising:
+    # duplicates point the same way AND lie at the same distance
+    row_len <- sqrt(rowSums(X^2))
+    X_dist <- X
     Xn <- .row_l2_normalize(X)
-
     n <- nrow(Xn)
     p <- ncol(Xn)
     candidate_pairs <- NULL
+
+    sim_cut <- sim_threshold
 
     use_ann <- (n > 500 || (n * p > 1.5e6)) &&
                requireNamespace("RANN", quietly = TRUE)
@@ -2386,7 +2969,7 @@ audit_leakage <- function(fit,
       jdx <- jdx[mask]
       # compute similarity for candidate pairs
       simv <- rowSums(Xn[idx, , drop = FALSE] * Xn[jdx, , drop = FALSE])
-      keep <- which(simv >= sim_threshold)
+      keep <- which(simv >= sim_cut)
       if (length(keep)) {
         candidate_pairs <- data.frame(i = idx[keep], j = jdx[keep], sim = simv[keep])
       }
@@ -2403,7 +2986,7 @@ audit_leakage <- function(fit,
           ri <- block_idx[bi]
           S_block[bi, ri:n] <- 0
         }
-        hits <- which(S_block >= sim_threshold, arr.ind = TRUE)
+        hits <- which(S_block >= sim_cut, arr.ind = TRUE)
         if (nrow(hits) > 0) {
           pair_list[[length(pair_list) + 1L]] <- data.frame(
             i = block_idx[hits[, 1]],
@@ -2419,11 +3002,35 @@ audit_leakage <- function(fit,
       # exact small-n path
       S <- .cosine_sim_block(Xn)
       S[upper.tri(S, TRUE)] <- 0
-      which_dup <- which(S >= sim_threshold, arr.ind = TRUE)
+      which_dup <- which(S >= sim_cut, arr.ind = TRUE)
       if (nrow(which_dup) > 0)
         candidate_pairs <- data.frame(i = which_dup[, 1], j = which_dup[, 2], sim = S[which_dup])
     }
 
+    if (!is.null(candidate_pairs)) {
+      # Cosine ignores length; in low dimensions unrelated rows often point the
+      # same way by chance (28 false pairs with 3 tabular features). Keep pairs
+      # whose lengths agree within 10%.
+      len_i <- row_len[candidate_pairs$i]; len_j <- row_len[candidate_pairs$j]
+      len_ok <- (pmin(len_i, len_j) / pmax(len_i, len_j, 1e-12)) >= 0.9 |
+        pmax(len_i, len_j) < 1e-12
+      # and much closer than typical pairs (10% of the median distance):
+      # in a few dimensions, outlying rows that point the same way passed the
+      # angle and length checks by chance (a "duplicate" among 3 random
+      # features in the README example). At the 0.995 cut-off two rows of
+      # equal length are ~7% of a typical distance apart, so this only
+      # removes chance pairs.
+      if (is.finite(ref_dist) && ref_dist > 0) {
+        d_ij <- sqrt(rowSums((X_dist[candidate_pairs$i, , drop = FALSE] -
+                              X_dist[candidate_pairs$j, , drop = FALSE])^2))
+        # with fewer than 5 features chance near-matches are common (two
+        # patients close on 3 variables), so only identical rows count
+        d_max <- if (ncol(X_dist) < 5L) 1e-8 * ref_dist else 0.1 * ref_dist
+        len_ok <- len_ok & d_ij <= d_max
+      }
+      candidate_pairs <- candidate_pairs[len_ok %in% TRUE, , drop = FALSE]
+      if (!nrow(candidate_pairs)) candidate_pairs <- NULL
+    }
     if (!is.null(candidate_pairs)) {
       # Canonicalize and deduplicate pairs (kNN branch may produce (i,j) and (j,i))
       swap <- candidate_pairs$i > candidate_pairs$j
@@ -2431,6 +3038,11 @@ audit_leakage <- function(fit,
       candidate_pairs$i[swap] <- candidate_pairs$j[swap]
       candidate_pairs$j[swap] <- tmp
       candidate_pairs <- candidate_pairs[!duplicated(candidate_pairs[, c("i", "j")]), ]
+    }
+    candidate_pairs
+    }
+    candidate_pairs <- find_candidates(X)
+    n <- nrow(X)
       compute_cross_fold <- function(pairs) {
         n_pairs <- nrow(pairs)
         if (!n_pairs) return(logical(0))
@@ -2556,6 +3168,8 @@ audit_leakage <- function(fit,
         cross
       }
 
+    n_dup_observed <- 0L
+    if (!is.null(candidate_pairs)) {
       cross_fold <- compute_cross_fold(candidate_pairs)
       if (length(cross_fold)) {
         candidate_pairs$cross_fold <- cross_fold
@@ -2568,6 +3182,7 @@ audit_leakage <- function(fit,
           candidate_pairs <- candidate_pairs[0, , drop = FALSE]
         }
       }
+      n_dup_observed <- nrow(candidate_pairs)
 
       if (nrow(candidate_pairs) > 0) {
         if (sim_method == "cosine") {
@@ -2582,6 +3197,24 @@ audit_leakage <- function(fit,
           candidate_pairs <- candidate_pairs[seq_len(max_pairs), , drop = FALSE]
         dup_df <- candidate_pairs
       }
+    }
+    # Expected number of pairs passing the same rule by chance (JSS review,
+    # L3.4): null rows drawn from a Gaussian with the observed feature
+    # covariance (no sample is a copy of another), scaled to the pairs in
+    # scope.
+    if (duplicate_null_reps > 0L && n >= 10L) {
+      dup_null <- .dup_null_expected(
+        X_cent, to_space, find_candidates, compute_cross_fold,
+        scope = duplicate_scope, reps = duplicate_null_reps, seed = seed
+      )
+      dup_null$observed <- n_dup_observed
+      dup_null$enrichment <- if (is.finite(dup_null$expected) && dup_null$expected > 0) {
+        n_dup_observed / dup_null$expected
+      } else {
+        NA_real_
+      }
+      dup_null <- dup_null[, c("scope", "observed", "expected", "enrichment",
+                               "null_rows", "reps")]
     }
     }
   }
@@ -2641,6 +3274,7 @@ audit_leakage <- function(fit,
         feature_space = feature_space,
         duplicate_threshold = sim_threshold,
         duplicate_scope = duplicate_scope,
+        duplicate_null = dup_null,
         taxonomy = .bio_leakage_taxonomy(),
         mechanism_summary = mechanism_summary,
         nn_k = nn_k,
@@ -2842,23 +3476,29 @@ print.LeakAuditList <- function(x, digits = 3, ...) {
     }
 
     batch_df <- if (inherits(aud, "LeakAudit")) aud@batch_assoc else NULL
-    batch_p_min <- NA_real_
-    batch_col_min_p <- NA_character_
-    batch_v_max <- NA_real_
-    batch_col_max_v <- NA_character_
-    if (!is.null(batch_df) && nrow(batch_df) > 0) {
-      pvals <- batch_df$pval
+    # batch-outcome evidence (JSS review, L1.1): the fold x batch table
+    # describes the split and is not shown here
+    batch_outcome_p <- NA_real_
+    batch_outcome_col <- NA_character_
+    batch_outcome_effect <- NA_real_
+    batch_span_max <- NA_real_
+    if (!is.null(batch_df) && nrow(batch_df) > 0 && "outcome_pval_adj" %in% names(batch_df)) {
+      pvals <- batch_df$outcome_pval_adj
       if (any(is.finite(pvals))) {
         idx <- which.min(pvals)
-        batch_p_min <- pvals[idx]
-        batch_col_min_p <- as.character(batch_df$batch_col[idx])
+        batch_outcome_p <- pvals[idx]
+        batch_outcome_col <- as.character(batch_df$batch_col[idx])
+        batch_outcome_effect <- batch_df$outcome_effect[idx]
       }
-      vvals <- batch_df$cramer_v
-      if (any(is.finite(vvals))) {
-        idx <- which.max(vvals)
-        batch_v_max <- vvals[idx]
-        batch_col_max_v <- as.character(batch_df$batch_col[idx])
+      if (any(is.finite(batch_df$span_frac))) {
+        batch_span_max <- max(batch_df$span_frac, na.rm = TRUE)
       }
+    }
+    ms <- if (inherits(aud, "LeakAudit")) aud@info$mechanism_summary else NULL
+    confounding_flag <- if (is.data.frame(ms) && nrow(ms)) {
+      isTRUE(ms$flagged[ms$mechanism_class == "confounding_alignment"])
+    } else {
+      NA
     }
 
     dup_df <- if (inherits(aud, "LeakAudit")) aud@duplicates else NULL
@@ -2893,10 +3533,11 @@ print.LeakAuditList <- function(x, digits = 3, ...) {
       p_value = p_value,
       z = z_val,
       n_perm = n_perm,
-      batch_p_min = batch_p_min,
-      batch_col_min_p = batch_col_min_p,
-      batch_v_max = batch_v_max,
-      batch_col_max_v = batch_col_max_v,
+      batch_outcome_p = batch_outcome_p,
+      batch_outcome_col = batch_outcome_col,
+      batch_outcome_effect = batch_outcome_effect,
+      batch_span_max = batch_span_max,
+      confounding_flag = confounding_flag,
       dup_pairs = dup_pairs,
       dup_threshold = dup_threshold,
       dup_max_sim = dup_max_sim,

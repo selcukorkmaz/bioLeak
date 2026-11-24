@@ -129,9 +129,11 @@ test_that("perm_summary = 'fold_mean' uses the mean of per-fold metrics", {
   expect_equal(gs$perm_mean[gs$summary == "fold_mean"],
                mean(a@perm_values), tolerance = 1e-6)
 
-  # The fixed-prediction null supports the fold mean too.
-  a_fixed <- audit_quiet(fit, B = 20, perm_refit = FALSE, perm_summary = "fold_mean")
-  expect_equal(audit_perm_gap(a_fixed)$metric_obs, signif(mean(per_fold), 6))
+  # The fold mean is not calibrated under fixed predictions: pooled is used.
+  expect_warning(
+    a_fixed <- audit_quiet(fit, B = 20, perm_refit = FALSE, perm_summary = "fold_mean"),
+    "not calibrated for fixed-prediction", class = "bioLeak_input_warning")
+  expect_identical(audit_info(a_fixed)$perm_summary, "pooled")
   expect_true(all(is.finite(a_fixed@perm_values)))
   expect_null(audit_info(a_fixed)$perm_gap_summaries)
   expect_true(is.na(audit_info(a_fixed)$perm_folds))
@@ -164,4 +166,75 @@ test_that("no permutation warning when the grouping is one sample per group", {
   fit <- fit_noise_family(df, group = "row_id")
   expect_no_warning(a <- audit_quiet(fit, B = 2, perm_refit = TRUE))
   expect_identical(audit_info(a)$perm_scheme, "unrestricted")
+})
+
+test_that("re-drawn plans keep as_leaksplits()' sample-id column out of the predictors", {
+  set.seed(2); n <- 120
+  sd <- data.frame(sample_id = paste0("S", 1:n), group_id = paste0("G", rep(1:30, each = 4)),
+                   stringsAsFactors = FALSE)
+  spec <- structure(list(sample_data = sd, group_var = "group_id", constraint_mode = "subject",
+                         ordering_required = FALSE), class = "split_spec")
+  dat <- data.frame(sample_id = sd$sample_id, y = factor(rbinom(n, 1, .4)),
+                    x1 = rnorm(n), x2 = rnorm(n))
+  sp <- as_leaksplits(spec, dat, "y", v = 3, stratify = TRUE, progress = FALSE)
+  capture.output(fit <- fit_resample(dat, outcome = "y", splits = sp, learner = "glm",
+                                     custom_learners = make_custom_learners(), metrics = "auc",
+                                     refit = FALSE, seed = 1))
+  ws <- character()
+  capture.output(a <- withCallingHandlers(
+    audit_leakage(fit, metric = "auc", B = 5, perm_refit = TRUE, perm_folds = "auto",
+                  target_scan = FALSE, target_scan_multivariate = FALSE),
+    warning = function(w) { ws <<- c(ws, conditionMessage(w)); invokeRestart("muffleWarning") }))
+  expect_identical(audit_info(a)$perm_folds, "redrawn")
+  expect_true(all(is.finite(a@perm_values)))
+  expect_false(any(grepl("sample_id", ws)))
+})
+
+test_that("refit permutations of as_leaksplits() plans keep the spec's design", {
+  set.seed(4); n <- 120
+  sd <- data.frame(sample_id = paste0("S", 1:n),
+                   group_id = paste0("P", rep(1:30, each = 4)),
+                   batch_group = paste0("b", rep(1:6, each = 20)), stringsAsFactors = FALSE)
+  dat <- data.frame(sample_id = sd$sample_id, y = factor(rbinom(n, 1, .4)),
+                    x1 = rnorm(n), x2 = rnorm(n))
+  for (cm in c("batch", "subject")) {
+    spec <- structure(list(sample_data = sd,
+                           group_var = if (cm == "batch") "batch_group" else "group_id",
+                           constraint_mode = cm, ordering_required = FALSE), class = "split_spec")
+    sp <- suppressWarnings(as_leaksplits(spec, dat, "y", v = 3, progress = FALSE))
+    capture.output(fit <- suppressWarnings(fit_resample(dat, "y", sp, learner = "glm",
+      custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+    ws <- character()
+    capture.output(a <- withCallingHandlers(
+      audit_leakage(fit, metric = "auc", B = 5, perm_refit = TRUE,
+                    target_scan = FALSE, target_scan_multivariate = FALSE),
+      warning = function(w) { ws <<- c(ws, conditionMessage(w)); invokeRestart("muffleWarning") }))
+    expect_true(all(is.finite(a@perm_values)), label = cm)
+    expect_false(identical(audit_info(a)$perm_scheme, "unrestricted"), label = cm)
+    expect_false(any(grepl("unrestricted label shuffle", ws)), label = cm)
+  }
+})
+
+test_that("supplied coldata without the spec's design columns and perm_stratify on batch plans", {
+  set.seed(4); n <- 120
+  sd <- data.frame(sample_id = paste0("S", 1:n), batch_group = paste0("b", rep(1:6, each = 20)),
+                   stringsAsFactors = FALSE)
+  dat <- data.frame(sample_id = sd$sample_id, y = factor(rbinom(n, 1, .4)),
+                    x1 = rnorm(n), x2 = rnorm(n))
+  spec <- structure(list(sample_data = sd, group_var = "batch_group", constraint_mode = "batch",
+                         ordering_required = FALSE), class = "split_spec")
+  sp <- suppressWarnings(as_leaksplits(spec, dat, "y", v = 3, progress = FALSE))
+  capture.output(fit <- suppressWarnings(fit_resample(dat, "y", sp, learner = "glm",
+    custom_learners = make_custom_learners(), metrics = "auc", seed = 1)))
+  capture.output(a <- suppressWarnings(audit_leakage(fit, metric = "auc", B = 6, perm_refit = TRUE,
+    perm_refit_spec = list(x = dat, learner = "glm", custom_learners = make_custom_learners(),
+                           coldata = dat[, c("sample_id", "y")]),
+    target_scan = FALSE, target_scan_multivariate = FALSE)))
+  expect_identical(audit_info(a)$perm_scheme, "within_batch")
+  expect_true(all(is.finite(a@perm_values)))
+  capture.output(expect_warning(
+    b <- audit_leakage(fit, metric = "auc", B = 6, perm_refit = TRUE, perm_stratify = TRUE,
+                       perm_folds = "fixed", target_scan = FALSE, target_scan_multivariate = FALSE),
+    "perm_stratify is ignored", class = "bioLeak_input_warning"))
+  expect_gt(length(unique(round(b@perm_values, 8))), 1L)
 })

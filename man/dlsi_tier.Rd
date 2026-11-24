@@ -17,11 +17,11 @@ A length-one character string giving the tier label.
 }
 \description{
 Returns the inference tier label stored in a [`LeakDeltaLSI`] object.
-Possible values are `"A_full_inference"` (`R_eff >= 20`),
-`"B_signflip_ci"` (`R_eff >= 10`), `"C_signflip"` (`R_eff >= 3`),
+Possible values are `"A_ttest_ge20_folds"` (`R_eff >= 20`),
+`"B_ttest_10_19_folds"` (`R_eff >= 10`), `"C_ttest_3_9_folds"` (`R_eff >= 3`),
 or `"D_insufficient"` (`R_eff < 3` or unpaired). `R_eff` is the number of
-folds per repeat; the labels are historical, and tiers A-C all report the
-corrected repeated-CV t-test p-value and CIs.
+folds per repeat; tiers A-C all report the corrected repeated-CV t-test
+p-value and CIs.
 }
 \details{
 Implemented as an S4 generic with a method for [`LeakDeltaLSI`];

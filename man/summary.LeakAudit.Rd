@@ -25,7 +25,7 @@ Invisibly returns `object` after printing the summary.
 Prints a concise, human-readable report for a `LeakAudit` object produced by
 [audit_leakage()]. The summary surfaces four diagnostics when available:
 label-permutation gap (prediction-label association by default), batch/study
-association tests (metadata aligned with fold splits), target leakage scan
+association tests (batch-outcome and fold-batch), target leakage scan
 (features strongly associated with the outcome), and near-duplicate detection
 (high similarity in `X_ref`). The output reflects the stored audit results
 only; it does not recompute any tests.
@@ -34,8 +34,11 @@ only; it does not recompute any tests.
 The permutation test quantifies prediction-label association when using fixed
 predictions; refit-based permutations require `perm_refit = TRUE` (or `"auto"`
 with refit data). It does not by itself prove or rule out leakage.
-Batch association flags metadata that align with fold assignment; this may
-reflect study design rather than leakage.
+The batch section reports, per batch/study column, the batch-outcome test,
+the fold-batch test (how batches are spread over folds) and the share of
+test rows whose batch also occurs in training. Confounding is flagged in
+the mechanism assessment only when batch is associated with the outcome
+and batches are shared by training and test rows (see [audit_leakage()]).
 Target leakage scan uses univariate feature-outcome associations and can miss
 multivariate proxies, interaction leakage, or features not included in `X_ref`.
 The multivariate scan (enabled by default for supported tasks) reports an

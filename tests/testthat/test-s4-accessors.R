@@ -85,7 +85,7 @@ test_that("Accessor methods return values identical to direct slot access", {
   dlsi <- methods::new("LeakDeltaLSI",
     metric          = "auc",
     exchangeability = "iid",
-    tier            = "A_full_inference",
+    tier            = "A_ttest_ge20_folds",
     strict          = FALSE,
     R_eff           = 20L,
     delta_lsi       = 0.181,

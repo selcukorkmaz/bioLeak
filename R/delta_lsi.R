@@ -277,12 +277,13 @@
 #' }
 #'
 #' \subsection{Inference tiers}{
-#' Tier labels are kept from earlier versions for compatibility; every tier
-#' except D reports a p-value and both CIs.
+#' Tiers A-C all report the corrected t-test p-value and both CIs; they differ
+#' only in how many folds per repeat (independent test sets) back the test.
+#' Tier D reports the point estimate only.
 #' \describe{
-#'   \item{\code{"A_full_inference"}}{R_eff >= 20}
-#'   \item{\code{"B_signflip_ci"}}{10 <= R_eff < 20}
-#'   \item{\code{"C_signflip"}}{3 <= R_eff < 10}
+#'   \item{\code{"A_ttest_ge20_folds"}}{R_eff >= 20}
+#'   \item{\code{"B_ttest_10_19_folds"}}{10 <= R_eff < 20}
+#'   \item{\code{"C_ttest_3_9_folds"}}{3 <= R_eff < 10}
 #'   \item{\code{"D_insufficient"}}{R_eff < 3 or unpaired: point estimate only}
 #' }
 #' \code{inference_ok} is \code{TRUE} whenever a finite p-value and CI were
@@ -325,13 +326,16 @@
 #'   that a positive \code{delta_lsi} always indicates leakage inflation
 #'   (the naive pipeline is artificially more optimistic than the guarded one).
 #' @param M_boot Ignored; retained for compatibility (no bootstrap is used).
+#'   A warning is issued when it is supplied.
 #' @param M_flip Ignored; retained for compatibility (no sign-flip test is used).
+#'   A warning is issued when it is supplied.
 #' @param strict Logical. If \code{TRUE}, error on insufficient R_eff instead
 #'   of a warning.
 #' @param return_details Logical. If \code{TRUE}, include the per-repeat
 #'   \eqn{\Delta_r} vector, the paired fold deltas and the original fit objects
 #'   in the \code{info} slot.
 #' @param seed Ignored; retained for compatibility (the method is deterministic).
+#'   A warning is issued when it is supplied.
 #' @param ... Unused. Reserved for deprecated aliases such as
 #'   \code{fit_naive}.
 #'
@@ -351,8 +355,8 @@
 #'     \item \code{\link{dlsi_p_value}(dlsi)} -- corrected repeated-CV
 #'       t-test p-value.
 #'     \item \code{\link{dlsi_tier}(dlsi)} -- inference-tier label
-#'       (\code{"A_full_inference"}, \code{"B_signflip_ci"},
-#'       \code{"C_signflip"}, or \code{"D_insufficient"}).
+#'       (\code{"A_ttest_ge20_folds"}, \code{"B_ttest_10_19_folds"},
+#'       \code{"C_ttest_3_9_folds"}, or \code{"D_insufficient"}).
 #'     \item \code{\link{dlsi_R_eff}(dlsi)} -- effective number of
 #'       independent units (folds per repeat).
 #'     \item \code{\link{dlsi_repeats}(dlsi, which = "naive" | "guarded")}
@@ -562,9 +566,9 @@ delta_lsi <- function(
   R_eff   <- as.integer(k_folds)
 
   tier <- if (!paired || R_eff < 3L) "D_insufficient" else
-          if (R_eff >= 20L) "A_full_inference" else
-          if (R_eff >= 10L) "B_signflip_ci"    else
-                            "C_signflip"
+          if (R_eff >= 20L) "A_ttest_ge20_folds" else
+          if (R_eff >= 10L) "B_ttest_10_19_folds"    else
+                            "C_ttest_3_9_folds"
 
   if (tier == "D_insufficient") {
     msg <- sprintf(
@@ -630,6 +634,14 @@ delta_lsi <- function(
       n_lv <- as.integer(length(unique(stats::na.omit(cd[[col]]))))
       if (identical(exchangeability, "by_group")) n_groups_used <- n_lv else n_batches_used <- n_lv
     }
+  }
+  ignored_args <- c(M_boot = !missing(M_boot), M_flip = !missing(M_flip), seed = !missing(seed))
+  if (any(ignored_args)) {
+    warning(sprintf(paste0(
+      "[delta_lsi] %s %s ignored: inference is a corrected t-test over folds (no bootstrap ",
+      "or sign-flip test), so there is no resampling to size or seed."),
+      paste(sprintf("`%s`", names(ignored_args)[ignored_args]), collapse = ", "),
+      if (sum(ignored_args) == 1L) "is" else "are"), call. = FALSE)
   }
   if (!is.null(block_size)) {
     warning("[delta_lsi] `block_size` is ignored: all exchangeability settings use the corrected t-test.",

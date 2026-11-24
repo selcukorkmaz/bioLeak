@@ -19,7 +19,7 @@
 - **Preprocessing leakage:** global imputation, scaling, filtering, or feature selection applied before resampling.
 - **Dependence leakage:** repeated measures, subject-level grouping, batch/site/study effects, and near-duplicate samples.
 - **Resampling violations:** group overlap, study holdout, time-ordered evaluation, and multi-axis split constraints.
-- **Diagnostic evidence:** permutation-based performance gaps, batch/fold association tests, target leakage scans, duplicate detection, and mechanism-level risk summaries.
+- **Diagnostic evidence:** permutation-based performance gaps, batch-outcome and fold-batch association tests, target leakage scans, duplicate detection, and mechanism-level risk summaries.
 
 **Out of scope:**
 
@@ -38,7 +38,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 | Function | Description |
 |---|---|
-| `make_split_plan()` | Leakage-aware splits: subject-grouped, batch-blocked, study leave-out, time-series, and N-axis combined modes with compact storage option and constraint-aware train/test exclusion |
+| `make_split_plan()` | Leakage-aware splits: subject-grouped, batch-blocked, study leave-out, time-series, and N-axis combined modes with compact storage option and constraint-aware train/test exclusion; stratification balances groups or, with `stratify_method = "rows"`, class row counts per fold |
 | `check_split_overlap()` | Explicit overlap-invariant validation across declared grouping axes |
 | `as_rsample()` | Convert `LeakSplits` to an `rsample` rset for tidymodels interoperability |
 
@@ -55,7 +55,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 | Function | Description |
 |---|---|
-| `audit_leakage()` | Permutation gap test, batch/study association tests, univariate and multivariate target leakage scans, near-duplicate detection, and mechanism-level risk summaries |
+| `audit_leakage()` | Permutation gap test, batch-outcome and fold-batch association tests, univariate and multivariate target leakage scans, near-duplicate detection with an expected chance count, and mechanism-level risk summaries |
 | `audit_leakage_by_learner()` | Multi-learner auditing for multi-model fits |
 | `audit_report()` | Self-contained HTML summary of audit results |
 | `calibration_summary()` | Probability calibration checks |
@@ -65,7 +65,7 @@ Standard cross-validation assumes independent samples and exchangeable labels. B
 
 | Function | Description |
 |---|---|
-| `delta_lsi()` | Leakage sensitivity index (ΔLSI) with Huber M-estimation, BCa confidence intervals, sign-flip inference, and blocked exchangeability for time-series designs |
+| `delta_lsi()` | Leakage sensitivity index (ΔLSI): Huber M-estimate of the paired performance gap, with a Nadeau–Bengio corrected repeated-CV t-test (p-value and confidence interval) and inference tiers by folds per repeat |
 | `cv_ci()` | Cross-validation confidence intervals with Nadeau-Bengio correction |
 
 ### Simulation and benchmarking
@@ -98,7 +98,7 @@ remotes::install_github("selcukorkmaz/bioLeak")
 
 Non-obvious dependencies:
 
-- `SummarizedExperiment` and `BiocGenerics` are Bioconductor packages (installed automatically by `remotes`, but can be installed manually with `BiocManager::install()` if needed).
+- `SummarizedExperiment` (Bioconductor, optional) is needed only for SummarizedExperiment input: `BiocManager::install("SummarizedExperiment")`.
 - Optional packages enable specific features: `glmnet`, `ranger`, `pROC`, `PRROC`, `survival`, `future.apply`, `RANN`, `rmarkdown`, `tune`, `dials`.
 
 ## Minimal working example
@@ -112,7 +112,7 @@ rep_per_subject <- 3
 n <- n_subject * rep_per_subject
 
 subject <- rep(seq_len(n_subject), each = rep_per_subject)
-batch <- rep(seq_len(6), length.out = n)
+batch <- rep(seq_len(6), length.out = n_subject)[subject]  # one batch per subject
 
 # Subject-level latent risk creates dependence across repeated measures
 subj_risk <- rnorm(n_subject, sd = 1)
@@ -221,7 +221,9 @@ Example (rsample + recipes + yardstick):
 if (requireNamespace("rsample", quietly = TRUE) &&
     requireNamespace("recipes", quietly = TRUE) &&
     requireNamespace("yardstick", quietly = TRUE)) {
-  rs <- rsample::vfold_cv(df, v = 5)
+  # grouped resampling; split_cols names the design, since df also has a
+  # batch column and bioLeak will not guess between the two
+  rs <- rsample::group_vfold_cv(df, group = subject, v = 5)
   rec <- recipes::recipe(outcome ~ ., data = df) |>
     recipes::step_normalize(recipes::all_numeric_predictors())
   ys <- yardstick::metric_set(yardstick::roc_auc, yardstick::accuracy)
@@ -230,6 +232,7 @@ if (requireNamespace("rsample", quietly = TRUE) &&
     df,
     outcome = "outcome",
     splits = rs,
+    split_cols = c(group = "subject"),
     learner = spec,
     preprocess = rec,
     metrics = ys,
@@ -262,9 +265,9 @@ Survival outcomes are supported in `fit_resample()`, but support is less complet
 ## Interpretation guidance
 
 - **Permutation gap:** large positive gaps indicate non-random signal; they do not by themselves indicate or refute leakage.
-- **Batch/study association warnings** indicate that folds align with metadata; this can reflect leakage or study design constraints.
+- **Batch/study confounding** is flagged when batch is associated with the outcome and batches are shared by training and test rows; the fold-batch test only describes how batches are spread over folds.
 - **Target leakage flags** identify features overly aligned with the outcome; inspect data provenance before removing them. When enabled, FDR-adjusted columns (`p_value_adj`, `flag_fdr`) provide a more conservative screen.
-- **Duplicate detection** flags near-identical samples across train/test by default; use `duplicate_scope = "all"` to include within-fold duplicates and review for data-quality issues.
+- **Duplicate detection** flags near-identical samples across train/test by default and reports how many pairs would pass by chance (`audit@info$duplicate_null`); use `duplicate_scope = "all"` to include within-fold duplicates and review for data-quality issues.
 - **Mechanism risk summary** (`audit@info$mechanism_summary`) provides a compact mechanism-level risk view across permutation, confounding, target-proxy, duplicate, and temporal signals.
 
 Common misinterpretations:

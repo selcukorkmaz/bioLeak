@@ -146,7 +146,7 @@ These classes capture splits, model fits, and audit diagnostics produced by
  \code{plot(<LeakDeltaLSI>)}
   dispatches to [plot_dlsi_repeats()], rendering the per-repeat
   \eqn{\Delta_r} scatter with the Huber-robust point estimate, the
-  arithmetic mean, and the BCa bootstrap confidence interval band.
+  arithmetic mean, and the corrected-t confidence interval band.
 }
 
 \seealso{

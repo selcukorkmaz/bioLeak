@@ -44,12 +44,18 @@ test_that("simulate_leakage_suite runs when required learners are available", {
       B = 2, seeds = 1, parallel = FALSE, signal_strength = 1
     ), "glmnet")
   } else {
-    res <- simulate_leakage_suite(
+    # glmnet on 5 noise features often fits intercept-only models, so with
+    # B = 2 the permutation null can be degenerate; that warning is expected
+    res <- withCallingHandlers(simulate_leakage_suite(
       n = 80, p = 5, prevalence = 0.5,
       mode = "batch_blocked", learner = "glmnet",
       leakage = "none", rho = 0, K = 3, repeats = 1,
       B = 2, seeds = 1, parallel = FALSE, signal_strength = 1
-    )
+    ), bioLeak_input_warning = function(w) {
+      if (grepl("every permutation gave the same", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    })
     expect_true(inherits(res, "LeakSimResults"))
     expect_true(all(c("seed", "metric_obs", "gap", "p_value", "leakage", "mode") %in% names(res)))
   }

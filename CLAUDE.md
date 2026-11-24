@@ -118,3 +118,71 @@ printed.
   `.Random.seed` instead of leaving the user's global RNG state changed.
 - Commit or push only when the user asks. This repo often carries large
   uncommitted work; never `git checkout`, `reset` or `stash` it away.
+- Simulations and scratch scripts write only to the session scratchpad (use
+  absolute paths). A stray file in the package root breaks R CMD check.
+
+## 7. JSS revision rules
+
+The JSS manuscript lives in `paper/submission/manuscript/`. The submitted
+replication script and its stored values are in
+`paper/submission/bioLeak_replication_v3/` (read-only baseline); revision
+edits go to a working copy in `paper/submission/replication/` (the layout the
+submission README describes). The user may replace `paper/`, so the tracker
+and response letter drafts live in `dev/jss-revision/`, next to
+`dev/paper-updates.md`. Use the
+`jss-revision` skill for the workflow, `paper-regenerate` to produce numbers
+and `paper-claims-check` before calling any manuscript change done.
+
+1. **One tracker, every item.** Every reviewer request gets an ID (J1, K2,
+   L1.3, ...) in `dev/jss-revision/TRACKER.md` with the reviewer's words,
+   type (package / replication / text / format), decision, action, location
+   and status. Items from `dev/paper-updates.md` are tracked there too (P1,
+   P2, ...). Nothing is changed for the revision without a tracker ID.
+2. **Decisions belong to the user.** Accept / partially accept / decline is
+   proposed with a reason and confirmed by the user before work starts. A
+   decline is never silent: it gets a reasoned reply in the letter.
+3. **Code first, numbers last.** Order: package changes -> independent review
+   -> freeze (version bump, user commits) -> replication-script edits ->
+   regenerate once -> manuscript.
+   No number in the manuscript is edited while package changes are open.
+4. **Package changes follow sections 2-3.** One tracker item at a time, each
+   closed with tests, the verify-change rounds and a NEWS entry that names
+   the item ID. A changed p-value or diagnostic needs null calibration and a
+   power check, and a diagnostic needs a flagged fixture and a benign
+   look-alike.
+5. **Numbers come from code, never from memory.** The manuscript holds its
+   numbers as literal text, so every number is transcribed from the
+   regenerated outputs (`placeholder_values.rds`, the tables Section 6 of the
+   replication script prints, re-run listings) and checked against them by
+   `paper-claims-check`. Old and new values are recorded in the tracker.
+6. **Describe only what exists.** A statement about what bioLeak does must
+   match the current code; features that are not implemented are named as
+   such or removed (reviewer K). The paper-claims-check skill enforces this.
+7. **Manuscript edits go section by section.** All tracker items touching a
+   section are applied in one pass, each edit tagged with its item ID in the
+   tracker; formatting comes last.
+8. **The response letter quotes, acts and locates, briefly.** For each item:
+   the reviewer's point (quoted or summarised), what was done, where
+   (section, page, line in the revised PDF) and the new text or numbers.
+   Answer what was asked in a few sentences; no restating of the paper, no
+   long justifications. Tone: thank, agree where right, explain where not.
+9. **High bar, verified findings.** Report only what changes a result, a
+   claim or a reviewer's question; reproduce every finding before acting on
+   it; no invented or trivial issues.
+10. **Stop rule.** The three-fix-cycle limit in section 2 applies per tracker
+    item; after it, report to the user instead of continuing. Before a
+    diagnostic or test is reviewed, write its contract: the designs it
+    covers (each with a calibration case) and what it does outside them.
+    Reviews check the contract; a finding inside it is fixed, a finding
+    outside it is documented as a limit (help page and `dev/OPEN-ISSUES.md`),
+    not a new fix cycle.
+11. **Write precisely and compactly; never overclaim.** In the manuscript
+    and the letter, state only what the evidence shows, with its scope and
+    limits (e.g. "reduced in these simulations", not "eliminates"). Add
+    only what an item needs: short sentences, one idea each, no padding or
+    repetition. A revision should not make the paper longer than its
+    content requires.
+12. **The user owns submission.** No commits, pushes, version bumps, emails
+    or uploads without the user's word; archived submission folders
+    (`archive_*`, `*_v3`, `replication.bak.*`) are read-only; the working
+    copies (`manuscript/`, `replication/`) are where edits go.

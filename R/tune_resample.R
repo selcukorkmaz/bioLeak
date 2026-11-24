@@ -12,8 +12,11 @@
 #' @param outcome Outcome column name (if x is SE or data.frame).
 #' @param splits LeakSplits object defining the outer resamples. If the splits
 #'   do not already include inner folds, they are created from each outer
-#'   training fold using the same split metadata. rsample splits must already
-#'   include inner folds.
+#'   training fold using the same split metadata (for plans from
+#'   [as_leaksplits()], the split_spec's design columns stored in the plan).
+#'   An rsample object is also accepted: the inner resamples of
+#'   `rsample::nested_cv()` are used as given; for other rsets, inner folds are
+#'   built from the split mode and columns (see `split_cols`).
 #' @param split_cols Optional named list/character vector or `"auto"` (default)
 #'   overriding group/batch/study/time column names when `splits` is an rsample
 #'   object and its attributes are missing. `"auto"` falls back to common
@@ -68,7 +71,11 @@
 #'   \item{metrics}{Outer-fold metrics.}
 #'   \item{metric_summary}{Mean/SD metrics across outer folds with columns
 #'     \code{learner}, and \code{<metric>_mean} and \code{<metric>_sd} for
-#'     each metric.}
+#'     each metric, plus \code{<metric>_ci_lo}/\code{<metric>_ci_hi} from
+#'     [cv_ci()] when available. \code{_mean}/\code{_sd} summarize all outer
+#'     fold rows; the interval counts each distinct test set once (its centre
+#'     is the mean over distinct test sets) and uses the Nadeau-Bengio
+#'     corrected variance.}
 #'   \item{best_params}{Best hyperparameters per outer fold.}
 #'   \item{inner_results}{List of inner tuning results.}
 #'   \item{outer_fits}{List of outer LeakFit objects.}
@@ -240,8 +247,16 @@ tune_resample <- function(x, outcome, splits,
       .bio_stop("splits must be a LeakSplits or rsample rset/rsplit.", "bioLeak_input_error")
     }
   }
-  if (identical(splits@mode, "rsample") && is.null(splits@info$inner)) {
-    .bio_stop("rsample splits require precomputed inner folds for tune_resample().", "bioLeak_input_error")
+  # Inner folds for an rset without its own inner resamples are built with the
+  # design inferred at import (perm_mode: from attr "bioLeak_mode" /
+  # "bioLeak_perm_mode", split_cols, or a recognised column).
+  inner_split_mode <- .bio_perm_mode(splits)
+  if (identical(splits@mode, "rsample") && is.null(splits@info$inner) &&
+      identical(inner_split_mode, "rsample")) {
+    .bio_stop(paste0(
+      "tune_resample() needs inner folds for rsample splits: use rsample::nested_cv(), or ",
+      "say how to build them with split_cols (e.g. split_cols = c(group = \"subject\")) or ",
+      "attr(splits, \"bioLeak_mode\") <- \"subject_grouped\"."), "bioLeak_input_error")
   }
 
   Xall <- .bio_get_x(x)
@@ -272,6 +287,25 @@ tune_resample <- function(x, outcome, splits,
   drop_cols <- drop_cols[!is.na(drop_cols) & nzchar(drop_cols)]
   if (length(drop_cols) && !is.null(colnames(Xall))) {
     Xall <- Xall[, setdiff(colnames(Xall), drop_cols), drop = FALSE]
+  }
+  meta_cols <- setdiff(drop_cols, outcome)
+  # Recipes (given as preprocess, or inside a workflow) keep the split columns
+  # in the data with a non-predictor role; everything else is fitted on data
+  # without them (see df_all below), as in fit_resample().
+  keep_meta <- FALSE
+  if (inherits(preprocess, "recipe") && !is_workflow(learner)) {
+    preprocess <- .bio_recipe_exclude_cols(preprocess, meta_cols)
+    keep_meta <- TRUE
+  } else if (is_workflow(learner)) {
+    pre <- tryCatch(workflows::extract_preprocessor(learner), error = function(e) NULL)
+    if (.bio_is_recipe(pre) && any(pre$var_info$variable %in% meta_cols)) {
+      pre2 <- .bio_recipe_exclude_cols(pre, meta_cols)
+      vi <- pre2$var_info
+      if (!any(vi$role[vi$variable %in% meta_cols] %in% "predictor")) {
+        learner <- workflows::update_recipe(learner, pre2)
+        keep_meta <- TRUE
+      }
+    }
   }
 
   task <- if (.bio_is_binomial(yall)) "binomial"
@@ -337,6 +371,13 @@ tune_resample <- function(x, outcome, splits,
   }
 
   if (is.null(control)) control <- tune::control_grid()
+  # bioLeak's positive class is the second outcome level. tune passes the
+  # class-probability columns to binary metrics according to
+  # control$event_level, so set it there; tweaking the metrics' event_level
+  # instead scored the first class's probability as the event (inverted AUC).
+  if (identical(task, "binomial") && "event_level" %in% names(control)) {
+    control$event_level <- "second"
+  }
   if (isTRUE(tune_threshold)) {
     if (!"save_pred" %in% names(control)) {
       stop("control must be created by tune::control_grid() when tune_threshold = TRUE.",
@@ -345,11 +386,21 @@ tune_resample <- function(x, outcome, splits,
     control$save_pred <- TRUE
   }
 
+  # yardstick::metric_set() names its metrics from the call's expressions, so
+  # do.call() with function objects labels them "<prb_mtrc>" etc. Build the
+  # call from symbols to keep the names.
+  named_metric_set <- function(fns) {
+    if (is.null(names(fns)) || any(!nzchar(names(fns)))) return(do.call(yardstick::metric_set, unname(fns)))
+    env <- list2env(fns, parent = baseenv())
+    eval(as.call(c(list(quote(yardstick::metric_set)), lapply(names(fns), as.name))), env)
+  }
+
   resolve_metrics <- function(metrics, task) {
     macro_f1 <- yardstick::metric_tweak("macro_f1", yardstick::f_meas, estimator = "macro")
-    auc_metric <- yardstick::metric_tweak("auc", yardstick::roc_auc, event_level = "second")
-    roc_metric <- yardstick::metric_tweak("roc_auc", yardstick::roc_auc, event_level = "second")
-    pr_metric <- yardstick::metric_tweak("pr_auc", yardstick::pr_auc, event_level = "second")
+    # event level comes from control$event_level (set to "second" above)
+    auc_metric <- yardstick::roc_auc
+    roc_metric <- yardstick::roc_auc
+    pr_metric <- yardstick::pr_auc
     log_loss_metric <- yardstick::metric_tweak("log_loss", yardstick::mn_log_loss)
     mn_log_loss_metric <- yardstick::metric_tweak("mn_log_loss", yardstick::mn_log_loss)
 
@@ -383,7 +434,7 @@ tune_resample <- function(x, outcome, splits,
       if (length(valid_keys) == 0) valid_keys <- defaults[defaults %in% names(metric_map)]
 
       fns <- metric_map[valid_keys]
-      metric_set <- do.call(yardstick::metric_set, fns)
+      metric_set <- named_metric_set(fns)
       return(list(set = metric_set, names = valid_keys))
     }
 
@@ -399,10 +450,15 @@ tune_resample <- function(x, outcome, splits,
     stop("metrics must be a character vector or yardstick metric set.", call. = FALSE)
   }
 
-  subset_metric_set <- function(metric_set, keep) {
+  # `current` lists the set's metrics in order (as returned by
+  # resolve_metrics()); subset by position so it works whatever labels
+  # yardstick gave them.
+  subset_metric_set <- function(metric_set, current, keep) {
     metric_list <- attr(metric_set, "metrics")
-    metric_list <- metric_list[names(metric_list) %in% keep]
-    do.call(yardstick::metric_set, metric_list)
+    sel <- if (length(current) == length(metric_list)) current %in% keep else names(metric_list) %in% keep
+    metric_list <- metric_list[sel]
+    names(metric_list) <- current[sel]
+    named_metric_set(metric_list)
   }
 
   metrics_resolved <- resolve_metrics(metrics, task)
@@ -666,7 +722,11 @@ tune_resample <- function(x, outcome, splits,
     new("LeakSplits", mode = splits@mode, indices = indices, info = info)
   }
 
-  inner_seed <- inner_seed %||% (splits@info$seed %||% seed)
+  if (is.null(inner_seed)) {
+    plan_seed <- splits@info$seed
+    # rsample plans record no seed (NA); fall back to `seed`
+    inner_seed <- if (length(plan_seed) == 1L && !is.na(plan_seed)) plan_seed else seed
+  }
   inner_v <- inner_v %||% (splits@info$v %||% 5L)
   inner_repeats <- inner_repeats %||% 1L
 
@@ -674,6 +734,35 @@ tune_resample <- function(x, outcome, splits,
     x
   } else {
     make_fold_df(Xall, y_data)
+  }
+  # Without a recipe the model sees `outcome ~ .` (or the user's workflow) on
+  # df_all, so remove split/metadata columns from it, as fit_resample() does.
+  # A recipe keeps them, with a non-predictor role (set above).
+  if (!keep_meta) {
+    df_all <- df_all[, setdiff(names(df_all), meta_cols), drop = FALSE]
+  }
+  # The model is tuned on df_all, so it must carry the outcome as resolved
+  # above (0/1 numerics become a factor, positive_class releveled). Recipes
+  # and workflows were defined on the user's data and keep its outcome type;
+  # a non-factor class outcome there cannot fit a classification model.
+  if (length(outcome) == 1L && outcome %in% names(df_all)) {
+    user_pre <- inherits(preprocess, "recipe") || is_workflow(learner)
+    if (!user_pre) {
+      df_all[[outcome]] <- y_data
+    } else if (task %in% c("binomial", "multiclass") && !is.factor(df_all[[outcome]])) {
+      .bio_stop(sprintf(paste0(
+        "The outcome '%s' is not a factor, but a classification task was detected. Convert it ",
+        "with factor() in the data before defining the recipe or workflow."), outcome),
+        "bioLeak_input_error")
+    }
+  }
+  # The tuning data keep the user's level order for recipes and workflows, so
+  # the positive class may be the first level there: point tune's event level
+  # at it (PR-AUC depends on which class is the event).
+  if (identical(task, "binomial") && "event_level" %in% names(control) &&
+      length(outcome) == 1L && outcome %in% names(df_all) && is.factor(df_all[[outcome]])) {
+    lv <- levels(df_all[[outcome]])
+    control$event_level <- if (identical(lv[1], class_levels[2])) "first" else "second"
   }
 
   coldata <- if (.bio_is_se(x)) {
@@ -744,21 +833,22 @@ tune_resample <- function(x, outcome, splits,
       inner_precomputed <- TRUE
     }
     if (is.null(inner_idx)) {
-      if (identical(splits@mode, "rsample")) {
-        inner_mode <- "subject_grouped"
-        if (!is.null(splits@info$perm_mode)) inner_mode <- splits@info$perm_mode
-        grp <- splits@info$group
-        if(is.null(grp) && "subject" %in% names(df_train)) grp <- "subject"
-        if(is.null(grp) && "id" %in% names(df_train)) grp <- "id"
-        x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
-      } else {
-        x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
-      }
+      x_inner <- if (.bio_is_se(x)) x[, tr] else x[tr, , drop = FALSE]
 
+      # Plans from as_leaksplits() keep their design columns (group_id,
+      # batch_group, ...) in info$coldata, aligned to the data rows; the
+      # user's x does not have them.
+      plan_cd <- splits@info$coldata
+      design_cols <- unique(unlist(splits@info[c("group", "batch", "study", "time")]))
+      if (is.data.frame(plan_cd) && nrow(plan_cd) == nrow(df_all) &&
+          length(design_cols) && all(design_cols %in% names(plan_cd)) &&
+          !(is.data.frame(x_inner) && all(design_cols %in% names(x_inner)))) {
+        x_inner <- plan_cd[tr, , drop = FALSE]
+      }
       inner <- make_split_plan(
         x_inner,
         outcome = outcome,
-        mode = splits@mode,
+        mode = inner_split_mode,
         group = splits@info$group,
         batch = splits@info$batch,
         study = splits@info$study,
@@ -767,6 +857,8 @@ tune_resample <- function(x, outcome, splits,
         v = inner_v,
         repeats = inner_repeats,
         stratify = isTRUE(splits@info$stratify),
+        stratify_by = if (isTRUE(splits@info$stratify)) splits@info$stratify_by else NULL,
+        stratify_method = if (isTRUE(splits@info$stratify)) splits@info$stratify_method %||% "groups" else "groups",
         nested = FALSE,
         seed = inner_seed + i,
         horizon = splits@info$horizon %||% 0,
@@ -850,7 +942,7 @@ tune_resample <- function(x, outcome, splits,
         drop_metrics <- intersect(metric_names_fold, c("auc", "roc_auc", "pr_auc"))
         keep_metrics <- setdiff(metric_names_fold, drop_metrics)
         if (length(drop_metrics) && length(keep_metrics)) {
-          tune_metrics_fold <- subset_metric_set(tune_metrics_fold, keep_metrics)
+          tune_metrics_fold <- subset_metric_set(tune_metrics_fold, metric_names_fold, keep_metrics)
           metric_names_fold <- keep_metrics
           warning(sprintf(
             "Outer fold %d: inner assessment folds lack both classes; dropping metrics %s for tuning.",
@@ -950,11 +1042,7 @@ tune_resample <- function(x, outcome, splits,
           warning(sprintf("Outer fold %d: threshold tuning skipped (selected config has no predictions).", i),
                   call. = FALSE)
         } else {
-          pos_col <- paste0(".pred_", make.names(class_levels[2]))
-          prob_cols <- setdiff(grep("^\\.pred_", names(pred_cfg), value = TRUE), ".pred_class")
-          if (!pos_col %in% prob_cols && length(prob_cols) >= 2L) {
-            pos_col <- prob_cols[[2]]
-          }
+          pos_col <- .bio_prob_col(names(pred_cfg), class_levels[2]) %||% ""
           if (!pos_col %in% names(pred_cfg)) {
             warning(sprintf("Outer fold %d: threshold tuning skipped (positive probability column not found).", i),
                     call. = FALSE)
@@ -1127,11 +1215,14 @@ tune_resample <- function(x, outcome, splits,
 
   # confidence intervals -------------------------------------------------------
   tryCatch({
-    ci_df <- cv_ci(metrics_df, method = "nadeau_bengio")
+    ci_df <- cv_ci(structure(list(splits = splits, metrics = metrics_df), class = "LeakTune"),
+                   method = "nadeau_bengio")
     ci_cols <- grep("_ci_lo$|_ci_hi$", names(ci_df), value = TRUE)
-    if (length(ci_cols) && nrow(ci_df) == nrow(metric_summary)) {
+    if (length(ci_cols)) {
+      # cv_ci() keeps learners in input order, aggregate() sorts them: match by name
+      row_idx <- match(as.character(metric_summary$learner), as.character(ci_df$learner))
       for (cc in ci_cols) {
-        metric_summary[[cc]] <- ci_df[[cc]]
+        metric_summary[[cc]] <- ci_df[[cc]][row_idx]
       }
     }
   }, error = function(e) NULL)

@@ -69,3 +69,16 @@ test_that("compact time_series splits keep purge/embargo behavior in as_rsample"
   expect_equal(max(rsample::analysis(rs$splits[[1]])$time), 3)
   expect_equal(max(rsample::analysis(rs$splits[[2]])$time), 7)
 })
+
+test_that("compact and explicit time_series plans train on the same rows in the same order (BL-16)", {
+  set.seed(16)
+  n <- 60
+  df <- data.frame(t = sample(n), y = factor(rep(c("a", "b"), n / 2)), x = rnorm(n))   # rows not in time order
+  sp_e <- make_split_plan(df, outcome = "y", mode = "time_series", time = "t", v = 4, progress = FALSE)
+  sp_c <- make_split_plan(df, outcome = "y", mode = "time_series", time = "t", v = 4, compact = TRUE, progress = FALSE)
+  for (i in seq_along(sp_e@indices)) {
+    rc <- bioLeak:::.bio_resolve_fold_indices(sp_c, sp_c@indices[[i]], n, data = df)
+    expect_identical(as.integer(rc$train), as.integer(sp_e@indices[[i]]$train))
+    expect_identical(sort(as.integer(rc$test)), sort(as.integer(sp_e@indices[[i]]$test)))
+  }
+})

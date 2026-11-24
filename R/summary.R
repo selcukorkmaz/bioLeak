@@ -3,7 +3,7 @@
 #' Prints a concise, human-readable report for a `LeakAudit` object produced by
 #' [audit_leakage()]. The summary surfaces four diagnostics when available:
 #' label-permutation gap (prediction-label association by default), batch/study
-#' association tests (metadata aligned with fold splits), target leakage scan
+#' association tests (batch-outcome and fold-batch), target leakage scan
 #' (features strongly associated with the outcome), and near-duplicate detection
 #' (high similarity in `X_ref`). The output reflects the stored audit results
 #' only; it does not recompute any tests.
@@ -12,8 +12,11 @@
 #' The permutation test quantifies prediction-label association when using fixed
 #' predictions; refit-based permutations require `perm_refit = TRUE` (or `"auto"`
 #' with refit data). It does not by itself prove or rule out leakage.
-#' Batch association flags metadata that align with fold assignment; this may
-#' reflect study design rather than leakage.
+#' The batch section reports, per batch/study column, the batch-outcome test,
+#' the fold-batch test (how batches are spread over folds) and the share of
+#' test rows whose batch also occurs in training. Confounding is flagged in
+#' the mechanism assessment only when batch is associated with the outcome
+#' and batches are shared by training and test rows (see [audit_leakage()]).
 #' Target leakage scan uses univariate feature-outcome associations and can miss
 #' multivariate proxies, interaction leakage, or features not included in `X_ref`.
 #' The multivariate scan (enabled by default for supported tasks) reports an
@@ -100,7 +103,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
   cat(sprintf("Hash: %s | Folds: %d | Repeats: %d\n\n",
               substr(hash, 1, 12),
               length(indices),
-              info$repeats %||% 1))
+              (if (!is.null(splits)) splits@info$repeats else NULL) %||% info$repeats %||% 1))
 
   # --- Label-permutation association test ---
   if (!is.null(object@permutation_gap) && nrow(object@permutation_gap) > 0) {
@@ -137,8 +140,10 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
                 formatC(pg$perm_mean, digits = digits, format = "f"),
                 sym_pm,
                 formatC(pg$perm_sd, digits = digits, format = "f")))
-    cat(sprintf("  Gap: %s (larger gap = stronger non-random signal)\n",
-                formatC(pg$gap, digits = digits, format = "f")))
+    cat(sprintf("  Gap: %s, permutation p = %s (B = %s)\n",
+                formatC(pg$gap, digits = digits, format = "f"),
+                formatC(pg$p_value, digits = digits, format = "f"),
+                pg$n_perm %||% NA))
     if (!identical(perm_method, "refit")) {
       cat("  Note: Fixed-prediction label permutations quantify prediction-label association.\n")
       cat("  They do NOT refit models and are not a full null test of no signal.\n")
@@ -155,20 +160,46 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     cat("Batch / Study Association:\n")
     if ("batch_col" %in% names(ba)) {
       has_repeat <- "repeat_id" %in% names(ba)
-      for (i in seq_len(nrow(ba))) {
-        label <- if (has_repeat && is.finite(ba$repeat_id[i])) {
-          sprintf("%s (repeat %s)", ba$batch_col[i], ba$repeat_id[i])
-        } else {
-          ba$batch_col[i]
+      fmt <- function(x) formatC(x, digits = digits, format = "f")
+      for (bc in unique(ba$batch_col)) {
+        rows <- which(ba$batch_col == bc)
+        cat(sprintf("  %s\n", bc))
+        i1 <- rows[1]
+        if ("outcome_pval" %in% names(ba) && is.finite(ba$outcome_pval[i1])) {
+          eff_name <- if (identical(ba$outcome_test[i1], "kruskal")) "epsilon^2" else "Cramer's V"
+          test_name <- if (identical(ba$outcome_test[i1], "kruskal")) "Kruskal-Wallis H" else sym_chi
+          cat(sprintf("    batch-outcome: %s = %s (df = %s), p = %s (Holm %s), %s = %s\n",
+                      test_name, fmt(ba$outcome_stat[i1]), format(ba$outcome_df[i1]),
+                      fmt(ba$outcome_pval[i1]), fmt(ba$outcome_pval_adj[i1]),
+                      eff_name, fmt(ba$outcome_effect[i1])))
+        } else if ("outcome_method" %in% names(ba) && identical(ba$outcome_method[i1], "not_tested")) {
+          cat("    batch-outcome: not tested (time-series rows are dependent; record a group)\n")
+        } else if ("outcome_method" %in% names(ba) && identical(ba$outcome_method[i1], "not_tested_survival")) {
+          cat("    batch-outcome: not tested for survival outcomes\n")
+        } else if ("outcome_pval" %in% names(ba)) {
+          cat("    batch-outcome: not tested (one batch or one class across units)\n")
         }
-        cat(sprintf("  %s: %s = %s (df = %s), p = %s\n",
-                    label,
-                    sym_chi,
-                    formatC(ba$stat[i], digits = digits, format = "f"),
-                    formatC(ba$df[i], digits = digits, format = "f"),
-                    formatC(ba$pval[i], digits = digits, format = "f")))
+        if ("within_unit_effect" %in% names(ba) && is.finite(ba$within_unit_effect[i1])) {
+          cat(sprintf(paste0("    batch varies within subjects; within-subject association ",
+                             "not tested (row-level %s = %s)\n"),
+                      if (identical(ba$outcome_test[i1], "kruskal")) "epsilon^2" else "Cramer's V",
+                      fmt(ba$within_unit_effect[i1])))
+        }
+        for (i in rows) {
+          rep_lab <- if (has_repeat && length(rows) > 1L && is.finite(ba$repeat_id[i]))
+            sprintf(" (repeat %s)", ba$repeat_id[i]) else ""
+          span <- if ("span_frac" %in% names(ba) && is.finite(ba$span_frac[i]))
+            sprintf("; test rows sharing a batch with training: %s%%",
+                    formatC(100 * ba$span_frac[i], digits = 1, format = "f")) else ""
+          cat(sprintf("    fold-batch%s: %s = %s (df = %s), p = %s%s%s\n",
+                      rep_lab, sym_chi, fmt(ba$stat[i]), format(ba$df[i]), fmt(ba$pval[i]),
+                      span,
+                      if ("by_design" %in% names(ba) && isTRUE(ba$by_design[i]))
+                        " (blocked by the split)" else ""))
+        }
       }
-      cat("\n")
+      cat("  Confounding needs batch linked to the outcome and batches shared by\n")
+      cat("  training and test rows; the fold-batch test describes the split only.\n\n")
     } else {
       cat(sprintf("  %s = %s (df = %s), p = %s\n\n",
                   sym_chi,
@@ -177,7 +208,7 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
                   formatC(ba$pval, digits = digits, format = "f")))
     }
   } else {
-    cat("Batch / Study Association: none detected.\n\n")
+    cat("Batch / Study Association: not tested (no batch/study columns available).\n\n")
   }
 
   # --- Target leakage scan ---
@@ -230,17 +261,33 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
     dup_scope <- object@info$duplicate_scope %||% "all"
     scope_label <- if (identical(dup_scope, "train_test")) "train/test only" else "all pairs"
     cat(sprintf("  Scope: %s\n", scope_label))
-    cat(sprintf("  %d pairs detected above %s %s %s\n",
-                nrow(dd),
+    dn <- object@info$duplicate_null
+    n_found <- if (is.data.frame(dn) && nrow(dn) && is.finite(dn$observed[1])) dn$observed[1] else nrow(dd)
+    cat(sprintf("  %d pairs detected above %s %s %s%s\n",
+                as.integer(n_found),
                 sim_label,
                 sym_ge,
-                formatC(object@info$duplicate_threshold, digits = digits, format = "f")))
+                formatC(object@info$duplicate_threshold, digits = digits, format = "f"),
+                if (n_found > nrow(dd)) sprintf(" (%d shown in the table)", nrow(dd)) else ""))
+    if (is.data.frame(dn) && nrow(dn) && is.finite(dn$expected[1])) {
+      cat(sprintf("  Expected by chance: %s pairs%s\n",
+                  formatC(dn$expected[1], digits = 1, format = "f"),
+                  if (is.finite(dn$enrichment[1]))
+                    sprintf(" (observed / expected = %s)",
+                            formatC(dn$enrichment[1], digits = 2, format = "f")) else ""))
+    }
     head_pairs <- utils::head(dd, 5)
     cat("  Example pairs:\n")
     print(head_pairs, row.names = FALSE)
     cat("\n")
   } else {
-    cat("No near-duplicates detected.\n\n")
+    cat("No near-duplicates detected.\n")
+    dn <- object@info$duplicate_null
+    if (is.data.frame(dn) && nrow(dn) && is.finite(dn$expected[1])) {
+      cat(sprintf("  Expected by chance: %s pairs\n",
+                  formatC(dn$expected[1], digits = 1, format = "f")))
+    }
+    cat("\n")
   }
 
   # --- Mechanism risk assessment ---
@@ -261,12 +308,32 @@ summary.LeakAudit <- function(object, digits = 3, ...) {
 
   if (!pg_available) {
     cat("  No permutation test results.\n")
-  } else if (object@permutation_gap$gap < 0.01) {
-    cat(sprintf("  %s Little non-random signal (gap near zero).\n", warn_sym))
-  } else if (object@permutation_gap$gap < 0.05) {
-    cat(sprintf("  %s Modest non-random signal.\n", ok_sym))
   } else {
-    cat(sprintf("  %s Strong non-random signal.\n", ok_sym))
+    pg_p <- object@permutation_gap$p_value
+    pg_gap <- object@permutation_gap$gap
+    if (!is.finite(pg_p) || !is.finite(pg_gap)) {
+      cat("  Permutation test inconclusive (p-value or gap not available).\n")
+    } else if (pg_p > 0.05 || pg_gap <= 0) {
+      cat(sprintf(paste0("  %s No significant non-random signal (p = %s): performance is ",
+                         "not distinguishable from the label-permutation null.\n"),
+                  warn_sym, formatC(pg_p, digits = digits, format = "f")))
+    } else {
+      cat(sprintf("  %s Non-random signal (p = %s, gap = %s).\n", ok_sym,
+                  formatC(pg_p, digits = digits, format = "f"),
+                  formatC(pg_gap, digits = digits, format = "f")))
+    }
+    cat("  A significant gap shows predictions carry signal; it does not show the\n")
+    cat("  absence of leakage, which also produces a large gap.\n")
+  }
+  if (is.data.frame(mech) && nrow(mech) > 0 && "flagged" %in% names(mech)) {
+    leak_flags <- mech$mechanism_class[mech$flagged %in% TRUE &
+                                         mech$mechanism_class != "non_random_signal"]
+    if (length(leak_flags)) {
+      cat(sprintf("  %s Flagged leakage mechanisms: %s (see Mechanism Risk Assessment).\n",
+                  warn_sym, paste(leak_flags, collapse = ", ")))
+    } else {
+      cat("  No leakage mechanism flagged; these checks cannot rule leakage out.\n")
+    }
   }
 
   invisible(object)

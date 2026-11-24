@@ -1,0 +1,45 @@
+bioLeak 0.4.0: JSS revision changes and verified fixes
+
+Release 0.4.0 with the package changes requested in the JSS review and the
+fixes found by verification since 0.3.8. Full list in NEWS.md (0.4.0).
+
+New features
+- make_split_plan(stratify_method = c("groups", "rows")): "rows" places
+  groups, largest first, in the fold that keeps each class's share of rows
+  most even (StratifiedGroupKFold criterion); default unchanged (J8).
+- audit_leakage() reports observed vs expected near-duplicate pairs and
+  their ratio (info$duplicate_null; Gaussian-copula null;
+  duplicate_null_reps, default 3); flag rules documented in
+  ?audit_leakage; summary() lists flagged mechanisms (L3.4, L3.5).
+- perm_refit = "auto" reports its cost (B x folds model fits) and says when
+  it falls back to fixed predictions (K1).
+
+Results can change
+- confounding_alignment now needs a batch-outcome association (one
+  observation per subject/group unit; Holm, small-effect floor) and batches
+  shared by training and test rows (span_frac > 0); blocked designs are
+  never flagged. Within-subject association is reported, not tested; time
+  series without a group are not tested (L1.1-L1.3). Null flag rate
+  0.000-0.080 across 14 designs (limit 0.096), power 0.98-1.00.
+- Earlier verified fixes since 0.3.8 (delta_lsi() corrected t-test,
+  permutation nulls, stratified fold dealing, duplicate rule, guards,
+  tune_resample(), ...): see NEWS.md.
+
+Dependencies
+- SummarizedExperiment moved from Imports to Suggests; install.packages()
+  no longer needs Bioconductor (J10).
+
+Docs, tests, dev
+- README, vignette and help pages updated; new tests (stratify-rows,
+  batch-confounding, duplicate-null, perm-refit-messages) and probe
+  batch_confounding.R.
+- CLAUDE.md: JSS revision rules (section 7) and the review-contract rule
+  (7.10); skills jss-revision, paper-regenerate, paper-claims-check.
+- dev/jss-revision/: tracker, response-letter draft; dev/OPEN-ISSUES.md
+  (BL-24, BL-25 open).
+
+Verification: test suite 0 failures (443 tests, 1,913 expectations; 3
+intentional skips); probes clean (inference calibration at B = 1000);
+R CMD check --as-cran: 0 errors, 0 warnings, 2 machine-only NOTEs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -64,4 +64,38 @@ check("BL-4", (!is.na(after) && after / before >= 0.9) || length(r$warnings) > 0
       sprintf("confounded batch: effect %.2f -> %.2f (retained %.0f%%), warnings: %d",
               before, after, 100 * after / before, length(r$warnings)))
 
+# --- INV-4: batch adjustment must not inflate cross-validated performance.
+# No true biology; a batch effect on 3 features; batch 80/20 confounded with y.
+# Random 5-fold CV with guard_fit per fold. The default (unprotected) must stay
+# near 0.5; protect = TRUE is reported for information (known upward bias).
+auc_rank <- function(y, s) { r <- rank(s); n1 <- sum(y == 1); n0 <- sum(y == 0)
+  (sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0) }
+cv_auc <- function(b, protect) {
+  set.seed(b); n <- 120
+  y <- rbinom(n, 1, 0.5); bt <- ifelse(runif(n) < ifelse(y == 1, 0.8, 0.2), "B1", "B2")
+  X <- data.frame(matrix(rnorm(n * 5), n)); X[, 1:3] <- X[, 1:3] + 1.5 * (bt == "B1")
+  fold <- sample(rep(1:5, length.out = n)); a <- numeric(5)
+  for (k in 1:5) {
+    tr <- fold != k; te <- !tr
+    gf <- suppressWarnings(guard_fit(X[tr, ], factor(y[tr]),
+      steps = list(impute = list(winsor = FALSE), normalize = list(method = "none"),
+                   batch_adjust = list(method = "location_scale", batch = bt[tr], protect = protect)),
+      task = "binomial"))
+    m <- suppressWarnings(stats::glm(y[tr] ~ ., data = gf$transform(X[tr, ], batch = bt[tr]),
+                                     family = stats::binomial))
+    a[k] <- auc_rank(y[te], stats::predict(m, newdata = gf$transform(X[te, ], batch = bt[te])))
+  }
+  mean(a)
+}
+B_bias <- as.integer(Sys.getenv("PROBE_B_BIAS", "80"))
+cores  <- as.integer(Sys.getenv("PROBE_CORES", "3"))
+a_def  <- unlist(parallel::mclapply(seq_len(B_bias), cv_auc, protect = FALSE, mc.cores = cores))
+a_prot <- unlist(parallel::mclapply(seq_len(B_bias), cv_auc, protect = TRUE, mc.cores = cores))
+se_def <- stats::sd(a_def) / sqrt(B_bias)
+check("INV-4", mean(a_def) <= 0.5 + 3 * se_def,
+      sprintf("no biology, confounded batch: default CV AUC %.3f (must be <= 0.5 + 3 SE = %.3f)",
+              mean(a_def), 0.5 + 3 * se_def))
+cat(sprintf("INFO [protect] same design with protect = TRUE: CV AUC %.3f (known optimistic bias)\n",
+            mean(a_prot)))
+
 probe_finish()

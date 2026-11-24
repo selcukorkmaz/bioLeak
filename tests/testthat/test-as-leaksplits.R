@@ -77,7 +77,9 @@ test_that("ordered composite and subject specs enforce both time ordering and gr
   )
   spec_ord$time_var <- "order_rank"
 
-  sp <- suppressMessages(as_leaksplits(spec_ord, dat, outcome = "y", v = 3, progress = FALSE))
+  expect_warning(  # balanced panel: the panel fallback reports its training share
+    sp <- suppressMessages(as_leaksplits(spec_ord, dat, outcome = "y", v = 3, progress = FALSE)),
+    "panel fallback", class = "bioLeak_fold_warning")
   expect_s4_class(sp, "LeakSplits")
   expect_identical(sp@mode, "time_series")
   expect_identical(sp@info$group, "group_id")
@@ -298,4 +300,130 @@ test_that("as_leaksplits handles partial NA block_vars, duplicate IDs, and compa
   fit_ts <- fit_resample(dat, outcome = "y", splits = sp_ts_compact,
                          learner = "glm", custom_learners = custom_glm, metrics = "auc")
   expect_s4_class(fit_ts, "LeakFit")
+})
+
+# ── SG-8 / BL-6: choosing which block_vars to enforce ─────────────────────────
+
+.blk_spec <- function() {
+  b  <- rep(paste0("B", 1:6), each = 4)
+  st <- rep(c("S1", "S2"), length.out = 24)       # every study spans every batch
+  spec <- fake_spec("subject", n = 24, n_groups = 12,
+                    extra = list(batch_group = b, study_group = st))
+  spec$block_vars <- c("batch_group", "study_group")
+  spec
+}
+
+test_that("use_block_constraints accepts a subset of block_vars", {
+  dat <- obs_frame(n = 24)
+  sp <- suppressMessages(as_leaksplits(.blk_spec(), dat, outcome = "y", v = 3,
+                                       use_block_constraints = "batch_group", progress = FALSE))
+  expect_identical(sp@mode, "combined")
+  cols <- vapply(sp@info$constraints, function(ax) ax$col, character(1))
+  expect_true("batch_group" %in% cols)
+  expect_false("study_group" %in% cols)
+})
+
+test_that("use_block_constraints names unknown axes and lists the available ones", {
+  dat <- obs_frame(n = 24)
+  expect_error(as_leaksplits(.blk_spec(), dat, outcome = "y", v = 3,
+                             use_block_constraints = "site_group", progress = FALSE),
+               "site_group.*available: batch_group, study_group")
+})
+
+test_that("an infeasible block-constraint set gives an explanatory error", {
+  dat <- obs_frame(n = 24)
+  # two studies spanning all batches: excluding shared study levels empties training
+  err <- tryCatch(suppressWarnings(suppressMessages(as_leaksplits(.blk_spec(), dat, outcome = "y", v = 3,
+                                                 use_block_constraints = TRUE, progress = FALSE))),
+                  error = function(e) conditionMessage(e))
+  expect_match(err, "study_group")
+  expect_match(err, "use_block_constraints")
+  expect_false(grepl("^No valid folds generated", err))
+})
+
+test_that("use_block_constraints warns when it cannot apply (BL-6)", {
+  dat <- obs_frame(n = 24)
+  spec <- fake_spec("batch", n = 24, n_groups = 4,
+                    extra = list(batch_group = rep(paste0("B", 1:4), each = 6)))
+  spec$block_vars <- "batch_group"
+  expect_warning(suppressMessages(as_leaksplits(spec, dat, outcome = "y", v = 3,
+                                                use_block_constraints = TRUE, progress = FALSE)),
+                 "use_block_constraints")
+})
+
+test_that("use_block_constraints warns when constraints leave only part of the data tested", {
+  skip_if_not_installed("splitGraph")
+  meta <- data.frame(sample_id = sprintf("S%03d", 1:120), subject_id = sprintf("P%02d", rep(1:30, each = 4)),
+                     batch_id = sprintf("B%02d", rep(1:10, 12)), study_id = sprintf("ST%d", rep(1:3, 40)),
+                     stringsAsFactors = FALSE)
+  g <- splitGraph::graph_from_metadata(meta)
+  spec <- splitGraph::as_split_spec(splitGraph::derive_split_constraints(g, mode = "subject"), graph = g)
+  dat <- data.frame(sample_id = meta$sample_id, y = factor(rep(c("a", "b"), 60)))
+  res <- tryCatch(withCallingHandlers(
+    suppressMessages(as_leaksplits(spec, dat, outcome = "y", v = 4, use_block_constraints = TRUE, seed = 1)),
+    warning = function(w) {
+      if (grepl("rows are ever tested", conditionMessage(w))) res_w <<- conditionMessage(w)
+      invokeRestart("muffleWarning")
+    }), error = function(e) conditionMessage(e))
+  # either an explanatory error or a coverage warning, never a silent partial CV
+  if (is.character(res)) {
+    expect_match(res, "use_block_constraints: excluding")
+  } else {
+    expect_true(exists("res_w") && grepl("of 120 rows are ever tested", res_w))
+  }
+})
+
+test_that("explanatory error is not used for nested or user-supplied constraint failures", {
+  dat <- obs_frame(n = 24)
+  spec <- .blk_spec()
+  err <- tryCatch(suppressWarnings(suppressMessages(as_leaksplits(
+    spec, dat, outcome = "y", v = 3, use_block_constraints = "batch_group",
+    constraints = list(list(type = "subject", col = "group_id"), list(type = "study", col = "study_group")),
+    progress = FALSE))), error = function(e) conditionMessage(e))
+  if (is.character(err)) expect_false(grepl("^use_block_constraints: excluding", err))
+  expect_warning(suppressMessages(as_leaksplits(spec, dat, outcome = "y", v = 3,
+                                                use_block_constraints = "batch_group",
+                                                mode = "subject_grouped", progress = FALSE)),
+                 "replace the block constraints")
+})
+
+test_that("a single infeasible axis does not suggest itself", {
+  dat <- obs_frame(n = 24)
+  spec <- .blk_spec()
+  err <- tryCatch(suppressWarnings(suppressMessages(as_leaksplits(spec, dat, outcome = "y", v = 3,
+                    use_block_constraints = "study_group", progress = FALSE))),
+                  error = function(e) conditionMessage(e))
+  if (is.character(err)) expect_false(grepl('e.g. use_block_constraints = "study_group"', err, fixed = TRUE))
+})
+
+test_that("coverage warning also fires for compact plans (verification finding)", {
+  skip_if_not_installed("splitGraph")
+  meta <- data.frame(sample_id = sprintf("S%03d", 1:120), subject_id = sprintf("P%02d", rep(1:30, each = 4)),
+                     batch_id = sprintf("B%02d", rep(1:10, 12)), study_id = sprintf("ST%d", rep(1:3, 40)),
+                     stringsAsFactors = FALSE)
+  g <- splitGraph::graph_from_metadata(meta)
+  spec <- splitGraph::as_split_spec(splitGraph::derive_split_constraints(g, mode = "subject"), graph = g)
+  dat <- data.frame(sample_id = meta$sample_id, y = factor(rep(c("a", "b"), 60)))
+  for (seed in 1:4) {
+    run <- function(compact) {
+      w <- character(); err <- NULL
+      res <- tryCatch(withCallingHandlers(
+        suppressMessages(as_leaksplits(spec, dat, outcome = "y", v = 4, use_block_constraints = TRUE,
+                                       seed = seed, compact = compact)),
+        warning = function(x) { w <<- c(w, conditionMessage(x)); invokeRestart("muffleWarning") }),
+        error = function(e) { err <<- conditionMessage(e); NULL })
+      list(err = err, cov = any(grepl("rows are ever tested", w)))
+    }
+    e <- run(FALSE); c <- run(TRUE)
+    expect_identical(is.null(e$err), is.null(c$err))
+    expect_identical(e$cov, c$cov)
+  }
+})
+
+test_that("an axis with fewer levels than v suggests fewer folds", {
+  dat <- obs_frame(n = 24)
+  err <- tryCatch(suppressWarnings(suppressMessages(as_leaksplits(.blk_spec(), dat, outcome = "y", v = 3,
+                    use_block_constraints = "study_group", progress = FALSE))),
+                  error = function(e) conditionMessage(e))
+  if (is.character(err)) expect_match(err, "try v <= 2")
 })

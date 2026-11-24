@@ -20,9 +20,11 @@ An rsample \code{rset} object compatible with tidymodels workflows.
   \describe{
     \item{\code{splits}}{List-column of \code{rsplit} objects, each with
       \code{analysis} (training indices) and \code{assessment} (test indices).}
-    \item{\code{id}}{Character column with fold identifiers (e.g., "Fold1").}
-    \item{\code{id2}}{Character column with repeat identifiers (e.g., "Repeat1")
-      when multiple repeats are present; otherwise absent.}
+    \item{\code{id}}{Character column with fold identifiers (e.g., "Fold1");
+      with several repeats, repeat identifiers (e.g., "Repeat1"), following
+      rsample's convention for repeated designs.}
+    \item{\code{id2}}{With several repeats, character column with fold
+      identifiers (e.g., "Fold1"); otherwise absent.}
   }
   The object also carries attributes for \code{group}, \code{batch},
   \code{study}, \code{time} (when available from the original \code{LeakSplits}),

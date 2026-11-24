@@ -12,14 +12,18 @@ plot_dlsi_repeats(dlsi)
 }
 \value{
 A list with the per-repeat deltas, the robust and arithmetic-mean
-  estimates, the BCa confidence interval, and the ggplot object.
+  estimates, the confidence interval (\code{ci}; also returned as
+  \code{bca_ci} for backward compatibility), \code{n_repeats}, the object's
+  \code{R_eff}, and the ggplot object.
 }
 \description{
-Visualises the per-repeat metric differences (leaky minus guarded) for a
+Visualises the per-repeat inflation \eqn{\Delta_r} (leaky minus guarded,
+sign-adjusted so that positive always means the leaky pipeline looks better,
+also for lower-is-better metrics such as RMSE) for a
 \code{\linkS4class{LeakDeltaLSI}} object, overlaid with the robust Huber
-point estimate, the arithmetic mean, and the BCa bootstrap confidence
-interval. This is the diagnostic shown as Figure 4 panel (b) of the
-manuscript. Requires ggplot2.
+point estimate, the arithmetic mean, and the corrected-t 95\% confidence
+interval for the Huber estimate. This is the diagnostic shown as Figure 4
+panel (b) of the manuscript. Requires ggplot2.
 }
 \seealso{
 \code{\link{delta_lsi}}, \code{\link{dlsi_repeats}}

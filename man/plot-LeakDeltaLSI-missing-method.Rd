@@ -18,13 +18,14 @@
 \value{
 Invisibly returns the list produced by
   \code{\link{plot_dlsi_repeats}}: per-repeat deltas, the robust and
-  arithmetic-mean estimates, the BCa interval, and the ggplot object.
+  arithmetic-mean estimates, the confidence interval, and the ggplot object.
 }
 \description{
 Diagnostic plot for a [`LeakDeltaLSI`] object: per-repeat \eqn{\Delta_r}
-scatter with the Huber-robust point estimate, the arithmetic mean,
-and the BCa bootstrap confidence interval band. This is the diagnostic
-shown as Figure 4 panel (b) of the manuscript.
+scatter (sign-adjusted so positive means inflation) with the Huber-robust
+point estimate, the arithmetic mean, and the corrected-t confidence
+interval band. This is the diagnostic shown as Figure 4 panel (b) of the
+manuscript.
 }
 \seealso{
 \code{\link{plot_dlsi_repeats}},

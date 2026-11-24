@@ -70,9 +70,12 @@ test_that("audit_leakage AUC is oriented and its fixed-prediction null centres a
   expect_lt(pg$metric_obs, 0.2)
   expect_lt(pg$gap, 0)
   # Under direction = "auto" every permuted AUC was >= 0.5 and the mean was
-  # well above 0.5; oriented AUCs are symmetric around 0.5.
-  expect_equal(mean(aud@perm_values), 0.5, tolerance = 0.02)
+  # well above 0.5; oriented AUCs are symmetric around 0.5. The null moves
+  # whole subjects (40 subjects of 3 here), so its centre for one dataset
+  # varies around 0.5 (0.459-0.514 across 20 null datasets, mean 0.497).
+  expect_lt(abs(mean(aud@perm_values) - 0.5), 0.05)
   expect_true(any(aud@perm_values < 0.5))
+  expect_true(any(aud@perm_values > 0.5))
 })
 
 test_that("positive_class flips the reported AUC", {

@@ -79,7 +79,7 @@
 test_that("delta_lsi returns a LeakDeltaLSI object", {
   set.seed(1)
   fit <- .make_dlsi_fit(rep(0.65, 6L), n_repeats = 2L)
-  res <- suppressWarnings(delta_lsi(fit, fit, metric = "auc", seed = 1L))
+  res <- suppressWarnings(delta_lsi(fit, fit, metric = "auc"))
   expect_s4_class(res, "LeakDeltaLSI")
 })
 
@@ -87,7 +87,7 @@ test_that("delta_lsi with same fit: delta_metric and delta_lsi are zero", {
   set.seed(1)
   # 6 folds over 2 repeats → R_eff = 2 (D_insufficient tier but point estimate fine)
   fit <- .make_dlsi_fit(rep(0.7, 6L), n_repeats = 2L)
-  res <- suppressWarnings(delta_lsi(fit, fit, metric = "auc", seed = 1L))
+  res <- suppressWarnings(delta_lsi(fit, fit, metric = "auc"))
   expect_equal(res@delta_metric, 0.0, tolerance = 1e-10)
   expect_equal(res@delta_lsi,    0.0, tolerance = 1e-10)
 })
@@ -97,7 +97,7 @@ test_that("delta_lsi detects inflated naive pipeline", {
   # Naive: AUC ~ 0.85 per fold; guarded: AUC ~ 0.60
   fit_n <- .make_dlsi_fit(rep(0.85, 10L), n_repeats = 2L)
   fit_g <- .make_dlsi_fit(rep(0.60, 10L), n_repeats = 2L)
-  res   <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "auc", seed = 2L))
+  res   <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "auc"))
   expect_gt(res@delta_lsi,    0.0)
   expect_gt(res@delta_metric, 0.0)
 })
@@ -129,7 +129,7 @@ test_that("tier D_insufficient with fewer than 3 folds per repeat", {
 test_that("tier C for 3-9 folds per repeat, with p-value and CI", {
   f <- .noisy_pair(k = 5L, R = 4L, gap = 0.05)
   res <- delta_lsi(f$n, f$g, metric = "auc")
-  expect_equal(res@tier, "C_signflip")
+  expect_equal(res@tier, "C_ttest_3_9_folds")
   expect_equal(res@R_eff, 5L)
   expect_true(is.finite(res@p_value))
   expect_true(all(is.finite(res@delta_metric_ci)))
@@ -140,14 +140,14 @@ test_that("tier C for 3-9 folds per repeat, with p-value and CI", {
 test_that("tier B for 10-19 folds per repeat", {
   f <- .noisy_pair(k = 10L, R = 2L, gap = 0.05)
   res <- delta_lsi(f$n, f$g, metric = "auc")
-  expect_equal(res@tier, "B_signflip_ci")
+  expect_equal(res@tier, "B_ttest_10_19_folds")
   expect_equal(res@R_eff, 10L)
 })
 
 test_that("tier A for >= 20 folds per repeat", {
   f <- .noisy_pair(k = 20L, R = 1L, gap = 0.05)
   res <- delta_lsi(f$n, f$g, metric = "auc")
-  expect_equal(res@tier, "A_full_inference")
+  expect_equal(res@tier, "A_ttest_ge20_folds")
   expect_true(res@inference_ok)
 })
 
@@ -155,7 +155,7 @@ test_that("repeats do not raise R_eff or the tier", {
   f <- .noisy_pair(k = 5L, R = 20L, gap = 0.01)
   res <- delta_lsi(f$n, f$g, metric = "auc")
   expect_equal(res@R_eff, 5L)
-  expect_equal(res@tier, "C_signflip")
+  expect_equal(res@tier, "C_ttest_3_9_folds")
   expect_equal(res@info$df, 4L)
   expect_equal(res@info$n_fold_deltas, 100L)
 })
@@ -199,7 +199,7 @@ test_that("unpaired fits give D_insufficient with point estimate", {
   fit_n <- .make_dlsi_fit(rep(0.8, 6L), n_obs = 30L, n_repeats = 2L)  # R=2
   fit_g <- .make_dlsi_fit(rep(0.6, 9L), n_obs = 30L, n_repeats = 3L)  # R=3
   res   <- suppressWarnings(
-    delta_lsi(fit_n, fit_g, metric = "auc", seed = 1L)
+    delta_lsi(fit_n, fit_g, metric = "auc")
   )
   expect_equal(res@tier, "D_insufficient")
   expect_equal(res@R_eff, 0L)
@@ -215,7 +215,7 @@ test_that("return_details = TRUE stores delta_r, fold deltas and fits in info", 
   fit_n <- .make_dlsi_fit(rep(0.75, 15L), n_obs = 45L, n_repeats = 5L)
   fit_g <- .make_dlsi_fit(rep(0.55, 15L), n_obs = 45L, n_repeats = 5L)
   res   <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     return_details = TRUE, seed = 6L)
+                     return_details = TRUE)
   expect_true(all(c("delta_r", "fold_deltas", "fit_leaky", "fit_naive",
                     "fit_guarded") %in% names(res@info)))
   expect_length(res@info$delta_r, 5L)
@@ -227,8 +227,7 @@ test_that("deprecated fit_naive argument maps to fit_leaky", {
   fit_n <- .make_dlsi_fit(rep(0.75, 15L), n_obs = 45L, n_repeats = 5L)
   fit_g <- .make_dlsi_fit(rep(0.55, 15L), n_obs = 45L, n_repeats = 5L)
   expect_warning(
-    res <- delta_lsi(fit_naive = fit_n, fit_guarded = fit_g, metric = "auc",
-                     seed = 6L),
+    res <- delta_lsi(fit_naive = fit_n, fit_guarded = fit_g, metric = "auc"),
     regexp = "fit_naive is deprecated; use fit_leaky instead"
   )
   expect_s4_class(res, "LeakDeltaLSI")
@@ -273,8 +272,10 @@ test_that("show() and summary() run without error", {
   set.seed(10)
   fit_n <- .make_dlsi_fit(rep(0.75, 15L), n_obs = 45L, n_repeats = 5L)
   fit_g <- .make_dlsi_fit(rep(0.55, 15L), n_obs = 45L, n_repeats = 5L)
-  res   <- delta_lsi(fit_n, fit_g, metric = "auc",
-                     M_boot = 100L, M_flip = 200L, seed = 10L)
+  res   <- delta_lsi(fit_n, fit_g, metric = "auc")
+  # arguments of the former bootstrap / sign-flip method are ignored, with a warning
+  expect_warning(delta_lsi(fit_n, fit_g, metric = "auc", M_boot = 100L, seed = 10L),
+                 "`M_boot`, `seed` are ignored")
   expect_output(show(res),     "LeakDeltaLSI")
   expect_output(summary(res),  "Delta LSI")
 })
@@ -345,7 +346,7 @@ test_that("relabeled repeat_ids do not corrupt pairing (regression)", {
   fit_g@splits@indices <- new_idx
 
   res <- delta_lsi(fit_n, fit_g, metric = "auc",
-                   return_details = TRUE, seed = 42L)
+                   return_details = TRUE)
 
   # With correct positional pairing, every repeat delta should be exactly 0.1.
   # Bug (before fix): deltas would be 0.3, 0.2, 0.1, 0.0, -0.1 due to
@@ -364,7 +365,7 @@ test_that("lower-is-better metric: delta > 0 when naive has lower (better) value
   fit_g <- .make_dlsi_fit(rep(0.5, 10L), n_obs = 30L, n_repeats = 2L)
   res   <- suppressWarnings(delta_lsi(
     fit_n, fit_g, metric = "auc",
-    higher_is_better = FALSE, seed = 1L
+    higher_is_better = FALSE
   ))
   expect_gt(res@delta_lsi,    0.0)
   expect_gt(res@delta_metric, 0.0)
@@ -418,7 +419,7 @@ test_that("auto-detect higher_is_better = FALSE for rmse via metric name", {
   fit_n@metrics$rmse <- fit_n@metrics$auc
   fit_g@metrics$rmse <- fit_g@metrics$auc
   # Auto-detect: metric="rmse" with higher_is_better=NULL (default)
-  res <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "rmse", seed = 2L))
+  res <- suppressWarnings(delta_lsi(fit_n, fit_g, metric = "rmse"))
   expect_false(isTRUE(res@info[["higher_is_better"]]))
   # Naive RMSE is lower (better) → positive delta (leakage inflation)
   expect_gt(res@delta_lsi,    0.0)

@@ -1,3 +1,9 @@
+# Plots are drawn when the session is interactive and when a document is
+# being knitted (vignettes, reports); the functions also return the plot.
+.bio_should_print_plot <- function() {
+  interactive() || isTRUE(getOption("knitr.in.progress"))
+}
+
 # Diagnostic plotting helpers --------------------------------------------------
 
 #' Plot permutation distribution for a LeakAudit object
@@ -77,7 +83,7 @@ plot_perm_distribution <- function(audit) {
     ggplot2::theme_minimal() +
     ggplot2::theme(legend.position = "top")
 
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(
     observed = obs,
     permuted_mean = perm_mean,
@@ -172,7 +178,7 @@ plot_fold_balance <- function(fit) {
       ggplot2::labs(title = "Fold class balance", x = "Fold", y = "Count", fill = "Class") +
       ggplot2::theme_minimal() +
       ggplot2::theme(legend.position = "top")
-    if (interactive()) print(p)
+    if (.bio_should_print_plot()) print(p)
     return(invisible(list(
       fold_summary = tab,
       positive_class = NA_character_,
@@ -267,7 +273,7 @@ plot_fold_balance <- function(fit) {
                     color = ggplot2::guide_legend(order = 2),
                     linetype = ggplot2::guide_legend(order = 2),
                     shape = ggplot2::guide_legend(order = 2))
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(
     fold_summary = tab,
     positive_class = pos_class,
@@ -401,7 +407,7 @@ plot_overlap_checks <- function(fit, column = NULL) {
                         hjust = 1, vjust = 0,
                         color = "red", fontface = "bold")
   }
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(
     overlap_counts = counts,
     column = column,
@@ -538,7 +544,7 @@ plot_time_acf <- function(fit, lag.max = 20) {
       ggplot2::geom_hline(yintercept = c(conf, -conf),
                           color = "red", linetype = "dashed")
   }
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(acf = acf_res, lag.max = lag.max, plot = p))
 }
 
@@ -608,7 +614,7 @@ plot_calibration <- function(fit, bins = 10, min_bin_n = 5, learner = NULL) {
                   y = "Observed event rate",
                   size = "Bin n") +
     ggplot2::theme_minimal()
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(curve = df, metrics = cal$metrics, plot = p))
 }
 
@@ -685,7 +691,7 @@ plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
                   subtitle = sprintf("%s (better is %s)", df_plot$metric[1], direction),
                   x = NULL, y = "Metric value") +
     ggplot2::theme_minimal()
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(data = df, plot = p))
 }
 
@@ -696,16 +702,20 @@ plot_confounder_sensitivity <- function(fit, confounders = NULL, metric = NULL,
 
 #' Plot per-repeat \eqn{\Delta_r} values from a LeakDeltaLSI object
 #'
-#' Visualises the per-repeat metric differences (leaky minus guarded) for a
+#' Visualises the per-repeat inflation \eqn{\Delta_r} (leaky minus guarded,
+#' sign-adjusted so that positive always means the leaky pipeline looks better,
+#' also for lower-is-better metrics such as RMSE) for a
 #' \code{\linkS4class{LeakDeltaLSI}} object, overlaid with the robust Huber
-#' point estimate, the arithmetic mean, and the BCa bootstrap confidence
-#' interval. This is the diagnostic shown as Figure 4 panel (b) of the
-#' manuscript. Requires ggplot2.
+#' point estimate, the arithmetic mean, and the corrected-t 95\% confidence
+#' interval for the Huber estimate. This is the diagnostic shown as Figure 4
+#' panel (b) of the manuscript. Requires ggplot2.
 #'
 #' @param dlsi A \code{\linkS4class{LeakDeltaLSI}} object produced by
 #'   \code{\link{delta_lsi}}.
 #' @return A list with the per-repeat deltas, the robust and arithmetic-mean
-#'   estimates, the BCa confidence interval, and the ggplot object.
+#'   estimates, the confidence interval (\code{ci}; also returned as
+#'   \code{bca_ci} for backward compatibility), \code{n_repeats}, the object's
+#'   \code{R_eff}, and the ggplot object.
 #' @seealso \code{\link{delta_lsi}}, \code{\link{dlsi_repeats}}
 #' @export
 plot_dlsi_repeats <- function(dlsi) {
@@ -721,20 +731,22 @@ plot_dlsi_repeats <- function(dlsi) {
       !"metric" %in% names(rn) || !"metric" %in% names(rg)) {
     stop("No per-repeat metric data available for plotting.", call. = FALSE)
   }
-  R_eff   <- min(nrow(rn), nrow(rg))
-  deltas  <- rn$metric[seq_len(R_eff)] - rg$metric[seq_len(R_eff)]
+  n_rep   <- min(nrow(rn), nrow(rg))
+  hib     <- dlsi@info[["higher_is_better"]] %||% TRUE
+  sgn     <- if (isTRUE(hib)) 1 else -1
+  deltas  <- sgn * (rn$metric[seq_len(n_rep)] - rg$metric[seq_len(n_rep)])
   delta_robust <- dlsi_robust(dlsi)
   delta_mean   <- dlsi_metric(dlsi)
   ci           <- dlsi_ci(dlsi, which = "robust")
 
-  df <- data.frame(repeat_idx = seq_len(R_eff), delta = deltas)
+  df <- data.frame(repeat_idx = seq_len(n_rep), delta = deltas)
   ci_lo <- if (length(ci) == 2L && all(is.finite(ci))) ci[1] else NA_real_
   ci_hi <- if (length(ci) == 2L && all(is.finite(ci))) ci[2] else NA_real_
 
   p <- ggplot2::ggplot(df, ggplot2::aes(x = repeat_idx, y = delta))
   if (is.finite(ci_lo) && is.finite(ci_hi)) {
     p <- p + ggplot2::annotate("rect",
-      xmin = 0.5, xmax = R_eff + 0.5,
+      xmin = 0.5, xmax = n_rep + 0.5,
       ymin = ci_lo, ymax = ci_hi,
       fill = "#0072B2", alpha = 0.12)
   }
@@ -750,17 +762,19 @@ plot_dlsi_repeats <- function(dlsi) {
                          "(leaky " * minus * " guarded)"),
       subtitle = sprintf(
         "Repeats = %d   |   R_eff = %d   |   Delta_LSI = %.3f   |   Delta_metric = %.3f",
-        R_eff, dlsi_R_eff(dlsi), delta_robust, delta_mean),
+        n_rep, dlsi_R_eff(dlsi), delta_robust, delta_mean),
       x = "Repeat", y = expression(Delta[italic(r)])) +
     ggplot2::theme_minimal()
 
-  if (interactive()) print(p)
+  if (.bio_should_print_plot()) print(p)
   invisible(list(
     deltas         = deltas,
     delta_robust   = delta_robust,
     delta_mean     = delta_mean,
+    ci             = c(ci_lo, ci_hi),
     bca_ci         = c(ci_lo, ci_hi),
-    R_eff          = R_eff,
+    n_repeats      = n_rep,
+    R_eff          = dlsi_R_eff(dlsi),
     plot           = p
   ))
 }
@@ -849,16 +863,17 @@ setMethod("plot", signature(x = "LeakFit", y = "missing"),
 #' Plot method for LeakDeltaLSI
 #'
 #' Diagnostic plot for a [`LeakDeltaLSI`] object: per-repeat \eqn{\Delta_r}
-#' scatter with the Huber-robust point estimate, the arithmetic mean,
-#' and the BCa bootstrap confidence interval band. This is the diagnostic
-#' shown as Figure 4 panel (b) of the manuscript.
+#' scatter (sign-adjusted so positive means inflation) with the Huber-robust
+#' point estimate, the arithmetic mean, and the corrected-t confidence
+#' interval band. This is the diagnostic shown as Figure 4 panel (b) of the
+#' manuscript.
 #'
 #' @param x A [`LeakDeltaLSI`] object.
 #' @param y Unused; present for S4 compatibility with \code{base::plot}.
 #' @param ... Additional arguments (currently unused).
 #' @return Invisibly returns the list produced by
 #'   \code{\link{plot_dlsi_repeats}}: per-repeat deltas, the robust and
-#'   arithmetic-mean estimates, the BCa interval, and the ggplot object.
+#'   arithmetic-mean estimates, the confidence interval, and the ggplot object.
 #' @seealso \code{\link{plot_dlsi_repeats}},
 #'   \code{\linkS4class{LeakDeltaLSI}}
 #' @docType methods

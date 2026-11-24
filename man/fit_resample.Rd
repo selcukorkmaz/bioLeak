@@ -52,9 +52,11 @@ with legacy character learners. Each entry
 must contain \code{fit} and \code{predict} functions. The \code{fit} function
 should accept \code{x}, \code{y}, \code{task}, and \code{weights}, and return
 a model object. The \code{predict} function should accept \code{object},
-\code{newdata}, and \code{task}. For binomial/regression/survival tasks it
-should return a numeric vector; for multiclass tasks it should return either
-class labels or a matrix/data.frame of class probabilities.}
+\code{newdata}, and \code{task}. For binomial/regression tasks it should
+return a numeric vector; for survival tasks a numeric \strong{risk score}
+(higher = higher hazard, shorter survival, e.g. a Cox linear predictor),
+which is what the C-index assumes; for multiclass tasks it should return
+either class labels or a matrix/data.frame of class probabilities.}
 
 \item{metrics}{named list of metric functions, vector of metric names, or a
 `yardstick::metric_set`. When a yardstick metric set (or list of yardstick
@@ -106,7 +108,15 @@ A \code{\linkS4class{LeakFit}} S4 object containing:
       requested metric.}
     \item{\code{metric_summary}}{Data.frame summarizing metrics across folds
       for each learner with columns \code{learner}, and \code{<metric>_mean}
-      and \code{<metric>_sd} for each requested metric.}
+      and \code{<metric>_sd} for each requested metric, plus
+      \code{<metric>_ci_lo}/\code{<metric>_ci_hi} when \code{\link{cv_ci}}
+      succeeds. \code{_mean} and \code{_sd} are plain summaries over all
+      fold rows; the interval counts each distinct test set once (folds that
+      repeat a test set are averaged first) and uses the Nadeau-Bengio
+      corrected variance, so it is not \code{_mean} plus or minus a multiple
+      of \code{_sd}. Its centre is the mean over distinct test sets, which
+      differs from \code{_mean} when test sets repeat unequally often or
+      some repeats have NA metrics.}
     \item{\code{audit}}{Data.frame with per-fold audit information including
       \code{fold}, \code{n_train}, \code{n_test}, \code{learner}, and
       \code{features_final} (number of features after preprocessing).}
@@ -156,7 +166,15 @@ preventing leakage from global imputation, scaling, or feature selection.
 When a `recipes::recipe` or `workflows::workflow` is supplied, the recipe is
 prepped on the training fold and baked on the test fold.
 For data.frame or matrix inputs, columns used to define splits
-(outcome, group, batch, study, time) are excluded from the predictor matrix.
+(outcome, group, batch, study, time, \code{stratify_by}, a sample-id
+column from \code{as_leaksplits()}, and \code{id_cols}) are excluded from
+the predictor matrix. With a recipe, those columns keep a non-predictor
+role (\code{"bioLeak_split"}) so steps may still name them, but neither they
+nor columns derived from them (e.g. by \code{step_dummy()}) are passed to
+the learner. A step that selects them by type rather than role (e.g.
+\code{step_dummy(all_nominal(), -all_outcomes())}) is detected after
+\code{prep()} and stops the fold with an error naming the derived columns;
+use the \code{*_predictors()} selectors or \code{step_rm()} them.
 Use \code{learner_args} to pass model-specific arguments, either as a named
 list keyed by learner or a single list applied to all learners. For custom
 learners, \code{learner_args[[name]]} may be a list with \code{fit} and

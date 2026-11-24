@@ -309,8 +309,19 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
   as.data.frame(out, check.names = FALSE)
 }
 
-# Fit train-only frozen batch location/scale parameters (including EB shrinkage)
-.guard_batch_fit <- function(df, batch_vec, method = "combat_frozen") {
+# Fit train-only frozen batch location/scale parameters (with optional EB
+# shrinkage). Batch effects are estimated on grand-standardised data z, and
+# each batch's scale is measured relative to the pooled within-batch residual
+# variance, as in ComBat.
+#
+# When `protect_y` (the training outcome) is given, effects are estimated net of
+# it: z ~ 0 + batch + outcome, per feature. An outcome that is unevenly spread
+# across batches is then not removed as if it were a batch effect (the role of
+# ComBat's `mod`). New rows need only their batch label: the outcome enters the
+# fit, not the adjustment. If batch and outcome cannot be separated (fully
+# confounded), no adjustment is applied and a warning is issued.
+.guard_batch_fit <- function(df, batch_vec, method = "combat_frozen", protect_y = NULL,
+                             exclude_cols = character()) {
   mat <- as.matrix(df)
   n <- nrow(mat)
   p <- ncol(mat)
@@ -324,20 +335,116 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
 
   z <- sweep(sweep(mat, 2L, grand_mu, "-"), 2L, grand_sd, "/")
   batches <- unique(stats::na.omit(b))
-  gamma_star <- matrix(0.0, nrow = length(batches), ncol = p,
-                       dimnames = list(batches, colnames(df)))
-  delta_star <- matrix(1.0, nrow = length(batches), ncol = p,
-                       dimnames = list(batches, colnames(df)))
+  K <- length(batches)
+  gamma_star <- matrix(0.0, nrow = K, ncol = p, dimnames = list(batches, colnames(df)))
+  delta_star <- matrix(1.0, nrow = K, ncol = p, dimnames = list(batches, colnames(df)))
+  state <- list(enabled = TRUE, method = method, grand_mu = grand_mu, grand_sd = grand_sd,
+                batches = batches, gamma_star = gamma_star, delta_star = delta_star,
+                protected = FALSE)
+  ok <- !is.na(b)
+  if (K < 2L || !any(ok)) {
+    .bio_warn(sprintf(
+      "batch_adjust: the training data contain %d batch level(s); at least 2 are needed to estimate batch effects, so no batch adjustment is applied.",
+      K), "bioLeak_batch_single_warning")
+    return(state)
+  }
 
-  for (bnm in batches) {
-    idx <- which(b == bnm)
-    nb <- length(idx)
-    if (nb < 1L) next
-    zb <- z[idx, , drop = FALSE]
-    g_hat <- colMeans(zb, na.rm = TRUE)
+  zf <- z[ok, , drop = FALSE]
+  zf[!is.finite(zf)] <- 0           # missing values sit at the grand mean
+  bf <- factor(b[ok], levels = batches)
+  nb_vec <- tabulate(bf, nbins = K)
+  bmeans <- function(M) rowsum(M, bf) / nb_vec          # K x ncol batch means
+  zb_mean <- bmeans(zf)
+  z_w <- zf - zb_mean[as.integer(bf), , drop = FALSE]   # within-batch deviations
+
+  # Protected outcome: its effects are estimated only from variation inside
+  # batches (fixed effects), so they cannot absorb batch differences.
+  C <- NULL
+  C_names <- character()
+  cat_y <- FALSE
+  if (!is.null(protect_y)) {
+    yv <- protect_y[ok]
+    cat_y <- is.factor(yv) || is.character(yv) || is.logical(yv)
+    if (cat_y) {
+      fy <- droplevels(factor(yv))
+      if (nlevels(fy) > 1L) {
+        C <- stats::model.matrix(~ fy)[, -1L, drop = FALSE]
+        C_names <- levels(fy)[-1L]
+      }
+    } else if (is.numeric(yv) && stats::var(yv) > 0) {
+      C <- matrix(as.numeric(yv), ncol = 1L)
+      C_names <- "outcome"
+    }
+  }
+
+  within_class <- FALSE
+  if (!is.null(C)) {
+    C_w  <- C - bmeans(C)[as.integer(bf), , drop = FALSE]
+    nrm  <- sqrt(colSums(C_w^2))
+    qC   <- qr(C_w, tol = 1e-7)
+    keep <- if (qC$rank > 0L) sort(qC$pivot[seq_len(qC$rank)]) else integer()
+    keep <- keep[nrm[keep] > 1e-8]
+    if (!length(keep)) {
+      # No within-batch outcome variation: every batch holds a single outcome
+      # value. Only differences between batches of the same class are batch
+      # effects; class differences are kept.
+      cls <- if (cat_y) apply(table(bf, fy) > 0, 1L, function(r) names(which(r))[1L]) else NULL
+      if (!is.null(cls) && any(table(cls) >= 2L)) {
+        within_class <- TRUE
+        g_hat_mat <- zb_mean
+        for (cl in unique(cls)) {
+          ix <- which(cls == cl)
+          w  <- nb_vec[ix] / sum(nb_vec[ix])
+          g_hat_mat[ix, ] <- sweep(zb_mean[ix, , drop = FALSE], 2L,
+                                   colSums(w * zb_mean[ix, , drop = FALSE]), "-")
+        }
+        resid <- z_w
+        .bio_warn(sprintf(paste0(
+          "batch_adjust: every batch contains a single outcome class, so batch and outcome are ",
+          "fully confounded; batch differences are removed only between batches of the same ",
+          "class (%d of %d batches share a class with another batch), and class differences are kept."),
+          sum(table(cls)[cls] >= 2L), K), "bioLeak_batch_confounded_warning")
+      } else {
+        .bio_warn(paste0(
+          "batch_adjust: batch is fully confounded with the outcome in the training data, ",
+          "so batch effects cannot be separated from the outcome; no batch adjustment is applied."),
+          "bioLeak_batch_confounded_warning")
+        return(state)
+      }
+    } else {
+      dropped <- setdiff(seq_len(ncol(C)), keep)
+      if (length(dropped)) {
+        .bio_warn(sprintf(paste0(
+          "batch_adjust: part of the outcome cannot be separated from batch: %d of %d outcome ",
+          "contrast(s) do not vary independently within batches (e.g. a class found in only one ",
+          "batch) and are not protected, so that part may be removed as batch effect. ",
+          "The remaining contrasts are protected."),
+          length(dropped), ncol(C)), "bioLeak_batch_confounded_warning")
+      }
+      Cw_use <- C_w[, keep, drop = FALSE]
+      beta   <- qr.coef(qr(Cw_use), z_w)
+      beta[!is.finite(beta)] <- 0
+      m_b    <- bmeans(zf - C[, keep, drop = FALSE] %*% beta)
+      resid  <- z_w - Cw_use %*% beta
+      g_hat_mat <- sweep(m_b, 2L, colSums((nb_vec / sum(nb_vec)) * m_b), "-")
+    }
+  }
+  if (is.null(C)) {
+    resid <- z_w
+    g_hat_mat <- sweep(zb_mean, 2L, colSums((nb_vec / sum(nb_vec)) * zb_mean), "-")
+  }
+  rownames(g_hat_mat) <- batches
+  pooled_v <- apply(resid, 2L, stats::var)
+  pooled_v[!is.finite(pooled_v) | pooled_v < 1e-12] <- 1.0
+
+  for (k in seq_len(K)) {
+    bnm <- batches[k]
+    nb  <- nb_vec[k]
+    idx <- which(bf == bnm)
+    g_hat <- g_hat_mat[k, ]
     g_hat[!is.finite(g_hat)] <- 0.0
     if (nb >= 2L && method %in% c("combat_frozen", "eb_frozen", "location_scale")) {
-      d_hat <- apply(zb, 2L, stats::var, na.rm = TRUE)
+      d_hat <- apply(resid[idx, , drop = FALSE], 2L, stats::var) / pooled_v
       d_hat[!is.finite(d_hat) | d_hat < 1e-8] <- 1.0
     } else {
       d_hat <- rep(1.0, p)
@@ -348,41 +455,100 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
       g_bar <- mean(g_hat)
       tau2 <- stats::var(g_hat)
       if (!is.finite(tau2) || tau2 < 1e-12) {
-        gamma_star[bnm, ] <- g_bar
+        state$gamma_star[bnm, ] <- g_bar
       } else {
         se2 <- d_hat / nb
         w_eb <- tau2 / (tau2 + se2)
-        gamma_star[bnm, ] <- w_eb * g_hat + (1.0 - w_eb) * g_bar
+        state$gamma_star[bnm, ] <- w_eb * g_hat + (1.0 - w_eb) * g_bar
       }
       if (nb >= 2L) {
         d_bar <- mean(d_hat)
         s2_d <- stats::var(d_hat)
         if (!is.finite(s2_d) || s2_d < 1e-12) {
-          delta_star[bnm, ] <- d_bar
+          state$delta_star[bnm, ] <- d_bar
         } else {
           w_d <- s2_d / (s2_d + (2.0 * d_hat^2) / max(1L, nb - 1L))
-          delta_star[bnm, ] <- pmax(1e-6, w_d * d_hat + (1.0 - w_d) * d_bar)
+          state$delta_star[bnm, ] <- pmax(1e-6, w_d * d_hat + (1.0 - w_d) * d_bar)
         }
       }
     } else {
-      gamma_star[bnm, ] <- g_hat
-      delta_star[bnm, ] <- d_hat
+      state$gamma_star[bnm, ] <- g_hat
+      state$delta_star[bnm, ] <- d_hat
     }
   }
+  # With a protected outcome, only batch locations are adjusted. Rescaling the
+  # deviation (z - gamma) by a batch scale would also rescale the outcome part
+  # it contains; ComBat avoids that by removing the outcome part first and
+  # adding it back, which needs the outcome at transform time.
+  if (!is.null(C) || within_class) state$delta_star[] <- 1.0
 
-  list(
-    enabled = TRUE,
-    method = method,
-    grand_mu = grand_mu,
-    grand_sd = grand_sd,
-    batches = batches,
-    gamma_star = gamma_star,
-    delta_star = delta_star
-  )
+  # Columns that encode the batch itself (keep_batch_col = TRUE) are not adjusted.
+  ex <- intersect(exclude_cols, colnames(df))
+  if (length(ex)) {
+    state$gamma_star[, ex] <- 0.0
+    state$delta_star[, ex] <- 1.0
+  }
+  state$protected <- !is.null(C)
+  state$within_class <- within_class
+  state
+}
+
+# p-value for association between batch and outcome in the training data
+# (chi-squared for a categorical outcome, one-way ANOVA for a numeric one).
+.guard_batch_outcome_p <- function(batch, y) {
+  if (is.null(y) || length(y) != length(batch) || inherits(y, "Surv")) return(NA_real_)
+  ok <- !is.na(batch) & !is.na(y)
+  if (sum(ok) < 4L || length(unique(batch[ok])) < 2L) return(NA_real_)
+  tryCatch({
+    if (is.numeric(y) && !is.factor(y)) {
+      suppressWarnings(stats::anova(stats::lm(y[ok] ~ factor(batch[ok])))[["Pr(>F)"]][1L])
+    } else {
+      suppressWarnings(stats::chisq.test(table(batch[ok], y[ok]))$p.value)
+    }
+  }, error = function(e) NA_real_)
+}
+
+# Raise the unseen-batch condition according to the configured policy.
+# n_unseen: rows whose batch was not seen in training; n_missing: rows with a
+# missing label (or all rows, when no labels were supplied).
+.guard_unseen_batch <- function(policy, n_unseen = 0L, n_missing = 0L,
+                                levels = character(), no_labels = FALSE) {
+  parts <- character()
+  if (isTRUE(no_labels)) {
+    parts <- sprintf("no batch labels were supplied for %d row(s)", n_missing)
+  } else {
+    if (n_unseen > 0L)
+      parts <- c(parts, sprintf("%d row(s) come from batches not seen in training (%s)",
+                                n_unseen, paste(levels, collapse = ", ")))
+    if (n_missing > 0L)
+      parts <- c(parts, sprintf("%d row(s) have a missing batch label", n_missing))
+  }
+  what <- paste(parts, collapse = "; ")
+  if (identical(policy, "error")) {
+    .bio_stop(sprintf(paste0(
+      "batch_adjust: %s. Batch effects are known only for batches seen in training, ",
+      "and batch_adjust$unseen = \"error\"."), what),
+      "bioLeak_unseen_batch_error", n_rows = n_unseen + n_missing,
+      n_unseen = n_unseen, n_missing = n_missing)
+  }
+  if (identical(policy, "warn")) {
+    .bio_warn(sprintf(paste0(
+      "batch_adjust: %s; these rows are left unadjusted because batch effects are known only ",
+      "for batches seen in training. Set batch_adjust$unseen = \"grand_mean\" to accept this ",
+      "silently or \"error\" to stop."), what),
+      "bioLeak_unseen_batch_warning", n_rows = n_unseen + n_missing,
+      n_unseen = n_unseen, n_missing = n_missing)
+  }
+  invisible(NULL)
 }
 
 .guard_batch_apply <- function(df, batch_vec, batch_state) {
-  if (!isTRUE(batch_state$enabled) || is.null(batch_vec)) return(df)
+  if (!isTRUE(batch_state$enabled)) return(df)
+  policy <- batch_state$unseen %||% "warn"
+  if (is.null(batch_vec)) {
+    .guard_unseen_batch(policy, n_missing = nrow(df), no_labels = TRUE)
+    return(df)
+  }
   cols <- names(batch_state$grand_mu)
   missing_c <- setdiff(cols, colnames(df))
   if (length(missing_c) > 0L) {
@@ -393,6 +559,12 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
   b <- as.character(batch_vec)
   if (length(b) != nrow(mat)) {
     stop("Length of batch vector must match nrow(Xnew) in guard transform.", call. = FALSE)
+  }
+  miss   <- is.na(b)
+  unseen <- !miss & !b %in% batch_state$batches
+  if (any(miss) || any(unseen)) {
+    .guard_unseen_batch(policy, n_unseen = sum(unseen), n_missing = sum(miss),
+                        levels = unique(b[unseen]))
   }
 
   z <- sweep(sweep(mat, 2L, batch_state$grand_mu, "-"), 2L, batch_state$grand_sd, "/")
@@ -417,12 +589,51 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
 #' The pipeline applies, in order:
 #' \itemize{
 #'   \item Winsorization (optional) to limit outliers.
-#'   \item Imputation learned on training data only.
+#'   \item Imputation learned on training data only. The requested method is
+#'     fitted even when the training rows have no missing values, so missing
+#'     values in new rows are still imputed (for \code{"missForest"} with the
+#'     training medians, as no per-column model exists then).
 #'   \item Normalization (\code{"zscore"}, \code{"robust"}, frozen reference
 #'     \code{"quantile"}, \code{"log_cpm"}, \code{"clr"}, or \code{"none"}).
 #'   \item Optional frozen train-only batch adjustment (\code{steps$batch_adjust}
 #'     with \code{method} in \code{"combat_frozen"}, \code{"location_scale"}, or
-#'     \code{"mean_center"}).
+#'     \code{"mean_center"}). Batch labels come from \code{batch} (a vector) or
+#'     \code{batch_col} (a column of \code{X}, removed from the predictors
+#'     unless \code{keep_batch_col = TRUE}; a kept batch column is passed
+#'     through unadjusted). Two further options:
+#'     \describe{
+#'       \item{\code{protect}}{\code{FALSE} (default) or \code{TRUE}. When
+#'         batch and outcome are associated in the training data (p < 0.01), a
+#'         warning is issued either way, because both choices are biased:
+#'         without protection, part of the outcome signal is removed as batch
+#'         effect, so performance is underestimated; with \code{protect = TRUE}
+#'         (and a non-survival \code{y}), batch effects are estimated net of the
+#'         outcome, per feature, from \code{z ~ batch + y}, the role of ComBat's
+#'         \code{mod}. That keeps the signal, but the estimated batch effects
+#'         carry fitted outcome noise, which can bias cross-validated performance
+#'         upward (Nygaard et al., 2016); in simulation with 80/20 confounding
+#'         and no true signal, cross-validated AUC rose by about 0.03-0.10,
+#'         more with more features. The default is the conservative choice.
+#'         New rows need only their batch label. With \code{protect = TRUE}
+#'         only batch locations are adjusted (no per-batch scaling), because
+#'         rescaling would also rescale the protected outcome effect. Outcome
+#'         effects are estimated from variation within batches only; outcome
+#'         contrasts that do not vary within batches are not protected (with a
+#'         warning). If every batch
+#'         holds a single outcome class, only differences between batches of
+#'         the same class are removed; if no class spans two batches, no
+#'         adjustment is applied. Both cases warn.}
+#'       \item{\code{unseen}}{What happens at \code{transform()} for rows whose
+#'         batch was not seen in training, has a missing label, or when no
+#'         batch labels are supplied: such rows are left unadjusted, because
+#'         batch effects are known only for training batches. \code{"warn"}
+#'         (default) warns, \code{"error"} stops, \code{"grand_mean"} accepts it
+#'         silently. Under batch-blocked or study-held-out CV every test batch
+#'         is unseen; \code{fit_resample()} then reports this once, not per fold.}
+#'     }
+#'     The \code{"combat_frozen"} method is a simplified empirical-Bayes
+#'     location/scale adjustment in the spirit of ComBat, not a reimplementation
+#'     of ComBat's priors.
 #'   \item Variance/IQR filtering. Thresholds are compared with the variance
 #'     and IQR of the imputed training data on its original scale (before
 #'     normalization), so \code{var_thresh} and \code{iqr_thresh} keep their
@@ -435,6 +646,10 @@ guard_ensure_levels <- function(df, levels_map = NULL, dummy_prefix = "__dummy__
 #' @param steps List of configuration options (see Details).
 #' @param task "binomial", "multiclass", "gaussian", or "survival".
 #' @return An object of class "GuardFit" with elements `transform`, `state`, `p_out`, and `steps`.
+#' @references
+#' Nygaard, V., Rødland, E. A. and Hovig, E. (2016). Methods that remove batch
+#' effects while retaining group differences may lead to exaggerated
+#' confidence in downstream analyses. \emph{Biostatistics}, 17(1), 29-39.
 #' @seealso [predict_guard()]
 #' @examples
 #' x <- data.frame(a = c(1, 2, NA), b = c(3, 4, 5))
@@ -468,8 +683,18 @@ guard_fit <- function(X, y = NULL, steps = list(),
   batch_method <- batch_cfg[["method"]] %||% "none"
   batch_col <- batch_cfg[["batch_col"]] %||% NULL
   batch_vec_train <- batch_cfg[["batch"]] %||% NULL
+  batch_col_numeric <- FALSE
   if (!is.null(batch_col) && batch_col %in% names(X)) {
-    if (is.null(batch_vec_train)) batch_vec_train <- X[[batch_col]]
+    if (is.null(batch_vec_train)) {
+      batch_vec_train <- X[[batch_col]]
+    } else if (!identical(as.character(batch_vec_train), as.character(X[[batch_col]]))) {
+      .bio_warn(sprintf(paste0(
+        "batch_adjust: both `batch` and `batch_col` (\"%s\") were given and they disagree. ",
+        "Training uses `batch`, but transform() and predict_guard() read the column from new data, ",
+        "so new rows may be treated as unseen batches. Give only one of them."), batch_col),
+        "bioLeak_input_warning")
+    }
+    batch_col_numeric <- is.numeric(X[[batch_col]])
     if (!isTRUE(batch_cfg[["keep_batch_col"]])) {
       X[[batch_col]] <- NULL
     }
@@ -533,7 +758,12 @@ guard_fit <- function(X, y = NULL, steps = list(),
   has_na <- any(vapply(X, function(col) any(is.na(col)), logical(1)))
 
 
-  if (!has_na) {
+  # The requested method is fitted even when the training rows have no NA:
+  # new rows can still have missing values (e.g. a held-out study that never
+  # measured a feature), and recording "none" left them NA, which silently
+  # dropped those rows' predictions. missForest then has no per-column model
+  # and fills new NAs with the training medians.
+  if (!has_na && identical(imp_method, "none")) {
     state$impute <- list(method = "none")
     state$impute$label <- "impute: none (no NA)"
   } else if (imp_method == "median") {
@@ -700,10 +930,71 @@ guard_fit <- function(X, y = NULL, steps = list(),
       stop("batch_adjust requires either `batch` (vector) or `batch_col` (column in X).",
            call. = FALSE)
     }
-    state$batch_adjust <- .guard_batch_fit(X, batch_vec_train, method = batch_method)
+    unseen_policy <- batch_cfg[["unseen"]] %||% "warn"
+    if (!unseen_policy %in% c("warn", "error", "grand_mean")) {
+      stop("batch_adjust$unseen must be one of 'warn', 'error', 'grand_mean'.", call. = FALSE)
+    }
+    protect <- batch_cfg[["protect"]] %||% FALSE
+    if (!is.logical(protect) || length(protect) != 1L || is.na(protect)) {
+      stop("batch_adjust$protect must be TRUE or FALSE.", call. = FALSE)
+    }
+    y_ok <- !is.null(y) && !inherits(y, "Surv") && !identical(task, "survival") &&
+      length(y) == length(batch_vec_train)
+    if (protect && !y_ok) {
+      .bio_warn(paste0(
+        "batch_adjust: protect = TRUE needs a non-survival outcome `y` with one value per ",
+        "training row; batch effects are estimated without protecting the outcome."),
+        "bioLeak_batch_confounded_warning")
+    } else if (protect && anyNA(y)) {
+      .bio_warn(paste0(
+        "batch_adjust: protect = TRUE but the outcome has missing values in the training data; ",
+        "batch effects are estimated without protecting the outcome."),
+        "bioLeak_batch_confounded_warning")
+    }
+    protect <- protect && y_ok && !anyNA(y)   # effective protection
+    p_assoc <- if (y_ok) .guard_batch_outcome_p(as.character(batch_vec_train), y) else NA_real_
+    if (is.finite(p_assoc) && p_assoc < 0.01) {
+      if (protect) {
+        .bio_warn(sprintf(paste0(
+          "batch_adjust: batch is associated with the outcome in the training data (p = %.2g). ",
+          "With protect = TRUE the outcome signal is kept, but the estimated batch effects carry ",
+          "fitted outcome noise, which can bias cross-validated performance upward (about ",
+          "+0.03 to +0.10 AUC with 80/20 confounding in simulation, even with no true signal, ",
+          "growing with the number of features)."),
+          p_assoc), "bioLeak_batch_confounded_warning")
+      } else {
+        .bio_warn(sprintf(paste0(
+          "batch_adjust: batch is associated with the outcome in the training data (p = %.2g), ",
+          "so part of the outcome signal is removed as batch effect and performance will be ",
+          "underestimated. protect = TRUE keeps the signal but can bias performance upward; ",
+          "see ?guard_fit."),
+          p_assoc), "bioLeak_batch_confounded_warning")
+      }
+    }
+    # A kept batch column (keep_batch_col = TRUE) encodes the batch itself:
+    # it is passed through, not batch-adjusted (which would zero it out).
+    excl <- if (isTRUE(batch_cfg$keep_batch_col) && !is.null(batch_col)) {
+      # A numeric kept column stays one column; a factor one becomes one-hot
+      # columns named <batch_col><level>.
+      if (isTRUE(batch_col_numeric)) batch_col else
+        c(batch_col, paste0(batch_col, unique(as.character(stats::na.omit(batch_vec_train)))))
+    } else character()
+    state$batch_adjust <- .guard_batch_fit(X, batch_vec_train, method = batch_method,
+                                           protect_y = if (protect) y else NULL,
+                                           exclude_cols = excl)
+    state$batch_adjust$unseen <- unseen_policy
     state$batch_adjust$batch_col <- batch_col
     state$batch_adjust$keep_batch_col <- isTRUE(batch_cfg$keep_batch_col)
-    X <- .guard_batch_apply(X, batch_vec_train, state$batch_adjust)
+    n_miss_tr <- sum(is.na(batch_vec_train))
+    if (n_miss_tr > 0L) {
+      .bio_warn(sprintf(paste0(
+        "batch_adjust: %d training row(s) have a missing batch label; they are not used to ",
+        "estimate batch effects and are left unadjusted."), n_miss_tr),
+        "bioLeak_missing_batch_warning", n_rows = n_miss_tr)
+    }
+    quiet <- state$batch_adjust
+    quiet$unseen <- "grand_mean"   # missing training labels were reported just above
+    X <- .guard_batch_apply(X, batch_vec_train, quiet)
     audit <- c(audit, list(paste0("batch_adjust: ", batch_method)))
   } else {
     state$batch_adjust <- list(enabled = FALSE, method = "none")
@@ -1046,8 +1337,9 @@ guard_fit <- function(X, y = NULL, steps = list(),
       Xnew <- .guard_clr_apply(Xnew, pseudocount = state$normalize$pseudocount %||% 1e-6)
     }
 
-    # Apply frozen train-fitted batch adjustment when enabled
-    if (isTRUE(state$batch_adjust$enabled) && !is.null(batch)) {
+    # Apply frozen train-fitted batch adjustment when enabled (rows whose batch
+    # is unknown or missing follow the configured `unseen` policy)
+    if (isTRUE(state$batch_adjust$enabled)) {
       Xnew <- .guard_batch_apply(Xnew, batch, state$batch_adjust)
     }
 
