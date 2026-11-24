@@ -225,7 +225,7 @@ listed under `methods(class = "LeakDeltaLSI")` alongside the `show` and
 
 `plot(<LeakDeltaLSI>)` dispatches to \[plot_dlsi_repeats()\], rendering
 the per-repeat \\\Delta_r\\ scatter with the Huber-robust point
-estimate, the arithmetic mean, and the BCa bootstrap confidence interval
+estimate, the arithmetic mean, and the corrected-t confidence interval
 band.
 
 ## See also

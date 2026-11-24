@@ -145,6 +145,7 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
   |======================================================================| 100%
 
 audit <- audit_leakage(fit, metric = "auc", B = 5, perm_stratify = FALSE)
+#> audit_leakage(): perm_refit = "auto" refits the model on each permuted outcome: 5 permutations x 3 folds = 15 model fits, which can be slow. Set perm_refit = FALSE for the fixed-prediction test (no refitting).
 #> 
   |                                                                            
   |                                                                      |   0%
@@ -197,5 +198,5 @@ if (requireNamespace("rmarkdown", quietly = TRUE) &&
   out_file <- audit_report(audit, output_dir = tempdir(), quiet = TRUE)
   out_file
 }
-#> [1] "/tmp/RtmpwQEiCd/bioLeak_audit_report.html"
+#> [1] "/tmp/RtmpUGsyb4/bioLeak_audit_report.html"
 ```

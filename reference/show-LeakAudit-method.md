@@ -67,6 +67,16 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
   |======================================================================| 100%
 aud <- audit_leakage(fit, metric = "auc", B = 10,
                      X_ref = df[, c("x1", "x2")])
+#> audit_leakage(): perm_refit = "auto" refits the model on each permuted outcome: 10 permutations x 3 folds = 30 model fits, which can be slow. Set perm_refit = FALSE for the fixed-prediction test (no refitting).
+#> 
+  |                                                                            
+  |                                                                      |   0%
+  |                                                                            
+  |=======================                                               |  33%
+  |                                                                            
+  |===============================================                       |  67%
+  |                                                                            
+  |======================================================================| 100%
 #> 
   |                                                                            
   |                                                                      |   0%
@@ -117,15 +127,8 @@ aud <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |                                                                      |   0%
-  |                                                                            
-  |=======================                                               |  33%
-  |                                                                            
-  |===============================================                       |  67%
-  |                                                                            
-  |======================================================================| 100%
+#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
 #> 
-  |                                                                            
-  |                                                                      |   0%
   |                                                                            
   |=======================                                               |  33%
 #> Warning: glm.fit: algorithm did not converge
@@ -133,6 +136,8 @@ aud <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |===============================================                       |  67%
+#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+#> 
   |                                                                            
   |======================================================================| 100%
 #> 
@@ -143,8 +148,6 @@ aud <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |=======================                                               |  33%
-#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
-#> 
   |                                                                            
   |===============================================                       |  67%
 #> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
@@ -158,6 +161,9 @@ aud <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |=======================                                               |  33%
+#> Warning: glm.fit: algorithm did not converge
+#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+#> 
   |                                                                            
   |===============================================                       |  67%
 #> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
@@ -179,9 +185,9 @@ show(aud)
 #> A LeakAudit object
 #>   Task:               binomial
 #>   Outcome:            outcome
-#>   Permutation-gap:    metric=0.611, gap=0.169, p=0.273
+#>   Permutation-gap:    metric=0.611, gap=0.108, p=0.273
 #>   Batch association:  0 row(s)
 #>   Target leakage:     2 feature(s)
-#>   Duplicate pairs:    1
+#>   Duplicate pairs:    0
 #> Use summary(<obj>) for the full diagnostic report.
 ```

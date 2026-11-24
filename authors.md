@@ -11,13 +11,13 @@ Source:
 [`DESCRIPTION`](https://github.com/selcukorkmaz/bioLeak/blob/main/DESCRIPTION)
 
 Korkmaz S (2026). *bioLeak: Leakage-Safe Modeling and Auditing for
-Genomic and Clinical Data*. R package version 0.3.8,
+Genomic and Clinical Data*. R package version 0.4.0,
 <https://github.com/selcukorkmaz/bioLeak>.
 
     @Manual{,
       title = {bioLeak: Leakage-Safe Modeling and Auditing for Genomic and Clinical Data},
       author = {Selcuk Korkmaz},
       year = {2026},
-      note = {R package version 0.3.8},
+      note = {R package version 0.4.0},
       url = {https://github.com/selcukorkmaz/bioLeak},
     }

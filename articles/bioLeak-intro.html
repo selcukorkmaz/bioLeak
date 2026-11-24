@@ -7,9 +7,9 @@
 <title>bioLeak: Leakage-Aware Biomedical Modeling • bioLeak</title>
 <script src="../lightswitch.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.4.10/font.css" rel="stylesheet">
-<link href="../deps/JetBrains_Mono-0.4.10/font.css" rel="stylesheet">
-<link href="../deps/Source_Serif_4-0.4.10/font.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Source_Sans_3-0.5.0/font.css" rel="stylesheet">
+<link href="../deps/JetBrains_Mono-0.5.0/font.css" rel="stylesheet">
+<link href="../deps/Source_Serif_4-0.5.0/font.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="bioLeak: Leakage-Aware Biomedical Modeling">
@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">bioLeak</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.8</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -66,7 +66,7 @@
                         <h4 data-toc-skip class="author">Selçuk
 Korkmaz</h4>
             
-            <h4 data-toc-skip class="date">2026-11-11</h4>
+            <h4 data-toc-skip class="date">2026-11-24</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/selcukorkmaz/bioLeak/blob/main/vignettes/bioLeak-intro.Rmd" class="external-link"><code>vignettes/bioLeak-intro.Rmd</code></a></small>
       <div class="d-none name"><code>bioLeak-intro.Rmd</code></div>
@@ -219,13 +219,13 @@ at the group level, or a time/event outcome</li>
 <span><span class="co">#&gt; Outcome: outcome | Stratified: TRUE | Nested: FALSE</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   fold repeat_id train_n test_n</span></span>
-<span><span class="co">#&gt; 1    1         1     127     33</span></span>
+<span><span class="co">#&gt; 1    1         1     128     32</span></span>
 <span><span class="co">#&gt; 2    2         1     128     32</span></span>
 <span><span class="co">#&gt; 3    3         1     128     32</span></span>
 <span><span class="co">#&gt; 4    4         1     128     32</span></span>
-<span><span class="co">#&gt; 5    5         1     129     31</span></span>
+<span><span class="co">#&gt; 5    5         1     128     32</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Total folds: 5 | Hash: 54f1f1e5ad3c6f2f9cf0c7422b2f4425</span></span></code></pre></div>
+<span><span class="co">#&gt; Total folds: 5 | Hash: a1d0d344b081f06779b77eae92b33c62</span></span></code></pre></div>
 <p>The printed <code>LeakSplits</code> summary reports the split mode,
 number of folds, and fold-level training and test set sizes.</p>
 <p>Because <code>group = "row_id"</code>, each sample is treated as its
@@ -252,13 +252,13 @@ leakage.</p>
 <span><span class="co">#&gt; Outcome: outcome | Stratified: TRUE | Nested: FALSE</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   fold repeat_id train_n test_n</span></span>
-<span><span class="co">#&gt; 1    1         1     124     36</span></span>
+<span><span class="co">#&gt; 1    1         1     128     32</span></span>
 <span><span class="co">#&gt; 2    2         1     128     32</span></span>
 <span><span class="co">#&gt; 3    3         1     128     32</span></span>
 <span><span class="co">#&gt; 4    4         1     128     32</span></span>
-<span><span class="co">#&gt; 5    5         1     132     28</span></span>
+<span><span class="co">#&gt; 5    5         1     128     32</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Total folds: 5 | Hash: e34ddb9f1415cf2a82f5b73d6e8975f6</span></span></code></pre></div>
+<span><span class="co">#&gt; Total folds: 5 | Hash: a6f3b679e2e99c1121cd253f61aff11e</span></span></code></pre></div>
 <p>Here, each subject is confined to a single fold. Test set sizes are
 multiples of the number of samples per subject, confirming that subjects
 were not split across folds.</p>
@@ -283,12 +283,12 @@ boundaries.</p>
 <span><span class="co">#&gt; Outcome: outcome | Stratified: TRUE | Nested: FALSE</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   fold repeat_id train_n test_n</span></span>
-<span><span class="co">#&gt; 1    1         1      73     87</span></span>
+<span><span class="co">#&gt; 1    1         1     110     50</span></span>
 <span><span class="co">#&gt; 2    2         1     138     22</span></span>
-<span><span class="co">#&gt; 3    3         1     132     28</span></span>
-<span><span class="co">#&gt; 4    4         1     137     23</span></span>
+<span><span class="co">#&gt; 3    3         1     123     37</span></span>
+<span><span class="co">#&gt; 4    4         1     109     51</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Total folds: 4 | Hash: 6815f595d5822e72c45cb3fe135574f7</span></span>
+<span><span class="co">#&gt; Total folds: 4 | Hash: b7ebf13db4083a991dfb65089a488556</span></span>
 <span></span>
 <span><span class="va">study_splits</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/make_split_plan.html">make_split_plan</a></span><span class="op">(</span></span>
 <span>  <span class="va">df</span>,</span>
@@ -350,11 +350,11 @@ boundaries.</p>
 <span><span class="co">#&gt; Outcome: outcome | Stratified: TRUE | Nested: TRUE</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   fold repeat_id train_n test_n</span></span>
-<span><span class="co">#&gt; 1    1         1     104     56</span></span>
-<span><span class="co">#&gt; 2    2         1     104     56</span></span>
-<span><span class="co">#&gt; 3    3         1     112     48</span></span>
+<span><span class="co">#&gt; 1    1         1     108     52</span></span>
+<span><span class="co">#&gt; 2    2         1     108     52</span></span>
+<span><span class="co">#&gt; 3    3         1     104     56</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Total folds: 3 | Hash: 44a1560f6d79af026e80218128c838ed</span></span></code></pre></div>
+<span><span class="co">#&gt; Total folds: 3 | Hash: d2859da2248aea1f4d40dc451094702b</span></span></code></pre></div>
 <p><strong>RNG seed lineage</strong></p>
 <p>bioLeak uses offset-based seeding so that every sub-operation gets a
 deterministic, distinct seed without requiring isolated RNG streams:</p>
@@ -749,35 +749,35 @@ only</strong></p>
 <span><span class="co">#&gt; GuardFit summary:</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">guard</span><span class="op">)</span></span>
 <span><span class="co">#&gt; GuardFit summary</span></span>
-<span><span class="co">#&gt;  n_train=124, p_out=3, removed_by_filter=0</span></span>
+<span><span class="co">#&gt;  n_train=128, p_out=3, removed_by_filter=0</span></span>
 <span><span class="co">#&gt;  Steps:</span></span>
 <span><span class="co">#&gt;  step                 action</span></span>
 <span><span class="co">#&gt;     1            winsor: k=5</span></span>
-<span><span class="co">#&gt;     2   impute: none (no NA)</span></span>
+<span><span class="co">#&gt;     2         impute: median</span></span>
 <span><span class="co">#&gt;     3      normalize: zscore</span></span>
 <span><span class="co">#&gt;     4 filter: var&gt;=0, iqr&gt;=0</span></span>
 <span><span class="co">#&gt;     5               fs: none</span></span>
-<span><span class="co">#&gt;  hash: 9f7f4824b80da853f5fedaaac6ac205f</span></span>
+<span><span class="co">#&gt;  hash: 1245451bdba6821ddcc4dc7c262245e7</span></span>
 <span></span>
 <span><span class="co"># Guarded training data (first 6 rows)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">train_x_guarded</span><span class="op">)</span></span>
-<span><span class="co">#&gt;            x1           x2          x3</span></span>
-<span><span class="co">#&gt; 5  -1.4287254 -0.846746034 -0.58336326</span></span>
-<span><span class="co">#&gt; 6   1.9282279  0.352168157 -0.70450573</span></span>
-<span><span class="co">#&gt; 7   0.5110636  0.427913734 -0.08735148</span></span>
-<span><span class="co">#&gt; 8  -1.3683145 -0.006339485  0.36484181</span></span>
-<span><span class="co">#&gt; 9  -0.7187394 -2.383299658 -1.01654516</span></span>
-<span><span class="co">#&gt; 10 -1.3015499  2.538309224 -0.14109035</span></span>
+<span><span class="co">#&gt;            x1          x2         x3</span></span>
+<span><span class="co">#&gt; 1  0.18854769  0.99122951 -0.1350347</span></span>
+<span><span class="co">#&gt; 2 -0.36362641 -2.07697662  0.1904292</span></span>
+<span><span class="co">#&gt; 3  0.06578617 -0.48001033  0.8821218</span></span>
+<span><span class="co">#&gt; 4 -0.94810991  0.07484979  0.1794722</span></span>
+<span><span class="co">#&gt; 5 -1.37359853 -0.95531304 -0.6738726</span></span>
+<span><span class="co">#&gt; 6  2.01444520  0.29648681 -0.7967445</span></span>
 <span></span>
 <span><span class="co"># Guarded test data (first 6 rows)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">test_x_guarded</span><span class="op">)</span></span>
-<span><span class="co">#&gt;              x1         x2          x3</span></span>
-<span><span class="co">#&gt; 1   0.119085787  1.0175596 -0.05210949</span></span>
-<span><span class="co">#&gt; 2  -0.428021276 -1.9210219  0.26877352</span></span>
-<span><span class="co">#&gt; 3  -0.002549215 -0.3915238  0.95073054</span></span>
-<span><span class="co">#&gt; 4  -1.007141255  0.1398948  0.25797066</span></span>
-<span><span class="co">#&gt; 25 -1.105722181  0.5243484  2.03908390</span></span>
-<span><span class="co">#&gt; 26  1.601954989 -0.5499985  0.86726497</span></span></code></pre></div>
+<span><span class="co">#&gt;            x1          x2          x3</span></span>
+<span><span class="co">#&gt; 21  0.0910445  2.42126437  0.59447277</span></span>
+<span><span class="co">#&gt; 22  0.2184972 -1.72840206 -0.55957648</span></span>
+<span><span class="co">#&gt; 23  1.2312069 -0.51745684 -1.50863171</span></span>
+<span><span class="co">#&gt; 24 -0.5596342  0.79785220  0.09891165</span></span>
+<span><span class="co">#&gt; 53  1.5011684 -0.69165356 -1.16296347</span></span>
+<span><span class="co">#&gt; 54 -1.1959033 -0.07355607  1.50660137</span></span></code></pre></div>
 <p>The <code>GuardFit</code> object records the preprocessing steps and
 the number of features retained after filtering. The summary reports how
 many features were removed and the preprocessing audit trail. The
@@ -1061,21 +1061,21 @@ splits</strong></p>
 <span><span class="co">#&gt; Total folds: 5</span></span>
 <span><span class="co">#&gt; Fold status: 5 success, 0 skipped, 0 failed</span></span>
 <span><span class="co">#&gt; Refit performed: Yes</span></span>
-<span><span class="co">#&gt; Hash: ha16bdf5a</span></span>
+<span><span class="co">#&gt; Hash: h36cb949f</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Cross-validated metrics (mean ± SD):</span></span>
 <span><span class="co">#&gt;            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glm    0.693  0.097         0.618        0.06     0.513</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glm    0.735  0.042         0.694       0.041     0.657</span></span>
 <span><span class="co">#&gt;   auc_ci_hi accuracy_ci_lo accuracy_ci_hi</span></span>
-<span><span class="co">#&gt; 1     0.873          0.506          0.729</span></span>
+<span><span class="co">#&gt; 1     0.812          0.618           0.77</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Audit overview:</span></span>
 <span><span class="co">#&gt;  fold n_train n_test          learner features_final</span></span>
-<span><span class="co">#&gt;     1     127     33 logistic_reg/glm             17</span></span>
+<span><span class="co">#&gt;     1     128     32 logistic_reg/glm             17</span></span>
 <span><span class="co">#&gt;     2     128     32 logistic_reg/glm             17</span></span>
 <span><span class="co">#&gt;     3     128     32 logistic_reg/glm             17</span></span>
 <span><span class="co">#&gt;     4     128     32 logistic_reg/glm             17</span></span>
-<span><span class="co">#&gt;     5     129     31 logistic_reg/glm             17</span></span>
+<span><span class="co">#&gt;     5     128     32 logistic_reg/glm             17</span></span>
 <span><span class="va">metrics_leaky</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">fit_leaky</span><span class="op">@</span><span class="va">metric_summary</span><span class="op">)</span></span>
 <span><span class="va">num_cols</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">metrics_leaky</span>, <span class="va">is.numeric</span>, <span class="fu"><a href="https://rdrr.io/r/base/logical.html" class="external-link">logical</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">metrics_leaky</span><span class="op">[</span><span class="va">num_cols</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">metrics_leaky</span><span class="op">[</span><span class="va">num_cols</span><span class="op">]</span>, <span class="va">round</span>, digits <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
@@ -1083,9 +1083,9 @@ splits</strong></p>
 <span><span class="co"># Leaky fit: mean and SD of metrics across folds</span></span>
 <span><span class="va">metrics_leaky</span></span>
 <span><span class="co">#&gt;            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glm    0.693  0.097         0.618        0.06     0.513</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glm    0.735  0.042         0.694       0.041     0.657</span></span>
 <span><span class="co">#&gt;   auc_ci_hi accuracy_ci_lo accuracy_ci_hi</span></span>
-<span><span class="co">#&gt; 1     0.873          0.506          0.729</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     0.812          0.618           0.77</span></span></code></pre></div>
 <p>The summary reports cross-validated performance. AUC ranges from 0.5
 (random) to 1.0 (perfect), while accuracy is the fraction of correct
 predictions. Because the splits are leaky, these metrics can be
@@ -1126,21 +1126,21 @@ predictors</strong></p>
 <span><span class="co">#&gt; Total folds: 5</span></span>
 <span><span class="co">#&gt; Fold status: 5 success, 0 skipped, 0 failed</span></span>
 <span><span class="co">#&gt; Refit performed: Yes</span></span>
-<span><span class="co">#&gt; Hash: hba29ffa5</span></span>
+<span><span class="co">#&gt; Hash: hd22121cf</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Cross-validated metrics (mean ± SD):</span></span>
 <span><span class="co">#&gt;            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glm    0.612  0.184         0.598       0.117      0.27</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glm    0.618  0.146         0.588       0.095     0.346</span></span>
 <span><span class="co">#&gt;   auc_ci_hi accuracy_ci_lo accuracy_ci_hi</span></span>
-<span><span class="co">#&gt; 1     0.954          0.379          0.816</span></span>
+<span><span class="co">#&gt; 1      0.89          0.411          0.764</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Audit overview:</span></span>
 <span><span class="co">#&gt;  fold n_train n_test          learner features_final</span></span>
-<span><span class="co">#&gt;     1     124     36 logistic_reg/glm             13</span></span>
+<span><span class="co">#&gt;     1     128     32 logistic_reg/glm             13</span></span>
 <span><span class="co">#&gt;     2     128     32 logistic_reg/glm             13</span></span>
 <span><span class="co">#&gt;     3     128     32 logistic_reg/glm             13</span></span>
 <span><span class="co">#&gt;     4     128     32 logistic_reg/glm             13</span></span>
-<span><span class="co">#&gt;     5     132     28 logistic_reg/glm             13</span></span>
+<span><span class="co">#&gt;     5     128     32 logistic_reg/glm             13</span></span>
 <span><span class="va">metrics_safe</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">metric_summary</span><span class="op">)</span></span>
 <span><span class="va">num_cols</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">metrics_safe</span>, <span class="va">is.numeric</span>, <span class="fu"><a href="https://rdrr.io/r/base/logical.html" class="external-link">logical</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">metrics_safe</span><span class="op">[</span><span class="va">num_cols</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">metrics_safe</span><span class="op">[</span><span class="va">num_cols</span><span class="op">]</span>, <span class="va">round</span>, digits <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
@@ -1148,18 +1148,18 @@ predictors</strong></p>
 <span><span class="co"># Leakage-safe fit: mean and SD of metrics across folds</span></span>
 <span><span class="va">metrics_safe</span></span>
 <span><span class="co">#&gt;            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glm    0.612  0.184         0.598       0.117      0.27</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glm    0.618  0.146         0.588       0.095     0.346</span></span>
 <span><span class="co">#&gt;   auc_ci_hi accuracy_ci_lo accuracy_ci_hi</span></span>
-<span><span class="co">#&gt; 1     0.954          0.379          0.816</span></span>
+<span><span class="co">#&gt; 1      0.89          0.411          0.764</span></span>
 <span></span>
 <span><span class="co"># Per-fold metrics (first 6 rows)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="../reference/fit_metrics.html">fit_metrics</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   fold          learner       auc  accuracy</span></span>
-<span><span class="co">#&gt; 1    1 logistic_reg/glm 0.6284830 0.5277778</span></span>
-<span><span class="co">#&gt; 2    2 logistic_reg/glm 0.7611336 0.7187500</span></span>
-<span><span class="co">#&gt; 3    3 logistic_reg/glm 0.6823529 0.6562500</span></span>
-<span><span class="co">#&gt; 4    4 logistic_reg/glm 0.6944444 0.6562500</span></span>
-<span><span class="co">#&gt; 5    5 logistic_reg/glm 0.2944444 0.4285714</span></span></code></pre></div>
+<span><span class="co">#&gt;   fold          learner       auc accuracy</span></span>
+<span><span class="co">#&gt; 1    1 logistic_reg/glm 0.3968254  0.46875</span></span>
+<span><span class="co">#&gt; 2    2 logistic_reg/glm 0.6984127  0.62500</span></span>
+<span><span class="co">#&gt; 3    3 logistic_reg/glm 0.5992063  0.59375</span></span>
+<span><span class="co">#&gt; 4    4 logistic_reg/glm 0.6072874  0.53125</span></span>
+<span><span class="co">#&gt; 5    5 logistic_reg/glm 0.7896825  0.71875</span></span></code></pre></div>
 <p><code><a href="../reference/fit_resample.html">fit_resample()</a></code> returns a <code>LeakFit</code> object.
 Use <code>summary(fit_safe)</code> for a compact report,
 <code>fit_metrics(fit_safe)</code> for the per-fold metric data frame,
@@ -1183,11 +1183,11 @@ permutations. When multiple learners are passed,
 <code class="sourceCode R"><span><span class="co"># Fold-level diagnostics for reproducible troubleshooting</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">info</span><span class="op">$</span><span class="va">fold_status</span>, <span class="fl">5</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   fold    stage  status reason                    notes elapsed_sec</span></span>
-<span><span class="co">#&gt; 1    1 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.023</span></span>
-<span><span class="co">#&gt; 2    2 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.022</span></span>
-<span><span class="co">#&gt; 3    3 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.022</span></span>
-<span><span class="co">#&gt; 4    4 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.021</span></span>
-<span><span class="co">#&gt; 5    5 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.022</span></span></code></pre></div>
+<span><span class="co">#&gt; 1    1 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.015</span></span>
+<span><span class="co">#&gt; 2    2 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.013</span></span>
+<span><span class="co">#&gt; 3    3 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.012</span></span>
+<span><span class="co">#&gt; 4    4 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.012</span></span>
+<span><span class="co">#&gt; 5    5 fold_run success   &lt;NA&gt; Successful learners: 1/1       0.013</span></span></code></pre></div>
 <p>Interpretation of <code>fold_status</code>:</p>
 <ul>
 <li>
@@ -1259,22 +1259,22 @@ the gradient boosting example below).</p>
 <span><span class="co">#&gt; Total folds: 4</span></span>
 <span><span class="co">#&gt; Fold status: 4 success, 0 skipped, 0 failed</span></span>
 <span><span class="co">#&gt; Refit performed: No</span></span>
-<span><span class="co">#&gt; Hash: hc88c6471</span></span>
+<span><span class="co">#&gt; Hash: h094ba277</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Cross-validated metrics (mean ± SD):</span></span>
 <span><span class="co">#&gt;   learner accuracy_mean accuracy_sd macro_f1_mean macro_f1_sd log_loss_mean</span></span>
-<span><span class="co">#&gt; 1  ranger         0.319       0.072         0.313       0.071         1.154</span></span>
+<span><span class="co">#&gt; 1  ranger         0.363        0.06          0.36       0.066         1.121</span></span>
 <span><span class="co">#&gt;   log_loss_sd accuracy_ci_lo accuracy_ci_hi macro_f1_ci_lo macro_f1_ci_hi</span></span>
-<span><span class="co">#&gt; 1       0.051          0.144          0.494           0.14          0.486</span></span>
+<span><span class="co">#&gt; 1       0.049          0.218          0.507            0.2          0.521</span></span>
 <span><span class="co">#&gt;   log_loss_ci_lo log_loss_ci_hi</span></span>
-<span><span class="co">#&gt; 1          1.029          1.278</span></span>
+<span><span class="co">#&gt; 1          1.003          1.239</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Audit overview:</span></span>
 <span><span class="co">#&gt;  fold n_train n_test learner features_final</span></span>
-<span><span class="co">#&gt;     1     116     44  ranger             14</span></span>
+<span><span class="co">#&gt;     1     120     40  ranger             14</span></span>
 <span><span class="co">#&gt;     2     120     40  ranger             14</span></span>
 <span><span class="co">#&gt;     3     120     40  ranger             14</span></span>
-<span><span class="co">#&gt;     4     124     36  ranger             14</span></span></code></pre></div>
+<span><span class="co">#&gt;     4     120     40  ranger             14</span></span></code></pre></div>
 <p>Multiclass fits compute accuracy, macro-F1, and log loss when class
 probabilities are available. <code>positive_class</code> is ignored for
 multiclass tasks.</p>
@@ -1381,19 +1381,19 @@ column; <code>stratify</code> is ignored for time/event outcomes and
 <span><span class="co">#&gt; Total folds: 5</span></span>
 <span><span class="co">#&gt; Fold status: 5 success, 0 skipped, 0 failed</span></span>
 <span><span class="co">#&gt; Refit performed: Yes</span></span>
-<span><span class="co">#&gt; Hash: hba29ffa5</span></span>
+<span><span class="co">#&gt; Hash: hd22121cf</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Cross-validated metrics (mean ± SD):</span></span>
 <span><span class="co">#&gt;   learner auc_mean auc_sd auc_ci_lo auc_ci_hi</span></span>
-<span><span class="co">#&gt; 1  glmnet    0.653  0.199     0.282     1.024</span></span>
+<span><span class="co">#&gt; 1  glmnet    0.633  0.163     0.329     0.937</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Audit overview:</span></span>
 <span><span class="co">#&gt;  fold n_train n_test learner features_final</span></span>
-<span><span class="co">#&gt;     1     124     36  glmnet             13</span></span>
+<span><span class="co">#&gt;     1     128     32  glmnet             13</span></span>
 <span><span class="co">#&gt;     2     128     32  glmnet             13</span></span>
 <span><span class="co">#&gt;     3     128     32  glmnet             13</span></span>
 <span><span class="co">#&gt;     4     128     32  glmnet             13</span></span>
-<span><span class="co">#&gt;     5     132     28  glmnet             13</span></span></code></pre></div>
+<span><span class="co">#&gt;     5     128     32  glmnet             13</span></span></code></pre></div>
 <p>This summary reflects the same guarded preprocessing but a different
 model configuration (here, <code>alpha = 0.5</code>). Use the mean +/-
 SD metrics to compare learner settings under identical splits.</p>
@@ -1691,14 +1691,14 @@ tasks are not yet supported.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Outer Loop Metrics (mean ± SD):</span></span>
 <span><span class="co">#&gt;               learner accuracy_mean accuracy_sd roc_auc_mean roc_auc_sd</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glmnet         0.619       0.048        0.577      0.134</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glmnet         0.603       0.055          0.5          0</span></span>
 <span><span class="co">#&gt;   accuracy_ci_lo accuracy_ci_hi roc_auc_ci_lo roc_auc_ci_hi</span></span>
-<span><span class="co">#&gt; 1          0.501          0.737         0.245         0.909</span></span>
+<span><span class="co">#&gt; 1          0.387          0.819           0.5           0.5</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Best Parameters (First 5 Folds):</span></span>
 <span><span class="co">#&gt;  penalty fold</span></span>
 <span><span class="co">#&gt;    0.763    1</span></span>
-<span><span class="co">#&gt;    0.000    2</span></span>
+<span><span class="co">#&gt;    0.891    2</span></span>
 <span><span class="co">#&gt;    0.995    3</span></span></code></pre></div>
 <div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/exists.html" class="external-link">exists</a></span><span class="op">(</span><span class="st">"tuned"</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
@@ -1914,6 +1914,7 @@ tasks, it shows per-class counts without a proportion line.</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"ggplot2 not installed; skipping fold balance plot.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
+<p><img src="bioLeak-intro_files/figure-html/plot-fold-balance-1.png" class="r-plt" alt="" width="700"></p>
 <p>The bar chart shows the counts of Positives (blue) and Negatives
 (tan) in each fold. The dashed blue line represents the proportion of
 the positive class.</p>
@@ -1926,6 +1927,7 @@ to unstable fold-level performance estimates.</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"ggplot2 not installed; skipping calibration plot.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
+<p><img src="bioLeak-intro_files/figure-html/plot-calibration-1.png" class="r-plt" alt="" width="700"></p>
 <p>Calibration curves compare predicted probabilities to observed event
 rates. Large deviations from the diagonal indicate miscalibration. Use
 <code>min_bin_n</code> to suppress tiny bins and <code>learner =</code>
@@ -1937,6 +1939,7 @@ to select a model when multiple learners are stored in the fit.</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"ggplot2 not installed; skipping confounder sensitivity plot.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
+<p><img src="bioLeak-intro_files/figure-html/plot-confounder-sensitivity-1.png" class="r-plt" alt="" width="700"></p>
 <p>Confounder sensitivity plots highlight whether performance varies
 substantially across batch or study strata.</p>
 <div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
@@ -1949,17 +1952,17 @@ substantially across batch or study strata.</p>
 <span><span class="co"># Calibration metrics</span></span>
 <span><span class="va">cal</span><span class="op">$</span><span class="va">metrics</span></span>
 <span><span class="co">#&gt;     n bins min_bin_n       ece       mce     brier</span></span>
-<span><span class="co">#&gt; 1 160   10         5 0.1005285 0.9113016 0.2499484</span></span>
+<span><span class="co">#&gt; 1 160   10         5 0.1351632 0.3511629 0.2563703</span></span>
 <span></span>
 <span><span class="co"># Confounder sensitivity table (first 6 rows)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">conf_tbl</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   confounder level metric direction     value  n positive_rate</span></span>
-<span><span class="co">#&gt; 1      batch    B1    auc    higher 0.7569444 26     0.3076923</span></span>
-<span><span class="co">#&gt; 2      batch    B2    auc    higher 0.7196970 23     0.4782609</span></span>
-<span><span class="co">#&gt; 3      batch    B3    auc    higher 0.4153846 28     0.4642857</span></span>
-<span><span class="co">#&gt; 4      batch    B4    auc    higher 0.6944444 24     0.5000000</span></span>
-<span><span class="co">#&gt; 5      batch    B5    auc    higher 0.6071429 22     0.3636364</span></span>
-<span><span class="co">#&gt; 6      batch    B6    auc    higher 0.5058824 37     0.4594595</span></span></code></pre></div>
+<span><span class="co">#&gt; 1      batch    B1    auc    higher 0.6388889 26     0.3076923</span></span>
+<span><span class="co">#&gt; 2      batch    B2    auc    higher 0.6969697 23     0.4782609</span></span>
+<span><span class="co">#&gt; 3      batch    B3    auc    higher 0.4974359 28     0.4642857</span></span>
+<span><span class="co">#&gt; 4      batch    B4    auc    higher 0.6041667 24     0.5000000</span></span>
+<span><span class="co">#&gt; 5      batch    B5    auc    higher 0.5089286 22     0.3636364</span></span>
+<span><span class="co">#&gt; 6      batch    B6    auc    higher 0.6411765 37     0.4594595</span></span></code></pre></div>
 <div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"ggplot2"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="../reference/plot_overlap_checks.html">plot_overlap_checks</a></span><span class="op">(</span><span class="va">fit_leaky</span>, column <span class="op">=</span> <span class="st">"subject"</span><span class="op">)</span></span>
@@ -1967,6 +1970,7 @@ substantially across batch or study strata.</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"ggplot2 not installed; skipping overlap plots.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
+<p><img src="bioLeak-intro_files/figure-html/plot-overlap-1.png" class="r-plt" alt="" width="700"><img src="bioLeak-intro_files/figure-html/plot-overlap-2.png" class="r-plt" alt="" width="700"></p>
 <p>The overlap plots compare the number of unique subjects appearing in
 the training and test sets for each fold.</p>
 <p><strong>Top plot (<code>fit_leaky</code>)</strong><br>
@@ -1987,8 +1991,8 @@ simultaneously.</p>
 object:</p>
 <ul>
 <li>permutation gap: tests whether model signal is non-random</li>
-<li>batch or study association with folds (chi-square and Cramers
-V)</li>
+<li>batch or study association: with the outcome (confounding) and with
+folds (how batches are spread)</li>
 <li>target leakage scan: feature-wise outcome association to flag proxy
 columns</li>
 <li>duplicate and near-duplicate detection across train/test (by
@@ -2094,72 +2098,86 @@ outcomes support it.</p>
 <span><span class="co">#&gt; ==============================</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Task: binomial | Outcome: outcome | Splitting mode: subject_grouped | Positive class: case</span></span>
-<span><span class="co">#&gt; Hash: hba29ffa5 | Folds: 5 | Repeats: 1</span></span>
+<span><span class="co">#&gt; Hash: hd22121cf | Folds: 5 | Repeats: 1</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Label-Permutation Association Test:</span></span>
 <span><span class="co">#&gt;   Method: refit per permutation (auto)</span></span>
 <span><span class="co">#&gt;   Null: re-drawn per permutation | Permutation: group_restricted | Summary: pooled</span></span>
-<span><span class="co">#&gt;   Observed metric: 0.614</span></span>
-<span><span class="co">#&gt;   Permuted mean ± SD: 0.515 ± 0.067</span></span>
-<span><span class="co">#&gt;   Gap: 0.099 (larger gap = stronger non-random signal)</span></span>
+<span><span class="co">#&gt;   Observed metric: 0.607</span></span>
+<span><span class="co">#&gt;   Permuted mean ± SD: 0.499 ± 0.075</span></span>
+<span><span class="co">#&gt;   Gap: 0.108, permutation p = 0.095 (B = 20)</span></span>
 <span><span class="co">#&gt;   This test does NOT diagnose information leakage. Use the Batch Association,</span></span>
 <span><span class="co">#&gt;   Target Leakage Scan, and Duplicate Detection sections to check for leakage.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Batch / Study Association:</span></span>
-<span><span class="co">#&gt;   batch (repeat 1): χ² = 17.043 (df = 20.000), p = 0.650</span></span>
-<span><span class="co">#&gt;   study (repeat 1): χ² = 9.487 (df = 12.000), p = 0.661</span></span>
+<span><span class="co">#&gt;   batch</span></span>
+<span><span class="co">#&gt;     batch-outcome: χ² = 3.800 (df = 5), p = 0.579 (Holm 1.000), Cramer's V = 0.308</span></span>
+<span><span class="co">#&gt;     batch varies within subjects; within-subject association not tested (row-level Cramer's V = 0.136)</span></span>
+<span><span class="co">#&gt;     fold-batch: χ² = 11.849 (df = 20), p = 0.921; test rows sharing a batch with training: 100.0%</span></span>
+<span><span class="co">#&gt;   study</span></span>
+<span><span class="co">#&gt;     batch-outcome: χ² = 0.396 (df = 3), p = 0.941 (Holm 1.000), Cramer's V = 0.099</span></span>
+<span><span class="co">#&gt;     batch varies within subjects; within-subject association not tested (row-level Cramer's V = 0.150)</span></span>
+<span><span class="co">#&gt;     fold-batch: χ² = 13.395 (df = 12), p = 0.341; test rows sharing a batch with training: 100.0%</span></span>
+<span><span class="co">#&gt;   Confounding needs batch linked to the outcome and batches shared by</span></span>
+<span><span class="co">#&gt;   training and test rows; the fold-batch test describes the split only.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Target Leakage Scan:</span></span>
 <span><span class="co">#&gt;   Features checked: 3 | Flagged (score ≥ 0.900): 0</span></span>
 <span><span class="co">#&gt;   No strong proxy features detected.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Multivariate Target Scan:</span></span>
-<span><span class="co">#&gt;   Metric: auc | Score: 0.302 | p = 0.030</span></span>
+<span><span class="co">#&gt;   Metric: auc | Score: 0.352 | p = 0.010</span></span>
 <span><span class="co">#&gt;   Features: 3 | Components: 3 | Interactions: 3 | Permutations: 100</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Near-Duplicate Samples:</span></span>
 <span><span class="co">#&gt;   Scope: train/test only</span></span>
-<span><span class="co">#&gt;   20 pairs detected above cosine ≥ 0.995</span></span>
+<span><span class="co">#&gt;   1 pairs detected above cosine ≥ 0.995</span></span>
+<span><span class="co">#&gt;   Expected by chance: 0.0 pairs</span></span>
 <span><span class="co">#&gt;   Example pairs:</span></span>
-<span><span class="co">#&gt;    mechanism_class   i   j       sim cross_fold   cos_sim</span></span>
-<span><span class="co">#&gt;  duplicate_overlap   1   5 1.0000000       TRUE 1.0000000</span></span>
-<span><span class="co">#&gt;  duplicate_overlap  35  61 0.9994623       TRUE 0.9994623</span></span>
-<span><span class="co">#&gt;  duplicate_overlap  80 106 0.9990700       TRUE 0.9990700</span></span>
-<span><span class="co">#&gt;  duplicate_overlap 120 153 0.9978776       TRUE 0.9978776</span></span>
-<span><span class="co">#&gt;  duplicate_overlap   7 107 0.9976746       TRUE 0.9976746</span></span>
+<span><span class="co">#&gt;    mechanism_class i j sim cross_fold cos_sim</span></span>
+<span><span class="co">#&gt;  duplicate_overlap 1 5   1       TRUE       1</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Mechanism Risk Assessment:</span></span>
-<span><span class="co">#&gt;        mechanism_class flagged        evidence statistic  p_value</span></span>
-<span><span class="co">#&gt;      non_random_signal    TRUE permutation_gap 0.0988852 0.047619</span></span>
-<span><span class="co">#&gt;  confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000</span></span>
-<span><span class="co">#&gt;   proxy_target_leakage   FALSE    target_assoc 0.3556299       NA</span></span>
-<span><span class="co">#&gt;      duplicate_overlap    TRUE      duplicates 1.0000000       NA</span></span>
-<span><span class="co">#&gt;     temporal_lookahead   FALSE      duplicates        NA       NA</span></span>
+<span><span class="co">#&gt;        mechanism_class flagged        evidence statistic   p_value</span></span>
+<span><span class="co">#&gt;      non_random_signal   FALSE permutation_gap 0.1084490 0.0952381</span></span>
+<span><span class="co">#&gt;  confounding_alignment   FALSE     batch_assoc 0.3082118 1.0000000</span></span>
+<span><span class="co">#&gt;   proxy_target_leakage   FALSE    target_assoc 0.3556299        NA</span></span>
+<span><span class="co">#&gt;      duplicate_overlap    TRUE      duplicates 1.0000000        NA</span></span>
+<span><span class="co">#&gt;     temporal_lookahead   FALSE      duplicates        NA        NA</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Interpretation:</span></span>
-<span><span class="co">#&gt;   ✓ Strong non-random signal.</span></span>
+<span><span class="co">#&gt;   ⚠ No significant non-random signal (p = 0.095): performance is not distinguishable from the label-permutation null.</span></span>
+<span><span class="co">#&gt;   A significant gap shows predictions carry signal; it does not show the</span></span>
+<span><span class="co">#&gt;   absence of leakage, which also produces a large gap.</span></span>
+<span><span class="co">#&gt;   ⚠ Flagged leakage mechanisms: duplicate_overlap (see Mechanism Risk Assessment).</span></span>
 <span><span class="va">pg</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_perm_gap.html">audit_perm_gap</a></span><span class="op">(</span><span class="va">audit</span><span class="op">)</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">pg</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">pg</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="co"># Permutation significance results</span></span>
 <span>  <span class="va">pg</span></span>
 <span><span class="op">}</span></span>
-<span><span class="co">#&gt;     mechanism_class metric_obs perm_mean   perm_sd       gap       z  p_value</span></span>
-<span><span class="co">#&gt; 1 non_random_signal   0.614111  0.515225 0.0674816 0.0988852 2.16674 0.047619</span></span>
+<span><span class="co">#&gt;     mechanism_class metric_obs perm_mean   perm_sd      gap       z   p_value</span></span>
+<span><span class="co">#&gt; 1 non_random_signal   0.607103  0.498654 0.0754438 0.108449 2.29111 0.0952381</span></span>
 <span><span class="co">#&gt;   n_perm</span></span>
 <span><span class="co">#&gt; 1     20</span></span>
 <span><span class="va">ba</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_batch_assoc.html">audit_batch_assoc</a></span><span class="op">(</span><span class="va">audit</span><span class="op">)</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">ba</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ba</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="co"># Batch/study association with folds (Cramer's V)</span></span>
+<span>  <span class="co"># Batch-outcome and fold-batch tests, and span_frac per batch column</span></span>
 <span>  <span class="va">ba</span></span>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"No batch or study associations detected.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
-<span><span class="co">#&gt;             mechanism_class batch_col repeat_id      stat df     pval  cramer_v</span></span>
-<span><span class="co">#&gt; batch confounding_alignment     batch         1 17.043088 20 0.650174 0.1631865</span></span>
-<span><span class="co">#&gt; study confounding_alignment     study         1  9.487022 12 0.660865 0.1405867</span></span>
-<span><span class="co">#&gt;       pval_adj</span></span>
-<span><span class="co">#&gt; batch        1</span></span>
-<span><span class="co">#&gt; study        1</span></span>
+<span><span class="co">#&gt;             mechanism_class batch_col repeat_id     stat df      pval  cramer_v</span></span>
+<span><span class="co">#&gt; batch confounding_alignment     batch         1 11.84942 20 0.9211613 0.1360688</span></span>
+<span><span class="co">#&gt; study confounding_alignment     study         1 13.39497 12 0.3409979 0.1670514</span></span>
+<span><span class="co">#&gt;        pval_adj by_design outcome_test outcome_stat outcome_df outcome_pval</span></span>
+<span><span class="co">#&gt; batch 0.9211613     FALSE        chisq    3.7997808          5    0.5785876</span></span>
+<span><span class="co">#&gt; study 0.6819959     FALSE        chisq    0.3958952          3    0.9410891</span></span>
+<span><span class="co">#&gt;       outcome_effect outcome_effect_min outcome_n outcome_method</span></span>
+<span><span class="co">#&gt; batch     0.30821181                0.1        40          units</span></span>
+<span><span class="co">#&gt; study     0.09948557                0.1        40          units</span></span>
+<span><span class="co">#&gt;       within_unit_effect outcome_pval_adj span_frac</span></span>
+<span><span class="co">#&gt; batch          0.1356174                1         1</span></span>
+<span><span class="co">#&gt; study          0.1495784                1         1</span></span>
 <span><span class="va">ta</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/audit_target_assoc.html">audit_target_assoc</a></span><span class="op">(</span><span class="va">audit</span><span class="op">)</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">ta</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">ta</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="co"># Top features by target association score</span></span>
@@ -2182,13 +2200,8 @@ outcomes support it.</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"No near-duplicates detected.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
-<span><span class="co">#&gt;      mechanism_class   i   j       sim cross_fold   cos_sim</span></span>
-<span><span class="co">#&gt; 1  duplicate_overlap   1   5 1.0000000       TRUE 1.0000000</span></span>
-<span><span class="co">#&gt; 12 duplicate_overlap  35  61 0.9994623       TRUE 0.9994623</span></span>
-<span><span class="co">#&gt; 18 duplicate_overlap  80 106 0.9990700       TRUE 0.9990700</span></span>
-<span><span class="co">#&gt; 25 duplicate_overlap 120 153 0.9978776       TRUE 0.9978776</span></span>
-<span><span class="co">#&gt; 4  duplicate_overlap   7 107 0.9976746       TRUE 0.9976746</span></span>
-<span><span class="co">#&gt; 22 duplicate_overlap 104 142 0.9968751       TRUE 0.9968751</span></span></code></pre></div>
+<span><span class="co">#&gt;     mechanism_class i j sim cross_fold cos_sim</span></span>
+<span><span class="co">#&gt; 1 duplicate_overlap 1 5   1       TRUE       1</span></span></code></pre></div>
 <p>The permutation table reports the observed metric, the mean under
 random label permutation, the gap (difference), and a permutation
 <em>p</em>-value. For metrics where higher values indicate better
@@ -2253,13 +2266,18 @@ summaries in <code>audit_info(audit)$perm_gap_summaries</code>.</p>
 <span><span class="co">#&gt; [1] "auto: stratified splits, so the split plan is re-drawn on each permuted outcome."</span></span>
 <span><span class="co"># Pooled and per-fold-mean permutation gaps (refit nulls only)</span></span>
 <span><span class="va">info</span><span class="op">$</span><span class="va">perm_gap_summaries</span></span>
-<span><span class="co">#&gt;     summary metric_obs perm_mean    perm_sd        gap    p_value n_perm</span></span>
-<span><span class="co">#&gt; 1    pooled  0.6141105 0.5152254 0.06748161 0.09888517 0.04761905     20</span></span>
-<span><span class="co">#&gt; 2 fold_mean  0.6121717 0.5232547 0.06765256 0.08891695 0.09523810     20</span></span></code></pre></div>
-<p>The batch association table reports chi-square statistics and
-Cramer’s V. Large p-values and small V values indicate that folds are
-not aligned with batch or study labels (which is the desired outcome
-when these should be independent).</p>
+<span><span class="co">#&gt;     summary metric_obs perm_mean    perm_sd       gap    p_value n_perm</span></span>
+<span><span class="co">#&gt; 1    pooled  0.6071030 0.4986542 0.07544381 0.1084488 0.09523810     20</span></span>
+<span><span class="co">#&gt; 2 fold_mean  0.6182829 0.5064782 0.07358662 0.1118047 0.04761905     20</span></span></code></pre></div>
+<p>The batch association table has, per batch column, a batch-outcome
+test (<code>outcome_*</code> columns), a fold-batch test
+(<code>stat</code>, <code>pval</code>, <code>cramer_v</code>) that
+describes how batches are spread over folds, and <code>span_frac</code>,
+the share of test rows whose batch also occurs in training. Batch
+effects can inflate performance only when batch is associated with the
+outcome and batches are shared by training and test rows; a blocked
+design (<code>batch_blocked</code>, <code>study_loocv</code>) has
+<code>span_frac = 0</code> and a fold-batch V of 1 by construction.</p>
 <p>The target scan table lists features with the strongest associations
 with the outcome. For numeric features, the score is
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mrow><mi mathvariant="normal">A</mi><mi mathvariant="normal">U</mi><mi mathvariant="normal">C</mi></mrow><mo>−</mo><mn>0.5</mn><mo stretchy="false" form="prefix">|</mo><mi>×</mi><mn>2</mn></mrow><annotation encoding="application/x-tex">|\mathrm{AUC} - 0.5| \times 2</annotation></semantics></math>
@@ -2296,7 +2314,8 @@ mechanism classes:</p>
 <tr class="even">
 <td><code>confounding_alignment</code></td>
 <td>batch association</td>
-<td>p ≤ 0.05 and Cramér’s V ≥ 0.1</td>
+<td>batch-outcome Holm p ≤ 0.05, effect ≥ small (Cramér’s V ≥ 0.1 or ε²
+≥ 0.01), and <code>span_frac</code> &gt; 0</td>
 </tr>
 <tr class="odd">
 <td><code>proxy_target_leakage</code></td>
@@ -2324,12 +2343,12 @@ and can be accessed directly for programmatic triage:</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"No mechanism summary available.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
-<span><span class="co">#&gt;         mechanism_class flagged        evidence statistic  p_value</span></span>
-<span><span class="co">#&gt; 1     non_random_signal    TRUE permutation_gap 0.0988852 0.047619</span></span>
-<span><span class="co">#&gt; 2 confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000</span></span>
-<span><span class="co">#&gt; 3  proxy_target_leakage   FALSE    target_assoc 0.3556299       NA</span></span>
-<span><span class="co">#&gt; 4     duplicate_overlap    TRUE      duplicates 1.0000000       NA</span></span>
-<span><span class="co">#&gt; 5    temporal_lookahead   FALSE      duplicates        NA       NA</span></span></code></pre></div>
+<span><span class="co">#&gt;         mechanism_class flagged        evidence statistic   p_value</span></span>
+<span><span class="co">#&gt; 1     non_random_signal   FALSE permutation_gap 0.1084490 0.0952381</span></span>
+<span><span class="co">#&gt; 2 confounding_alignment   FALSE     batch_assoc 0.3082118 1.0000000</span></span>
+<span><span class="co">#&gt; 3  proxy_target_leakage   FALSE    target_assoc 0.3556299        NA</span></span>
+<span><span class="co">#&gt; 4     duplicate_overlap    TRUE      duplicates 1.0000000        NA</span></span>
+<span><span class="co">#&gt; 5    temporal_lookahead   FALSE      duplicates        NA        NA</span></span></code></pre></div>
 <p>Each row reports whether the mechanism was flagged, the evidence
 type, and the associated test statistic and p-value. This provides a
 quick triage overview before drilling into individual audit slots.</p>
@@ -2339,14 +2358,17 @@ quick triage overview before drilling into individual audit slots.</p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"ggplot2 not installed; skipping permutation plot.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
+<p><img src="bioLeak-intro_files/figure-html/plot-perm-1.png" class="r-plt" alt="" width="700"></p>
 <p>The histogram shows the null distribution (gray bars) of the
 performance metric under random label permutation.</p>
 <p>The blue dashed line represents the average performance of a random
 model (the permuted mean). The red solid line represents the observed
 performance of the fitted model.</p>
-<p>A genuine signal is indicated when the red line lies well to the
+<p>Non-random signal is indicated when the red line lies well to the
 right of the gray distribution; overlap suggests weak or unstable
-signal.</p>
+signal. The test cannot tell genuine signal from leakage, which also
+moves the red line to the right; the batch, target and duplicate checks
+address leakage.</p>
 <p>Use the mechanism risk assessment
 (<code>audit@info$mechanism_summary</code>) as a quick triage tool:
 flagged mechanisms point you to the specific audit slots that warrant
@@ -2428,15 +2450,15 @@ deeper investigation.</p>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |=======================                                               |  33%  |                                                                              |===============================================                       |  67%  |                                                                              |======================================================================| 100%</span></span>
 <span><span class="co">#&gt; Per-learner audit summary:</span></span>
 <span><span class="co">#&gt; LeakAuditList with 2 learners</span></span>
-<span><span class="co">#&gt;  learner metric_obs perm_mean   gap p_value     z n_perm batch_p_min</span></span>
-<span><span class="co">#&gt;      glm      0.537     0.418 0.120    0.19 1.316     20          NA</span></span>
-<span><span class="co">#&gt;       rf      0.589     0.445 0.145    0.19 1.685     20          NA</span></span>
-<span><span class="co">#&gt;  batch_col_min_p batch_v_max batch_col_max_v dup_pairs dup_threshold</span></span>
-<span><span class="co">#&gt;             &lt;NA&gt;          NA            &lt;NA&gt;        NA         0.995</span></span>
-<span><span class="co">#&gt;             &lt;NA&gt;          NA            &lt;NA&gt;        NA         0.995</span></span>
-<span><span class="co">#&gt;  dup_max_sim</span></span>
-<span><span class="co">#&gt;           NA</span></span>
-<span><span class="co">#&gt;           NA</span></span></code></pre></div>
+<span><span class="co">#&gt;  learner metric_obs perm_mean   gap p_value     z n_perm batch_outcome_p</span></span>
+<span><span class="co">#&gt;      glm      0.537     0.476 0.061   0.381 0.675     20              NA</span></span>
+<span><span class="co">#&gt;       rf      0.589     0.495 0.094   0.143 1.105     20              NA</span></span>
+<span><span class="co">#&gt;  batch_outcome_col batch_outcome_effect batch_span_max confounding_flag</span></span>
+<span><span class="co">#&gt;               &lt;NA&gt;                   NA             NA            FALSE</span></span>
+<span><span class="co">#&gt;               &lt;NA&gt;                   NA             NA            FALSE</span></span>
+<span><span class="co">#&gt;  dup_pairs dup_threshold dup_max_sim</span></span>
+<span><span class="co">#&gt;         NA         0.995          NA</span></span>
+<span><span class="co">#&gt;         NA         0.995          NA</span></span></code></pre></div>
 <p>This example uses <strong>ranger</strong> for the random forest
 specification; if it is not installed, the code chunk is skipped.</p>
 <p>Use <code>parallel_learners = TRUE</code> to audit learners
@@ -2625,13 +2647,19 @@ blocks</strong></p>
 <span><span class="co">#&gt;   Null: observed folds reused | Permutation: time_block | Summary: pooled</span></span>
 <span><span class="co">#&gt;   Observed metric: 0.601</span></span>
 <span><span class="co">#&gt;   Permuted mean ± SD: 0.500 ± 0.055</span></span>
-<span><span class="co">#&gt;   Gap: 0.101 (larger gap = stronger non-random signal)</span></span>
+<span><span class="co">#&gt;   Gap: 0.101, permutation p = 0.095 (B = 20)</span></span>
 <span><span class="co">#&gt;   This test does NOT diagnose information leakage. Use the Batch Association,</span></span>
 <span><span class="co">#&gt;   Target Leakage Scan, and Duplicate Detection sections to check for leakage.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Batch / Study Association:</span></span>
-<span><span class="co">#&gt;   batch (repeat 1): χ² = 8.237 (df = 10.000), p = 0.606</span></span>
-<span><span class="co">#&gt;   study (repeat 1): χ² = 2.383 (df = 6.000), p = 0.881</span></span>
+<span><span class="co">#&gt;   batch</span></span>
+<span><span class="co">#&gt;     batch-outcome: not tested (time-series rows are dependent; record a group)</span></span>
+<span><span class="co">#&gt;     fold-batch: χ² = 8.237 (df = 10), p = 0.606; test rows sharing a batch with training: 100.0%</span></span>
+<span><span class="co">#&gt;   study</span></span>
+<span><span class="co">#&gt;     batch-outcome: not tested (time-series rows are dependent; record a group)</span></span>
+<span><span class="co">#&gt;     fold-batch: χ² = 2.383 (df = 6), p = 0.881; test rows sharing a batch with training: 100.0%</span></span>
+<span><span class="co">#&gt;   Confounding needs batch linked to the outcome and batches shared by</span></span>
+<span><span class="co">#&gt;   training and test rows; the fold-batch test describes the split only.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Target Leakage Scan: not available.</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -2641,14 +2669,17 @@ blocks</strong></p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Mechanism Risk Assessment:</span></span>
 <span><span class="co">#&gt;        mechanism_class flagged        evidence statistic   p_value</span></span>
-<span><span class="co">#&gt;      non_random_signal   FALSE permutation_gap 0.1009140 0.0952381</span></span>
-<span><span class="co">#&gt;  confounding_alignment   FALSE     batch_assoc 0.1852551 1.0000000</span></span>
+<span><span class="co">#&gt;      non_random_signal   FALSE permutation_gap  0.100914 0.0952381</span></span>
+<span><span class="co">#&gt;  confounding_alignment   FALSE     batch_assoc        NA        NA</span></span>
 <span><span class="co">#&gt;   proxy_target_leakage   FALSE    target_assoc        NA        NA</span></span>
 <span><span class="co">#&gt;      duplicate_overlap   FALSE      duplicates        NA        NA</span></span>
 <span><span class="co">#&gt;     temporal_lookahead   FALSE      duplicates        NA        NA</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Interpretation:</span></span>
-<span><span class="co">#&gt;   ✓ Strong non-random signal.</span></span>
+<span><span class="co">#&gt;   ⚠ No significant non-random signal (p = 0.095): performance is not distinguishable from the label-permutation null.</span></span>
+<span><span class="co">#&gt;   A significant gap shows predictions carry signal; it does not show the</span></span>
+<span><span class="co">#&gt;   absence of leakage, which also produces a large gap.</span></span>
+<span><span class="co">#&gt;   No leakage mechanism flagged; these checks cannot rule leakage out.</span></span>
 <span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">audit_time</span><span class="op">@</span><span class="va">permutation_gap</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">audit_time</span><span class="op">@</span><span class="va">permutation_gap</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="co"># Time-series permutation significance results</span></span>
 <span>  <span class="va">audit_time</span><span class="op">@</span><span class="va">permutation_gap</span></span>
@@ -2663,6 +2694,7 @@ blocks</strong></p>
 <span><span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"ggplot2 not installed; skipping ACF plot.\n"</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
+<p><img src="bioLeak-intro_files/figure-html/time-series-safe-1.png" class="r-plt" alt="" width="700"></p>
 <p>The safe fit summary provides the leakage-resistant performance
 estimate. Compare leaky vs. safe fits to gauge inflation risk;
 <code>features_final</code> should drop when the lookahead feature is
@@ -2677,69 +2709,55 @@ and time metadata aligned to the fit.</p>
 <h3 id="cross-validation-uncertainty-with-cv_ci">Cross-validation uncertainty with <code>cv_ci()</code><a class="anchor" aria-label="anchor" href="#cross-validation-uncertainty-with-cv_ci"></a>
 </h3>
 <p>Standard cross-validation yields one metric value per fold. Because
-folds share training data, the per-fold values are positively
-correlated: the naive standard error <code>sd / sqrt(K)</code>
-systematically underestimates variability, making the resulting
-confidence intervals too narrow. <code><a href="../reference/cv_ci.html">cv_ci()</a></code> addresses this
-with two approaches:</p>
+folds share training data, and repeats re-partition the same samples,
+the per-fold values are positively correlated: the naive standard error
+<code>sd / sqrt(K)</code> underestimates variability badly.
+<code><a href="../reference/cv_ci.html">cv_ci()</a></code> offers two methods:</p>
 <ul>
-<li><p><strong><code>"normal"</code></strong> (default): uses the naive
-SEM <code>sd / sqrt(K)</code> with a <em>t</em>-distribution on
-<code>K − 1</code> degrees of freedom. Fast and appropriate when fold
-overlap is low (large datasets, many folds).</p></li>
-<li><p><strong><code>"nadeau_bengio"</code></strong>: applies the
-Nadeau–Bengio (2003) variance correction
-<code>(1/K + n_test / n_train) × var(x)</code>, explicitly accounting
-for the fraction of training samples shared across folds. Recommended
-for small datasets or few-fold CV where fold correlation is
-non-negligible.</p></li>
+<li><p><strong><code>"nadeau_bengio"</code></strong> (default): the
+Nadeau–Bengio (2003) corrected variance
+<code>(1/K + n_test / n_train) × var(x)</code>, with a <em>t</em>
+reference on <code>folds per repeat − 1</code> degrees of freedom
+(repeats sharpen the estimate but add no independent information). In a
+simulation of repeated 5-fold CV the 95% interval covered the true
+expected performance about 98% of the time.</p></li>
+<li><p><strong><code>"normal"</code></strong>: the naive
+<code>sd / sqrt(K)</code>. It ignores fold correlation and in the same
+simulation covered only about 37% of the time; it is kept for
+comparison.</p></li>
 </ul>
-<p>The function accepts any data frame with <code>fold</code> and
-<code>learner</code> columns — such as <code>fit@metrics</code> from a
-<code>LeakFit</code> object — and returns one row per learner with four
-columns per metric: <code>&lt;metric&gt;_mean</code>,
-<code>&lt;metric&gt;_sd</code>, <code>&lt;metric&gt;_ci_lo</code>, and
-<code>&lt;metric&gt;_ci_hi</code>.</p>
+<p>Pass the <code>LeakFit</code> itself: <code><a href="../reference/cv_ci.html">cv_ci()</a></code> then reads
+the fold sizes and the number of folds per repeat from the fit. It
+returns one row per learner with four columns per metric:
+<code>&lt;metric&gt;_mean</code>, <code>&lt;metric&gt;_sd</code>,
+<code>&lt;metric&gt;_ci_lo</code>, and
+<code>&lt;metric&gt;_ci_hi</code>. A plain metrics data frame (such as
+<code>fit@metrics</code>) also works, with <code>n_train</code>,
+<code>n_test</code> and <code>folds_per_repeat</code> supplied by
+hand.</p>
 <div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Standard 95% CI from the leakage-safe fit</span></span>
-<span><span class="va">ci_std</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_ci.html">cv_ci</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">metrics</span>, level <span class="op">=</span> <span class="fl">0.95</span>, method <span class="op">=</span> <span class="st">"normal"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Standard 95% CI:\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Standard 95% CI:</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">ci_std</span><span class="op">)</span></span>
-<span><span class="co">#&gt;            learner  auc_mean    auc_sd auc_ci_lo auc_ci_hi accuracy_mean</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glm 0.6121717 0.1837801 0.3839785 0.8403648     0.5975198</span></span>
-<span><span class="co">#&gt;   accuracy_sd accuracy_ci_lo accuracy_ci_hi</span></span>
-<span><span class="co">#&gt; 1   0.1172633      0.4519182      0.7431215</span></span>
-<span></span>
-<span><span class="co"># Nadeau-Bengio corrected CI</span></span>
-<span><span class="co"># For K-fold CV: n_train ≈ (K-1)/K × n, n_test ≈ n/K</span></span>
-<span><span class="va">K_folds</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">metrics</span><span class="op">$</span><span class="va">fold</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">n_total</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">splits</span><span class="op">@</span><span class="va">info</span><span class="op">$</span><span class="va">coldata</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">ci_nb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_ci.html">cv_ci</a></span><span class="op">(</span></span>
-<span>  <span class="va">fit_safe</span><span class="op">@</span><span class="va">metrics</span>,</span>
-<span>  level   <span class="op">=</span> <span class="fl">0.95</span>,</span>
-<span>  method  <span class="op">=</span> <span class="st">"nadeau_bengio"</span>,</span>
-<span>  n_train <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">n_total</span> <span class="op">*</span> <span class="op">(</span><span class="va">K_folds</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span> <span class="op">/</span> <span class="va">K_folds</span><span class="op">)</span>,</span>
-<span>  n_test  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">n_total</span> <span class="op">/</span> <span class="va">K_folds</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co"># Corrected 95% CI (default), sizes and folds per repeat taken from the fit</span></span>
+<span><span class="va">ci_nb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_ci.html">cv_ci</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Nadeau-Bengio corrected 95% CI:\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Nadeau-Bengio corrected 95% CI:</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">ci_nb</span><span class="op">)</span></span>
 <span><span class="co">#&gt;            learner  auc_mean    auc_sd auc_ci_lo auc_ci_hi accuracy_mean</span></span>
-<span><span class="co">#&gt; 1 logistic_reg/glm 0.6121717 0.1837801 0.2698819 0.9544614     0.5975198</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glm 0.6182829 0.1460538 0.3462583 0.8903075        0.5875</span></span>
 <span><span class="co">#&gt;   accuracy_sd accuracy_ci_lo accuracy_ci_hi</span></span>
-<span><span class="co">#&gt; 1   0.1172633      0.3791174      0.8159223</span></span></code></pre></div>
-<p>The Nadeau–Bengio interval is typically wider because it correctly
-inflates the variance to account for fold overlap. Use it whenever the
-training-set fraction shared between consecutive folds is large — for
-example, 5-fold CV reuses 80% of training data across fold pairs, so
-correcting for this correlation matters.</p>
-<p>When multiple learners were fit, <code><a href="../reference/cv_ci.html">cv_ci()</a></code> returns one row
-per learner. For repeated K-fold CV, average <code>n_train</code> and
-<code>n_test</code> across folds before passing them in;
-<code>fit@metrics</code> already stores per-fold counts if
-<code><a href="../reference/audit_leakage.html">audit_leakage()</a></code> annotated the object.</p>
+<span><span class="co">#&gt; 1  0.09478594      0.4109616      0.7640384</span></span>
+<span></span>
+<span><span class="co"># Naive CI, for comparison only: too narrow for cross-validation</span></span>
+<span><span class="va">ci_naive</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cv_ci.html">cv_ci</a></span><span class="op">(</span><span class="va">fit_safe</span><span class="op">@</span><span class="va">metrics</span>, method <span class="op">=</span> <span class="st">"normal"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Naive 95% CI (ignores fold correlation):\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Naive 95% CI (ignores fold correlation):</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">ci_naive</span><span class="op">)</span></span>
+<span><span class="co">#&gt;            learner  auc_mean    auc_sd auc_ci_lo auc_ci_hi accuracy_mean</span></span>
+<span><span class="co">#&gt; 1 logistic_reg/glm 0.6182829 0.1460538 0.4369331 0.7996326        0.5875</span></span>
+<span><span class="co">#&gt;   accuracy_sd accuracy_ci_lo accuracy_ci_hi</span></span>
+<span><span class="co">#&gt; 1  0.09478594      0.4698077      0.7051923</span></span></code></pre></div>
+<p>The corrected interval is wider because it accounts for the training
+data that folds share; with 5-fold CV, any two training sets share
+three-quarters of their rows.</p>
 </div>
 </div>
 <div class="section level2">
@@ -3015,10 +3033,7 @@ falls back to unpaired mode.</p>
 <code class="sourceCode R"><span><span class="va">result_dlsi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span></span>
 <span>  fit_leaky   <span class="op">=</span> <span class="va">fit_dlsi_naive</span>,</span>
 <span>  fit_guarded <span class="op">=</span> <span class="va">fit_dlsi_guarded</span>,</span>
-<span>  metric      <span class="op">=</span> <span class="st">"auc"</span>,</span>
-<span>  M_boot      <span class="op">=</span> <span class="fl">300L</span>,</span>
-<span>  M_flip      <span class="op">=</span> <span class="fl">300L</span>,</span>
-<span>  seed        <span class="op">=</span> <span class="fl">1L</span></span>
+<span>  metric      <span class="op">=</span> <span class="st">"auc"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">result_dlsi</span><span class="op">)</span></span>
@@ -3029,7 +3044,7 @@ falls back to unpaired mode.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Metric:            auc</span></span>
 <span><span class="co">#&gt; Exchangeability:   iid  (reported only; same corrected test)</span></span>
-<span><span class="co">#&gt; Inference tier:    C_signflip  (label kept for compatibility; test is the corrected t)</span></span>
+<span><span class="co">#&gt; Inference tier:    C_ttest_3_9_folds  (label kept for compatibility; test is the corrected t)</span></span>
 <span><span class="co">#&gt; R_eff:             5 folds per repeat  (R_leaky=5, R_guarded=5, paired=TRUE)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Leaky pipeline:    0.716</span></span>
@@ -3045,7 +3060,7 @@ falls back to unpaired mode.</p>
 <span><span class="co">#&gt;   Corrected repeated-CV t (Nadeau &amp; Bengio 2003; df = folds per repeat - 1)</span></span>
 <span><span class="co">#&gt;   t-test p:      0.0182 *  (df = 4)</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Inference valid:   YES (C_signflip)</span></span></code></pre></div>
+<span><span class="co">#&gt; Inference valid:   YES (C_ttest_3_9_folds)</span></span></code></pre></div>
 <p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports seven quantities; here is how to read
 each one:</p>
 <ul>
@@ -3093,14 +3108,14 @@ the same data, so they stabilise the point estimate but do
 <strong>Tier D</strong> (<code>D_insufficient</code>, point
 estimates only): fewer than 3 folds per repeat, or unpaired fits.</li>
 <li>
-<strong>Tier C</strong> (<code>C_signflip</code>): 3-9 folds per
-repeat, e.g. 5-fold CV.</li>
+<strong>Tier C</strong> (<code>C_ttest_3_9_folds</code>): 3-9 folds
+per repeat, e.g. 5-fold CV.</li>
 <li>
-<strong>Tier B</strong> (<code>B_signflip_ci</code>): 10-19 folds
-per repeat, e.g. 10-fold CV.</li>
+<strong>Tier B</strong> (<code>B_ttest_10_19_folds</code>): 10-19
+folds per repeat, e.g. 10-fold CV.</li>
 <li>
-<strong>Tier A</strong> (<code>A_full_inference</code>): 20 or more
-folds per repeat, e.g. leave-one-study-out with 20+ studies.</li>
+<strong>Tier A</strong> (<code>A_ttest_ge20_folds</code>): 20 or
+more folds per repeat, e.g. leave-one-study-out with 20+ studies.</li>
 </ul>
 <p>Tiers A-C all report a p-value and CIs; the tier labels are kept from
 earlier versions. More folds per repeat buy degrees of freedom and
@@ -3108,7 +3123,7 @@ power; more repeats buy a more stable estimate. With 3 folds per repeat
 the test has only 2 degrees of freedom and is conservative.</p>
 <div class="sourceCode" id="cb49"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Tier:          "</span>, <span class="va">result_dlsi</span><span class="op">@</span><span class="va">tier</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Tier:           C_signflip</span></span>
+<span><span class="co">#&gt; Tier:           C_ttest_3_9_folds</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"R_eff:         "</span>, <span class="va">result_dlsi</span><span class="op">@</span><span class="va">R_eff</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; R_eff:          5</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"inference_ok:  "</span>, <span class="va">result_dlsi</span><span class="op">@</span><span class="va">inference_ok</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -3206,11 +3221,14 @@ to the ordinary mean.</li>
 directly, which equals the common value.</li>
 </ul>
 <p>The <code>delta_lsi</code> and <code>delta_metric</code> estimates
-always have the same sign because the Huber estimator and the arithmetic
-mean agree on direction. They differ only in magnitude, and then only
-when one or more
+usually agree closely. They differ when one or more
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">Δ</mi><mi>r</mi></msub><annotation encoding="application/x-tex">\Delta_r</annotation></semantics></math>
-are extreme relative to the bulk of the distribution.</p>
+are extreme relative to the bulk of the distribution: the Huber estimate
+down-weights those values, and a single large
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">Δ</mi><mi>r</mi></msub><annotation encoding="application/x-tex">\Delta_r</annotation></semantics></math>
+can even give the two estimates opposite signs (for example
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi mathvariant="normal">Δ</mi><mo>=</mo><mo stretchy="false" form="prefix">(</mo><mi>−</mi><mn>0.02</mn><mo>,</mo><mi>−</mi><mn>0.01</mn><mo>,</mo><mi>−</mi><mn>0.03</mn><mo>,</mo><mi>−</mi><mn>0.02</mn><mo>,</mo><mn>0.5</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\Delta = (-0.02, -0.01, -0.03, -0.02, 0.5)</annotation></semantics></math>
+has a positive mean but a negative Huber estimate).</p>
 </div>
 <div class="section level4">
 <h4 id="pairing-condition-and-the-inference-tier-system">Pairing condition and the inference tier system<a class="anchor" aria-label="anchor" href="#pairing-condition-and-the-inference-tier-system"></a>
@@ -3260,7 +3278,7 @@ or unpaired</td>
 <td align="center"><code>FALSE</code></td>
 </tr>
 <tr class="even">
-<td><code>C_signflip</code></td>
+<td><code>C_ttest_3_9_folds</code></td>
 <td>
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>3</mn><annotation encoding="application/x-tex">3</annotation></semantics></math>-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>9</mn><annotation encoding="application/x-tex">9</annotation></semantics></math>
 </td>
@@ -3271,7 +3289,7 @@ or unpaired</td>
 <td align="center"><code>TRUE</code></td>
 </tr>
 <tr class="odd">
-<td><code>B_signflip_ci</code></td>
+<td><code>B_ttest_10_19_folds</code></td>
 <td>
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>10</mn><annotation encoding="application/x-tex">10</annotation></semantics></math>-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mn>19</mn><annotation encoding="application/x-tex">19</annotation></semantics></math>
 </td>
@@ -3282,7 +3300,7 @@ or unpaired</td>
 <td align="center"><code>TRUE</code></td>
 </tr>
 <tr class="even">
-<td><code>A_full_inference</code></td>
+<td><code>A_ttest_ge20_folds</code></td>
 <td><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>≥</mo><mn>20</mn></mrow><annotation encoding="application/x-tex">\geq 20</annotation></semantics></math></td>
 <td align="center">✓</td>
 <td align="center">✓</td>
@@ -3320,10 +3338,12 @@ the same <code>LeakSplits</code> object. The per-repeat inflation scores
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi mathvariant="normal">Δ</mi><mi>r</mi></msub><annotation encoding="application/x-tex">\Delta_r</annotation></semantics></math>
 are computed as within-repeat differences, eliminating between-fold
 variability.
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>R</mi><mtext mathvariant="normal">eff</mtext></msub><mo>=</mo><mi>R</mi></mrow><annotation encoding="application/x-tex">R_{\text{eff}} = R</annotation></semantics></math>
-and all inference tiers are reachable. Equal repeat counts with
-differing index patterns produce a warning and fall back to unpaired
-mode automatically.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>R</mi><mtext mathvariant="normal">eff</mtext></msub><annotation encoding="application/x-tex">R_{\text{eff}}</annotation></semantics></math>
+is the number of folds per repeat (repeats re-partition the same data,
+so they sharpen the estimate without adding independent units), and all
+inference tiers are reachable. Equal repeat counts with differing index
+patterns produce a warning and fall back to unpaired mode
+automatically.</p>
 <p><strong>Unpaired</strong>: the two fits have different fold
 structures or different repeat counts. The point estimates use
 separately computed pipeline means rather than paired differences;
@@ -3343,18 +3363,21 @@ feature) account for a performance difference.</p>
 <span>  repeats <span class="op">=</span> <span class="fl">5L</span></span>
 <span><span class="op">)</span></span>
 <span></span>
+<span><span class="co"># subject is not a split column here (folds are by row), so name it as an</span></span>
+<span><span class="co"># identifier; otherwise its dummy columns would become predictors</span></span>
 <span><span class="va">fit_naive_rand</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_resample.html">fit_resample</a></span><span class="op">(</span></span>
 <span>  <span class="va">df_dlsi_naive</span>,</span>
 <span>  outcome <span class="op">=</span> <span class="st">"outcome"</span>,</span>
 <span>  splits  <span class="op">=</span> <span class="va">splits_rand</span>,</span>
 <span>  learner <span class="op">=</span> <span class="va">spec</span>,</span>
 <span>  metrics <span class="op">=</span> <span class="st">"auc"</span>,</span>
+<span>  id_cols <span class="op">=</span> <span class="st">"subject"</span>,</span>
 <span>  seed    <span class="op">=</span> <span class="fl">1L</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |===                                                                   |   4%  |                                                                              |======                                                                |   8%  |                                                                              |========                                                              |  12%  |                                                                              |===========                                                           |  16%  |                                                                              |==============                                                        |  20%  |                                                                              |=================                                                     |  24%  |                                                                              |====================                                                  |  28%  |                                                                              |======================                                                |  32%  |                                                                              |=========================                                             |  36%  |                                                                              |============================                                          |  40%  |                                                                              |===============================                                       |  44%  |                                                                              |==================================                                    |  48%  |                                                                              |====================================                                  |  52%  |                                                                              |=======================================                               |  56%  |                                                                              |==========================================                            |  60%  |                                                                              |=============================================                         |  64%  |                                                                              |================================================                      |  68%  |                                                                              |==================================================                    |  72%  |                                                                              |=====================================================                 |  76%  |                                                                              |========================================================              |  80%  |                                                                              |===========================================================           |  84%  |                                                                              |==============================================================        |  88%  |                                                                              |================================================================      |  92%  |                                                                              |===================================================================   |  96%  |                                                                              |======================================================================| 100%</span></span>
 <span></span>
 <span><span class="va">r_unpaired</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span><span class="va">fit_naive_rand</span>, <span class="va">fit_dlsi_guarded</span>, metric <span class="op">=</span> <span class="st">"auc"</span>, seed <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span><span class="va">fit_naive_rand</span>, <span class="va">fit_dlsi_guarded</span>, metric <span class="op">=</span> <span class="st">"auc"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"Paired:        %s\n"</span>, <span class="va">r_unpaired</span><span class="op">@</span><span class="va">info</span><span class="op">$</span><span class="va">paired</span><span class="op">)</span><span class="op">)</span></span>
@@ -3363,7 +3386,7 @@ feature) account for a performance difference.</p>
 <span><span class="co">#&gt; R_eff:         0  (0 = unpaired, inference disabled)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"delta_metric:  %.4f  (naive raw mean - guarded raw mean)\n"</span>,</span>
 <span>            <span class="va">r_unpaired</span><span class="op">@</span><span class="va">delta_metric</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; delta_metric:  -0.0585  (naive raw mean - guarded raw mean)</span></span>
+<span><span class="co">#&gt; delta_metric:  0.2177  (naive raw mean - guarded raw mean)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"p_value:       %s\n"</span>,</span>
 <span>            <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">r_unpaired</span><span class="op">@</span><span class="va">p_value</span><span class="op">)</span><span class="op">)</span> <span class="st">"NA"</span> <span class="kw">else</span> <span class="va">r_unpaired</span><span class="op">@</span><span class="va">p_value</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; p_value:       NA</span></span></code></pre></div>
@@ -3387,14 +3410,12 @@ value still means the naive pipeline is inflated relative to guarded
 <code class="sourceCode R"><span><span class="va">r_hib_true</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span><span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span></span>
 <span>  <span class="va">fit_dlsi_naive</span>, <span class="va">fit_dlsi_guarded</span>,</span>
 <span>  metric           <span class="op">=</span> <span class="st">"auc"</span>,</span>
-<span>  higher_is_better <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  seed             <span class="op">=</span> <span class="fl">1L</span></span>
+<span>  higher_is_better <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">r_hib_false</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/warning.html" class="external-link">suppressWarnings</a></span><span class="op">(</span><span class="fu"><a href="../reference/delta_lsi.html">delta_lsi</a></span><span class="op">(</span></span>
 <span>  <span class="va">fit_dlsi_naive</span>, <span class="va">fit_dlsi_guarded</span>,</span>
 <span>  metric           <span class="op">=</span> <span class="st">"auc"</span>,</span>
-<span>  higher_is_better <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  seed             <span class="op">=</span> <span class="fl">1L</span></span>
+<span>  higher_is_better <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"hib = TRUE:   delta_metric = %+.4f  (positive = naive inflated)\n"</span>,</span>
@@ -3443,8 +3464,8 @@ corrected repeated-CV t-test</td>
 <tr class="odd">
 <td><code>@tier</code></td>
 <td>character</td>
-<td>Inference tier: <code>"A_full_inference"</code>,
-<code>"B_signflip_ci"</code>, <code>"C_signflip"</code>, or
+<td>Inference tier: <code>"A_ttest_ge20_folds"</code>,
+<code>"B_ttest_10_19_folds"</code>, <code>"C_ttest_3_9_folds"</code>, or
 <code>"D_insufficient"</code>
 </td>
 </tr>
@@ -3689,18 +3710,18 @@ it.</li>
 <span><span class="co">#&gt; ==============================</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Task: binomial | Outcome: outcome | Splitting mode: subject_grouped | Positive class: control</span></span>
-<span><span class="co">#&gt; Hash: h0cc183b7 | Folds: 25 | Repeats: 1</span></span>
+<span><span class="co">#&gt; Hash: h0cc183b7 | Folds: 25 | Repeats: 5</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Label-Permutation Association Test:</span></span>
 <span><span class="co">#&gt;   Method: refit per permutation (auto)</span></span>
 <span><span class="co">#&gt;   Null: observed folds reused | Permutation: group_restricted | Summary: pooled</span></span>
 <span><span class="co">#&gt;   Observed metric: 0.741</span></span>
-<span><span class="co">#&gt;   Permuted mean ± SD: 0.446 ± 0.065</span></span>
-<span><span class="co">#&gt;   Gap: 0.294 (larger gap = stronger non-random signal)</span></span>
+<span><span class="co">#&gt;   Permuted mean ± SD: 0.488 ± 0.092</span></span>
+<span><span class="co">#&gt;   Gap: 0.253, permutation p = 0.048 (B = 20)</span></span>
 <span><span class="co">#&gt;   This test does NOT diagnose information leakage. Use the Batch Association,</span></span>
 <span><span class="co">#&gt;   Target Leakage Scan, and Duplicate Detection sections to check for leakage.</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Batch / Study Association: none detected.</span></span>
+<span><span class="co">#&gt; Batch / Study Association: not tested (no batch/study columns available).</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Target Leakage Scan: not available.</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -3710,14 +3731,17 @@ it.</li>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Mechanism Risk Assessment:</span></span>
 <span><span class="co">#&gt;        mechanism_class flagged        evidence statistic  p_value</span></span>
-<span><span class="co">#&gt;      non_random_signal    TRUE permutation_gap  0.294444 0.047619</span></span>
+<span><span class="co">#&gt;      non_random_signal    TRUE permutation_gap  0.252991 0.047619</span></span>
 <span><span class="co">#&gt;  confounding_alignment   FALSE     batch_assoc        NA       NA</span></span>
 <span><span class="co">#&gt;   proxy_target_leakage   FALSE    target_assoc        NA       NA</span></span>
 <span><span class="co">#&gt;      duplicate_overlap   FALSE      duplicates        NA       NA</span></span>
 <span><span class="co">#&gt;     temporal_lookahead   FALSE      duplicates        NA       NA</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Interpretation:</span></span>
-<span><span class="co">#&gt;   ✓ Strong non-random signal.</span></span>
+<span><span class="co">#&gt;   ✓ Non-random signal (p = 0.048, gap = 0.253).</span></span>
+<span><span class="co">#&gt;   A significant gap shows predictions carry signal; it does not show the</span></span>
+<span><span class="co">#&gt;   absence of leakage, which also produces a large gap.</span></span>
+<span><span class="co">#&gt;   No leakage mechanism flagged; these checks cannot rule leakage out.</span></span>
 <span></span>
 <span><span class="co"># Step 2: confirmed guards reduced inflation; check residual DLSI</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\ndelta_metric (naive vs guarded):"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">result_dlsi</span><span class="op">@</span><span class="va">delta_metric</span>, <span class="fl">4</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -3841,8 +3865,8 @@ based on outcome type (AUC for binary classification).</p>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%</span></span>
 <span><span class="co">#&gt;   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%</span></span>
 <span><span class="co">#&gt;   seed metric_obs      gap  p_value         leakage            mode</span></span>
-<span><span class="co">#&gt; 1    1   0.828914 0.333128 0.047619 subject_overlap subject_grouped</span></span>
-<span><span class="co">#&gt; 2    2   0.825397 0.348524 0.047619 subject_overlap subject_grouped</span></span></code></pre></div>
+<span><span class="co">#&gt; 1    1   0.842172 0.334991 0.047619 subject_overlap subject_grouped</span></span>
+<span><span class="co">#&gt; 2    2   0.820952 0.342270 0.047619 subject_overlap subject_grouped</span></span></code></pre></div>
 <p>Each row corresponds to one simulation seed.</p>
 <ul>
 <li><p><code>metric_obs</code> is the observed performance (AUC for this

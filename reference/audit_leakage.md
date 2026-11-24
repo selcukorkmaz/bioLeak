@@ -53,6 +53,7 @@ audit_leakage(
   nn_k = 50,
   max_pairs = 5000,
   duplicate_scope = c("train_test", "all"),
+  duplicate_null_reps = 3L,
   learner = NULL,
   strict_align = FALSE,
   perm_folds = c("auto", "fixed", "redraw"),
@@ -91,8 +92,11 @@ audit_leakage(
   available). If FALSE, no stratification is used. Defaults to FALSE.
   Stratification only applies when \`coldata\` supplies the outcome. It
   has no effect on fixed-prediction permutations (\`perm_refit =
-  FALSE\`), which always use a global label shuffle; a warning is raised
-  if it is set there.
+  FALSE\`), which shuffle labels across the whole dataset (see
+  \`perm_mode\`); a warning is raised if it is set there. It is also
+  ignored, with a warning, for `batch_blocked` and `study_loocv` refit
+  nulls, which permute within each batch or study: stratifying those by
+  the outcome would leave every label in place.
 
 - perm_refit:
 
@@ -103,7 +107,9 @@ audit_leakage(
   distribution. The default is \`"auto"\`, which refits only when
   \`perm_refit_spec\` is provided and \`B\` is less than or equal to
   \`perm_refit_auto_max\`; otherwise it falls back to fixed-prediction
-  permutations.
+  permutations. A refit costs \`B\` x (number of folds) model fits; a
+  message reports this number when \`"auto"\` refits and says when it
+  falls back.
 
 - perm_refit_auto_max:
 
@@ -128,8 +134,17 @@ audit_leakage(
   \`"batch_blocked"\`, \`"study_loocv"\`, or \`"time_series"\`. Defaults
   to the split metadata when available (including rsample-derived
   modes). Restricted shuffles are used by refit-based permutations and
-  by the multivariate target scan; the fixed-prediction permutation gap
-  always uses a global label shuffle.
+  by the multivariate target scan. The fixed-prediction permutation gap
+  shuffles labels across the whole dataset at the level of samples (all
+  copies of a sample from repeated CV share one label); for
+  \`"subject_grouped"\` (and \`"combined"\` with a group axis) whole
+  subjects swap label vectors with subjects of the same size, and a
+  subject with no same-size partner is shuffled within itself, which
+  keeps the class balance exact (a warning says when few subjects can be
+  exchanged); for \`"time_series"\` labels move in time blocks
+  (\`time_block\`, \`block_len\`). The multivariate scan, which refits
+  on each permutation, uses the subject-level scheme for grouped designs
+  and the restricted permutation of refit audits otherwise.
 
 - time_block:
 
@@ -184,8 +199,9 @@ audit_leakage(
 
 - batch_cols:
 
-  Character vector. Names of \`coldata\` columns to test for association
-  with fold assignment. If NULL, defaults to any of \`"batch"\`,
+  Character vector. Names of \`coldata\` batch/study columns to test for
+  association with the outcome and with fold assignment (see
+  \`batch_assoc\` in Details). If NULL, defaults to any of \`"batch"\`,
   \`"plate"\`, \`"center"\`, \`"site"\`, \`"study"\` found in
   \`coldata\`. Changing this controls which batch tests appear in
   \`batch_assoc\`.
@@ -291,6 +307,13 @@ audit_leakage(
   train vs test in at least one repeat; \`"all"\` reports all
   near-duplicate pairs in \`X_ref\` regardless of fold assignment.
 
+- duplicate_null_reps:
+
+  Integer scalar. Number of null draws used to estimate how many pairs
+  would pass the duplicate rule by chance (stored in
+  \`info\$duplicate_null\`, see Details). \`0\` skips the estimate.
+  Default is 3.
+
 - learner:
 
   Optional character scalar. When predictions include multiple learner
@@ -336,7 +359,9 @@ audit_leakage(
   compare predictions from different fold models, so it is insensitive
   to between-fold baseline shifts. Refit-based audits report both
   summaries in \`audit_info(audit)\$perm_gap_summaries\` whichever is
-  chosen.
+  chosen. The fold mean requires a refit null: with fixed predictions
+  (\`perm_refit = FALSE\`) it is not calibrated, so \`"pooled"\` is used
+  with a warning.
 
 ## Value
 
@@ -366,10 +391,10 @@ S4 object containing:
 
 - `batch_assoc`:
 
-  Data.frame of chi-square association tests between fold assignment and
-  batch/study metadata, with columns: `variable`, `stat` (chi-square
-  statistic), `df` (degrees of freedom), `pval`, and `cramer_v` (effect
-  size). Small p-values indicate potential confounding by design.
+  Data.frame, one row per batch/study column and repeat: the fold-batch
+  association test (how batches are spread over folds), the
+  batch-outcome association test, and the share of test rows whose batch
+  also occurs in training (`span_frac`). See Details.
 
 - `target_assoc`:
 
@@ -486,15 +511,41 @@ summary used in \`permutation_gap\`; and, for refit nulls,
 null mean and SD, gap, and p-value for both the pooled and the fold-mean
 summary.
 
-\`batch_assoc\` contains chi-square tests between fold assignment and
-each \`batch_cols\` variable (\`stat\`, \`df\`, \`pval\`, \`cramer_v\`),
-one row per variable and repeat, plus \`pval_adj\`, the Holm-adjusted
-p-value across all rows. The \`confounding_alignment\` rule of the
-mechanism summary flags only when some row has \`pval_adj \<= 0.05\` and
-\`cramer_v \>= 0.1\`, so repeated CV does not inflate the false-positive
-rate. \`target_assoc\` reports feature-wise outcome associations on
-\`X_ref\`; numeric features use AUC (binomial), \`eta_sq\` (multiclass),
-or correlation (gaussian), while categorical features use Cramer's V
+\`batch_assoc\` has one row per \`batch_cols\` variable and repeat, with
+three parts. (1) Fold-batch association: a chi-square test of the fold x
+batch table (\`stat\`, \`df\`, \`pval\`, \`cramer_v\`; \`pval_adj\`
+Holm-adjusted across rows) and \`by_design\`, TRUE for columns the split
+blocks on (e.g. the batch of a leave-batch-out plan) or that are nested
+in such a column. It describes how batches are spread over folds; it
+does not test confounding (a blocked design gives \`cramer_v = 1\` by
+construction). (2) Batch-outcome association, computed once per variable
+on the predicted samples, on the plan's independent units: the recorded
+group column, a constraint axis of type \`"subject"\` of a combined plan
+(else its primary axis), or the group of an rsample plan. Each unit
+counts once, with its most frequent batch and its majority class or mean
+outcome, ties broken at random (\`outcome_method = "units"\`); without
+such a column rows are tested (\`"rows"\`), except time-series plans,
+whose rows are autocorrelated (\`"not_tested"\`). When batch varies
+within units, association within units (e.g. paired tumour and normal
+samples in different batches) is not tested: its row-level effect size
+is reported as \`within_unit_effect\` and does not enter the flag.
+\`outcome_n\` is the number of rows or units tested. Columns:
+\`outcome_test\` (\`"chisq"\` for classification, with Cramer's V as
+\`outcome_effect\`; \`"kruskal"\` for regression, with epsilon^2 = H /
+(n - 1)), \`outcome_stat\`, \`outcome_df\`, \`outcome_pval\`,
+\`outcome_pval_adj\` (Holm across variables) and \`outcome_effect_min\`,
+the small-effect bound (0.1 for V, 0.01 for epsilon^2). Not computed for
+survival outcomes. (3) \`span_frac\`: the share of test rows whose batch
+level also occurs among the training rows of their fold, pooled over the
+folds of the repeat (0 for blocked designs). The
+\`confounding_alignment\` rule of the mechanism summary flags when some
+variable has \`span_frac \> 0\`, \`outcome_pval_adj \<= 0.05\` and
+\`outcome_effect \>= outcome_effect_min\`, that is, when batch is
+associated with the outcome and shared by training and test rows, the
+two conditions under which batch effects can inflate performance.
+\`target_assoc\` reports feature-wise outcome associations on \`X_ref\`;
+numeric features use AUC (binomial), \`eta_sq\` (multiclass), or
+correlation (gaussian), while categorical features use Cramer's V
 (binomial/multiclass) or \`eta_sq\` from a one-way ANOVA (gaussian). The
 \`score\` column is the scaled effect size used for heuristic flagging
 (\`flag = score \>= target_threshold\`). When \`target_p_adjust !=
@@ -508,13 +559,49 @@ model-based proxy check but still only covers features present in
 
 Duplicate detection compares rows of \`X_ref\` using the chosen
 \`sim_method\` (cosine on L2-normalized rows, or Pearson via
-row-centering), optionally after rank transformation (\`feature_space =
-"rank"\`). By default, \`duplicate_scope = "train_test"\` filters to
-pairs that appear in train vs test in at least one repeat; set
-\`duplicate_scope = "all"\` to include within-fold duplicates. The
+row-centering) after each column is centred (constant columns dropped),
+optionally followed by rank transformation (\`feature_space = "rank"\`).
+Centring keeps the shared offset of positive-valued features from making
+unrelated samples look near-identical. A pair is reported when its
+similarity reaches \`sim_threshold\`; noisy technical replicates (e.g.
+re-sequenced low-depth libraries) can fall below it, so lower
+\`sim_threshold\` to look for them. Both rows must also lie at a similar
+distance from the column means (lengths within 10 ignores length, and be
+much closer to each other than typical pairs (within 10 features, where
+close pairs arise by chance, only identical rows are reported). Columns
+are not rescaled, so features with larger spread weigh more; with only a
+few features, cosine similarity is a weak duplicate criterion and chance
+matches are more likely. By default, \`duplicate_scope = "train_test"\`
+filters to pairs that appear in train vs test in at least one repeat;
+set \`duplicate_scope = "all"\` to include within-fold duplicates. The
 \`duplicates\` slot returns index pairs and similarity values for
 near-duplicate samples. Only duplicates present in \`X_ref\` can be
 detected, and checks are skipped if inputs cannot be aligned to splits.
+
+\`info\$duplicate_null\` compares the number of pairs found in scope
+(\`observed\`, counted before the \`max_pairs\` cap) with the number
+expected by chance (\`expected\`) and gives their ratio (\`enrichment\`;
+NA when \`expected\` is 0). The expected count applies the same rule to
+null rows in which no sample copies another: \`duplicate_null_reps\`
+draws of \`min(n, 1000)\` rows from a Gaussian copula with the features'
+empirical marginal distributions and rank correlation, scaled to the
+number of pairs in scope. Dependence beyond rank correlation (e.g.
+clusters of similar samples such as studies or batches) is not
+reproduced, so clustered data can show enrichment without copied
+samples.
+
+The mechanism summary (\`info\$mechanism_summary\`) flags each class by
+a fixed rule: \`non_random_signal\` when the permutation p-value is \<=
+0.05 and the gap is positive; \`confounding_alignment\` as described for
+\`batch_assoc\` above; \`proxy_target_leakage\` when any feature is
+flagged by the target scan, by \`flag_fdr\` or by the unadjusted
+\`flag\` (so the flag does not depend on \`target_p_adjust\`);
+\`duplicate_overlap\` when at least one reported pair crosses train and
+test in some repeat (this does not compare the count with
+\`info\$duplicate_null\`); \`temporal_lookahead\` when such a pair
+exists in a time-series split. The interpretation printed by
+\`summary()\` restates the permutation result and then lists the flagged
+classes.
 
 ## References
 
@@ -569,6 +656,16 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 
 audit <- audit_leakage(fit, metric = "auc", B = 10,
                        X_ref = df[, c("x1", "x2")])
+#> audit_leakage(): perm_refit = "auto" refits the model on each permuted outcome: 10 permutations x 3 folds = 30 model fits, which can be slow. Set perm_refit = FALSE for the fixed-prediction test (no refitting).
+#> 
+  |                                                                            
+  |                                                                      |   0%
+  |                                                                            
+  |=======================                                               |  33%
+  |                                                                            
+  |===============================================                       |  67%
+  |                                                                            
+  |======================================================================| 100%
 #> 
   |                                                                            
   |                                                                      |   0%
@@ -619,15 +716,8 @@ audit <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |                                                                      |   0%
-  |                                                                            
-  |=======================                                               |  33%
-  |                                                                            
-  |===============================================                       |  67%
-  |                                                                            
-  |======================================================================| 100%
+#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
 #> 
-  |                                                                            
-  |                                                                      |   0%
   |                                                                            
   |=======================                                               |  33%
 #> Warning: glm.fit: algorithm did not converge
@@ -635,6 +725,8 @@ audit <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |===============================================                       |  67%
+#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+#> 
   |                                                                            
   |======================================================================| 100%
 #> 
@@ -645,8 +737,6 @@ audit <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |=======================                                               |  33%
-#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
-#> 
   |                                                                            
   |===============================================                       |  67%
 #> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
@@ -660,6 +750,9 @@ audit <- audit_leakage(fit, metric = "auc", B = 10,
 #> 
   |                                                                            
   |=======================                                               |  33%
+#> Warning: glm.fit: algorithm did not converge
+#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+#> 
   |                                                                            
   |===============================================                       |  67%
 #> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred

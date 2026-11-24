@@ -25,6 +25,7 @@ make_split_plan(
   repeats = 1,
   stratify = FALSE,
   stratify_by = NULL,
+  stratify_method = c("groups", "rows"),
   nested = FALSE,
   seed = 1,
   horizon = 0,
@@ -56,9 +57,18 @@ make_split_plan(
 
 - group:
 
-  subject/group id column (for subject_grouped). Required when mode is
-  \`subject_grouped\`; use \`group = "row_id"\` to explicitly request
-  sample-wise CV.
+  subject/group id column. Required when mode is \`subject_grouped\`
+  (use \`group = "row_id"\` to explicitly request sample-wise CV). With
+  \`mode = "time_series"\` it makes the folds group-disjoint: no group
+  appears in both the training and test rows of a fold. When regular
+  rolling-origin folds lose time blocks (typically because groups recur
+  across the time range), a panel fallback (each fold tests its groups'
+  rows after the earliest timepoint and trains on other groups' earlier
+  rows) is built too, and the plan with the larger sum over folds of
+  (test rows x training rows) is used, so a plan that tests more rows
+  but trains on very few does not win. A warning reports the lost blocks
+  and their reasons; when the fallback is used, it also gives the
+  fallback's coverage and training share.
 
 - batch:
 
@@ -70,7 +80,12 @@ make_split_plan(
 
 - time:
 
-  time column (numeric or POSIXct) for time_series.
+  time column (numeric, Date or POSIXct) for time_series. Rows are split
+  into `v` contiguous blocks in time order; block 1 is never tested
+  (nothing earlier to train on). A later block whose training set comes
+  out empty is dropped with a warning giving the reason (tied times,
+  group separation, or horizon/purge/embargo) and the number of rows
+  tested.
 
 - primary_axis:
 
@@ -91,11 +106,13 @@ make_split_plan(
 
   A list of constraint specifications for `mode = "combined"`. Each
   element is a list with `type` (one of `"subject"`, `"batch"`,
-  `"study"`) and `col` (column name). The first element defines the
-  primary grouping axis (fold driver); subsequent elements define
-  exclusion constraints (training samples sharing constraint-axis levels
-  with the test set are removed). Requires at least 2 elements. Cannot
-  be used together with `primary_axis`/`secondary_axis`.
+  `"study"`, `"site"`, `"region"`, `"platform"`, `"assay"`,
+  `"relatedness"`, `"spatial"`, `"group"`) and `col` (column name). The
+  first element defines the primary grouping axis (fold driver);
+  subsequent elements define exclusion constraints (training samples
+  sharing constraint-axis levels with the test set are removed).
+  Requires at least 2 elements. Cannot be used together with
+  `primary_axis`/`secondary_axis`.
 
 - v:
 
@@ -108,14 +125,35 @@ make_split_plan(
 - stratify:
 
   logical, keep outcome (or `stratify_by`) proportions similar across
-  folds. For grouped modes, stratification is applied at the group level
-  (by majority class per group) if `outcome` or `stratify_by` is
-  provided; otherwise ignored.
+  folds. Groups are never split; how they are assigned is set by
+  `stratify_method`. For `mode = "time_series"`, rolling-origin folds
+  are contiguous time blocks and are never stratified (a warning says
+  so); only the grouped panel fallback stratifies its groups.
+  `splits@info$stratify` is `TRUE` only when stratification was applied.
 
 - stratify_by:
 
   optional character column name in metadata to stratify on instead of
   `outcome` when `stratify = TRUE`.
+
+- stratify_method:
+
+  how grouped modes stratify when `stratify = TRUE`. `"groups"`
+  (default) labels each group with its majority class and deals the
+  groups of each class to folds round-robin in random order: folds get
+  almost equal numbers of groups and each class's groups are spread
+  evenly, but rows are not counted, so with unequal group sizes or
+  mixed-outcome groups the per-fold class proportions in rows can be
+  poorly balanced. `"rows"` balances rows: groups are shuffled, ordered
+  largest first, and each is placed in the fold that keeps every class's
+  share of rows most even across folds (the smallest mean standard
+  deviation over classes; ties go to the fold with fewer rows), using
+  the group's row count in each class. This is the approach of
+  scikit-learn's `StratifiedGroupKFold`; it gives closer class
+  proportions and fold sizes in rows, while the number of groups per
+  fold may differ more. Applies to `subject_grouped`, `batch_blocked`,
+  `combined` (constraint-linked components are the units) and the
+  grouped fallback of `time_series`.
 
 - nested:
 
@@ -179,9 +217,10 @@ S4 object containing:
 - `info`:
 
   List of metadata including `outcome`, `v`, `repeats`, `seed`, grouping
-  columns (`group`, `batch`, `study`, `time`), `stratify`, `nested`,
-  `horizon`, `purge`, `embargo`, `summary` (data.frame of fold sizes),
-  `hash` (reproducibility checksum), `inner` (nested inner splits if
+  columns (`group`, `batch`, `study`, `time`), `stratify`,
+  `stratify_method` (when stratified), `nested`, `horizon`, `purge`,
+  `embargo`, `summary` (data.frame of fold sizes), `hash`
+  (reproducibility checksum), `inner` (nested inner splits if
   `nested = TRUE`), and `coldata` (sample metadata).
 
 Use the `show` method to print a summary; downstream access to the

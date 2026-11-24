@@ -144,13 +144,13 @@ leaky_splits
 #> Outcome: outcome | Stratified: TRUE | Nested: FALSE
 #> ------------------------------------------------------
 #>   fold repeat_id train_n test_n
-#> 1    1         1     127     33
+#> 1    1         1     128     32
 #> 2    2         1     128     32
 #> 3    3         1     128     32
 #> 4    4         1     128     32
-#> 5    5         1     129     31
+#> 5    5         1     128     32
 #> ------------------------------------------------------
-#> Total folds: 5 | Hash: 54f1f1e5ad3c6f2f9cf0c7422b2f4425
+#> Total folds: 5 | Hash: a1d0d344b081f06779b77eae92b33c62
 ```
 
 The printed `LeakSplits` summary reports the split mode, number of
@@ -182,13 +182,13 @@ safe_splits
 #> Outcome: outcome | Stratified: TRUE | Nested: FALSE
 #> ------------------------------------------------------
 #>   fold repeat_id train_n test_n
-#> 1    1         1     124     36
+#> 1    1         1     128     32
 #> 2    2         1     128     32
 #> 3    3         1     128     32
 #> 4    4         1     128     32
-#> 5    5         1     132     28
+#> 5    5         1     128     32
 #> ------------------------------------------------------
-#> Total folds: 5 | Hash: e34ddb9f1415cf2a82f5b73d6e8975f6
+#> Total folds: 5 | Hash: a6f3b679e2e99c1121cd253f61aff11e
 ```
 
 Here, each subject is confined to a single fold. Test set sizes are
@@ -219,12 +219,12 @@ batch_splits
 #> Outcome: outcome | Stratified: TRUE | Nested: FALSE
 #> ------------------------------------------------------
 #>   fold repeat_id train_n test_n
-#> 1    1         1      73     87
+#> 1    1         1     110     50
 #> 2    2         1     138     22
-#> 3    3         1     132     28
-#> 4    4         1     137     23
+#> 3    3         1     123     37
+#> 4    4         1     109     51
 #> ------------------------------------------------------
-#> Total folds: 4 | Hash: 6815f595d5822e72c45cb3fe135574f7
+#> Total folds: 4 | Hash: b7ebf13db4083a991dfb65089a488556
 
 study_splits <- make_split_plan(
   df,
@@ -286,11 +286,11 @@ nested_splits
 #> Outcome: outcome | Stratified: TRUE | Nested: TRUE
 #> ------------------------------------------------------
 #>   fold repeat_id train_n test_n
-#> 1    1         1     104     56
-#> 2    2         1     104     56
-#> 3    3         1     112     48
+#> 1    1         1     108     52
+#> 2    2         1     108     52
+#> 3    3         1     104     56
 #> ------------------------------------------------------
-#> Total folds: 3 | Hash: 44a1560f6d79af026e80218128c838ed
+#> Total folds: 3 | Hash: d2859da2248aea1f4d40dc451094702b
 ```
 
 **RNG seed lineage**
@@ -672,35 +672,35 @@ cat("\nGuardFit summary:\n")
 #> GuardFit summary:
 summary(guard)
 #> GuardFit summary
-#>  n_train=124, p_out=3, removed_by_filter=0
+#>  n_train=128, p_out=3, removed_by_filter=0
 #>  Steps:
 #>  step                 action
 #>     1            winsor: k=5
-#>     2   impute: none (no NA)
+#>     2         impute: median
 #>     3      normalize: zscore
 #>     4 filter: var>=0, iqr>=0
 #>     5               fs: none
-#>  hash: 9f7f4824b80da853f5fedaaac6ac205f
+#>  hash: 1245451bdba6821ddcc4dc7c262245e7
 
 # Guarded training data (first 6 rows)
 head(train_x_guarded)
-#>            x1           x2          x3
-#> 5  -1.4287254 -0.846746034 -0.58336326
-#> 6   1.9282279  0.352168157 -0.70450573
-#> 7   0.5110636  0.427913734 -0.08735148
-#> 8  -1.3683145 -0.006339485  0.36484181
-#> 9  -0.7187394 -2.383299658 -1.01654516
-#> 10 -1.3015499  2.538309224 -0.14109035
+#>            x1          x2         x3
+#> 1  0.18854769  0.99122951 -0.1350347
+#> 2 -0.36362641 -2.07697662  0.1904292
+#> 3  0.06578617 -0.48001033  0.8821218
+#> 4 -0.94810991  0.07484979  0.1794722
+#> 5 -1.37359853 -0.95531304 -0.6738726
+#> 6  2.01444520  0.29648681 -0.7967445
 
 # Guarded test data (first 6 rows)
 head(test_x_guarded)
-#>              x1         x2          x3
-#> 1   0.119085787  1.0175596 -0.05210949
-#> 2  -0.428021276 -1.9210219  0.26877352
-#> 3  -0.002549215 -0.3915238  0.95073054
-#> 4  -1.007141255  0.1398948  0.25797066
-#> 25 -1.105722181  0.5243484  2.03908390
-#> 26  1.601954989 -0.5499985  0.86726497
+#>            x1          x2          x3
+#> 21  0.0910445  2.42126437  0.59447277
+#> 22  0.2184972 -1.72840206 -0.55957648
+#> 23  1.2312069 -0.51745684 -1.50863171
+#> 24 -0.5596342  0.79785220  0.09891165
+#> 53  1.5011684 -0.69165356 -1.16296347
+#> 54 -1.1959033 -0.07355607  1.50660137
 ```
 
 The `GuardFit` object records the preprocessing steps and the number of
@@ -977,21 +977,21 @@ summary(fit_leaky)
 #> Total folds: 5
 #> Fold status: 5 success, 0 skipped, 0 failed
 #> Refit performed: Yes
-#> Hash: ha16bdf5a
+#> Hash: h36cb949f
 #> 
 #> Cross-validated metrics (mean ± SD):
 #>            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo
-#> 1 logistic_reg/glm    0.693  0.097         0.618        0.06     0.513
+#> 1 logistic_reg/glm    0.735  0.042         0.694       0.041     0.657
 #>   auc_ci_hi accuracy_ci_lo accuracy_ci_hi
-#> 1     0.873          0.506          0.729
+#> 1     0.812          0.618           0.77
 #> 
 #> Audit overview:
 #>  fold n_train n_test          learner features_final
-#>     1     127     33 logistic_reg/glm             17
+#>     1     128     32 logistic_reg/glm             17
 #>     2     128     32 logistic_reg/glm             17
 #>     3     128     32 logistic_reg/glm             17
 #>     4     128     32 logistic_reg/glm             17
-#>     5     129     31 logistic_reg/glm             17
+#>     5     128     32 logistic_reg/glm             17
 metrics_leaky <- as.data.frame(fit_leaky@metric_summary)
 num_cols <- vapply(metrics_leaky, is.numeric, logical(1))
 metrics_leaky[num_cols] <- lapply(metrics_leaky[num_cols], round, digits = 3)
@@ -999,9 +999,9 @@ metrics_leaky[num_cols] <- lapply(metrics_leaky[num_cols], round, digits = 3)
 # Leaky fit: mean and SD of metrics across folds
 metrics_leaky
 #>            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo
-#> 1 logistic_reg/glm    0.693  0.097         0.618        0.06     0.513
+#> 1 logistic_reg/glm    0.735  0.042         0.694       0.041     0.657
 #>   auc_ci_hi accuracy_ci_lo accuracy_ci_hi
-#> 1     0.873          0.506          0.729
+#> 1     0.812          0.618           0.77
 ```
 
 The summary reports cross-validated performance. AUC ranges from 0.5
@@ -1046,21 +1046,21 @@ summary(fit_safe)
 #> Total folds: 5
 #> Fold status: 5 success, 0 skipped, 0 failed
 #> Refit performed: Yes
-#> Hash: hba29ffa5
+#> Hash: hd22121cf
 #> 
 #> Cross-validated metrics (mean ± SD):
 #>            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo
-#> 1 logistic_reg/glm    0.612  0.184         0.598       0.117      0.27
+#> 1 logistic_reg/glm    0.618  0.146         0.588       0.095     0.346
 #>   auc_ci_hi accuracy_ci_lo accuracy_ci_hi
-#> 1     0.954          0.379          0.816
+#> 1      0.89          0.411          0.764
 #> 
 #> Audit overview:
 #>  fold n_train n_test          learner features_final
-#>     1     124     36 logistic_reg/glm             13
+#>     1     128     32 logistic_reg/glm             13
 #>     2     128     32 logistic_reg/glm             13
 #>     3     128     32 logistic_reg/glm             13
 #>     4     128     32 logistic_reg/glm             13
-#>     5     132     28 logistic_reg/glm             13
+#>     5     128     32 logistic_reg/glm             13
 metrics_safe <- as.data.frame(fit_safe@metric_summary)
 num_cols <- vapply(metrics_safe, is.numeric, logical(1))
 metrics_safe[num_cols] <- lapply(metrics_safe[num_cols], round, digits = 3)
@@ -1068,18 +1068,18 @@ metrics_safe[num_cols] <- lapply(metrics_safe[num_cols], round, digits = 3)
 # Leakage-safe fit: mean and SD of metrics across folds
 metrics_safe
 #>            learner auc_mean auc_sd accuracy_mean accuracy_sd auc_ci_lo
-#> 1 logistic_reg/glm    0.612  0.184         0.598       0.117      0.27
+#> 1 logistic_reg/glm    0.618  0.146         0.588       0.095     0.346
 #>   auc_ci_hi accuracy_ci_lo accuracy_ci_hi
-#> 1     0.954          0.379          0.816
+#> 1      0.89          0.411          0.764
 
 # Per-fold metrics (first 6 rows)
 head(fit_metrics(fit_safe))
-#>   fold          learner       auc  accuracy
-#> 1    1 logistic_reg/glm 0.6284830 0.5277778
-#> 2    2 logistic_reg/glm 0.7611336 0.7187500
-#> 3    3 logistic_reg/glm 0.6823529 0.6562500
-#> 4    4 logistic_reg/glm 0.6944444 0.6562500
-#> 5    5 logistic_reg/glm 0.2944444 0.4285714
+#>   fold          learner       auc accuracy
+#> 1    1 logistic_reg/glm 0.3968254  0.46875
+#> 2    2 logistic_reg/glm 0.6984127  0.62500
+#> 3    3 logistic_reg/glm 0.5992063  0.59375
+#> 4    4 logistic_reg/glm 0.6072874  0.53125
+#> 5    5 logistic_reg/glm 0.7896825  0.71875
 ```
 
 [`fit_resample()`](https://selcukorkmaz.github.io/bioLeak/reference/fit_resample.md)
@@ -1109,11 +1109,11 @@ do not need a final model.
 # Fold-level diagnostics for reproducible troubleshooting
 head(fit_safe@info$fold_status, 5)
 #>   fold    stage  status reason                    notes elapsed_sec
-#> 1    1 fold_run success   <NA> Successful learners: 1/1       0.023
-#> 2    2 fold_run success   <NA> Successful learners: 1/1       0.022
-#> 3    3 fold_run success   <NA> Successful learners: 1/1       0.022
-#> 4    4 fold_run success   <NA> Successful learners: 1/1       0.021
-#> 5    5 fold_run success   <NA> Successful learners: 1/1       0.022
+#> 1    1 fold_run success   <NA> Successful learners: 1/1       0.015
+#> 2    2 fold_run success   <NA> Successful learners: 1/1       0.013
+#> 3    3 fold_run success   <NA> Successful learners: 1/1       0.012
+#> 4    4 fold_run success   <NA> Successful learners: 1/1       0.012
+#> 5    5 fold_run success   <NA> Successful learners: 1/1       0.013
 ```
 
 Interpretation of `fold_status`:
@@ -1186,22 +1186,22 @@ if (requireNamespace("ranger", quietly = TRUE)) {
 #> Total folds: 4
 #> Fold status: 4 success, 0 skipped, 0 failed
 #> Refit performed: No
-#> Hash: hc88c6471
+#> Hash: h094ba277
 #> 
 #> Cross-validated metrics (mean ± SD):
 #>   learner accuracy_mean accuracy_sd macro_f1_mean macro_f1_sd log_loss_mean
-#> 1  ranger         0.319       0.072         0.313       0.071         1.154
+#> 1  ranger         0.363        0.06          0.36       0.066         1.121
 #>   log_loss_sd accuracy_ci_lo accuracy_ci_hi macro_f1_ci_lo macro_f1_ci_hi
-#> 1       0.051          0.144          0.494           0.14          0.486
+#> 1       0.049          0.218          0.507            0.2          0.521
 #>   log_loss_ci_lo log_loss_ci_hi
-#> 1          1.029          1.278
+#> 1          1.003          1.239
 #> 
 #> Audit overview:
 #>  fold n_train n_test learner features_final
-#>     1     116     44  ranger             14
+#>     1     120     40  ranger             14
 #>     2     120     40  ranger             14
 #>     3     120     40  ranger             14
-#>     4     124     36  ranger             14
+#>     4     120     40  ranger             14
 ```
 
 Multiclass fits compute accuracy, macro-F1, and log loss when class
@@ -1317,19 +1317,19 @@ if (requireNamespace("glmnet", quietly = TRUE)) {
 #> Total folds: 5
 #> Fold status: 5 success, 0 skipped, 0 failed
 #> Refit performed: Yes
-#> Hash: hba29ffa5
+#> Hash: hd22121cf
 #> 
 #> Cross-validated metrics (mean ± SD):
 #>   learner auc_mean auc_sd auc_ci_lo auc_ci_hi
-#> 1  glmnet    0.653  0.199     0.282     1.024
+#> 1  glmnet    0.633  0.163     0.329     0.937
 #> 
 #> Audit overview:
 #>  fold n_train n_test learner features_final
-#>     1     124     36  glmnet             13
+#>     1     128     32  glmnet             13
 #>     2     128     32  glmnet             13
 #>     3     128     32  glmnet             13
 #>     4     128     32  glmnet             13
-#>     5     132     28  glmnet             13
+#>     5     128     32  glmnet             13
 ```
 
 This summary reflects the same guarded preprocessing but a different
@@ -1634,14 +1634,14 @@ if (requireNamespace("parsnip", quietly = TRUE) &&
 #> 
 #> Outer Loop Metrics (mean ± SD):
 #>               learner accuracy_mean accuracy_sd roc_auc_mean roc_auc_sd
-#> 1 logistic_reg/glmnet         0.619       0.048        0.577      0.134
+#> 1 logistic_reg/glmnet         0.603       0.055          0.5          0
 #>   accuracy_ci_lo accuracy_ci_hi roc_auc_ci_lo roc_auc_ci_hi
-#> 1          0.501          0.737         0.245         0.909
+#> 1          0.387          0.819           0.5           0.5
 #> 
 #> Best Parameters (First 5 Folds):
 #>  penalty fold
 #>    0.763    1
-#>    0.000    2
+#>    0.891    2
 #>    0.995    3
 ```
 
@@ -1861,6 +1861,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
+![](bioLeak-intro_files/figure-html/plot-fold-balance-1.png)
+
 The bar chart shows the counts of Positives (blue) and Negatives (tan)
 in each fold. The dashed blue line represents the proportion of the
 positive class.
@@ -1878,6 +1880,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
+![](bioLeak-intro_files/figure-html/plot-calibration-1.png)
+
 Calibration curves compare predicted probabilities to observed event
 rates. Large deviations from the diagonal indicate miscalibration. Use
 `min_bin_n` to suppress tiny bins and `learner =` to select a model when
@@ -1893,6 +1897,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
+![](bioLeak-intro_files/figure-html/plot-confounder-sensitivity-1.png)
+
 Confounder sensitivity plots highlight whether performance varies
 substantially across batch or study strata.
 
@@ -1907,17 +1913,17 @@ conf_tbl <- confounder_sensitivity(fit_safe,
 # Calibration metrics
 cal$metrics
 #>     n bins min_bin_n       ece       mce     brier
-#> 1 160   10         5 0.1005285 0.9113016 0.2499484
+#> 1 160   10         5 0.1351632 0.3511629 0.2563703
 
 # Confounder sensitivity table (first 6 rows)
 head(conf_tbl)
 #>   confounder level metric direction     value  n positive_rate
-#> 1      batch    B1    auc    higher 0.7569444 26     0.3076923
-#> 2      batch    B2    auc    higher 0.7196970 23     0.4782609
-#> 3      batch    B3    auc    higher 0.4153846 28     0.4642857
-#> 4      batch    B4    auc    higher 0.6944444 24     0.5000000
-#> 5      batch    B5    auc    higher 0.6071429 22     0.3636364
-#> 6      batch    B6    auc    higher 0.5058824 37     0.4594595
+#> 1      batch    B1    auc    higher 0.6388889 26     0.3076923
+#> 2      batch    B2    auc    higher 0.6969697 23     0.4782609
+#> 3      batch    B3    auc    higher 0.4974359 28     0.4642857
+#> 4      batch    B4    auc    higher 0.6041667 24     0.5000000
+#> 5      batch    B5    auc    higher 0.5089286 22     0.3636364
+#> 6      batch    B6    auc    higher 0.6411765 37     0.4594595
 ```
 
 ``` r
@@ -1929,6 +1935,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
   cat("ggplot2 not installed; skipping overlap plots.\n")
 }
 ```
+
+![](bioLeak-intro_files/figure-html/plot-overlap-1.png)![](bioLeak-intro_files/figure-html/plot-overlap-2.png)
 
 The overlap plots compare the number of unique subjects appearing in the
 training and test sets for each fold.
@@ -1950,7 +1958,8 @@ ensuring that no subject appears in both sets simultaneously.
 combines four diagnostics in one object:
 
 - permutation gap: tests whether model signal is non-random
-- batch or study association with folds (chi-square and Cramers V)
+- batch or study association: with the outcome (confounding) and with
+  folds (how batches are spread)
 - target leakage scan: feature-wise outcome association to flag proxy
   columns
 - duplicate and near-duplicate detection across train/test (by default)
@@ -2047,72 +2056,86 @@ summary(audit)
 #> ==============================
 #> 
 #> Task: binomial | Outcome: outcome | Splitting mode: subject_grouped | Positive class: case
-#> Hash: hba29ffa5 | Folds: 5 | Repeats: 1
+#> Hash: hd22121cf | Folds: 5 | Repeats: 1
 #> 
 #> Label-Permutation Association Test:
 #>   Method: refit per permutation (auto)
 #>   Null: re-drawn per permutation | Permutation: group_restricted | Summary: pooled
-#>   Observed metric: 0.614
-#>   Permuted mean ± SD: 0.515 ± 0.067
-#>   Gap: 0.099 (larger gap = stronger non-random signal)
+#>   Observed metric: 0.607
+#>   Permuted mean ± SD: 0.499 ± 0.075
+#>   Gap: 0.108, permutation p = 0.095 (B = 20)
 #>   This test does NOT diagnose information leakage. Use the Batch Association,
 #>   Target Leakage Scan, and Duplicate Detection sections to check for leakage.
 #> 
 #> Batch / Study Association:
-#>   batch (repeat 1): χ² = 17.043 (df = 20.000), p = 0.650
-#>   study (repeat 1): χ² = 9.487 (df = 12.000), p = 0.661
+#>   batch
+#>     batch-outcome: χ² = 3.800 (df = 5), p = 0.579 (Holm 1.000), Cramer's V = 0.308
+#>     batch varies within subjects; within-subject association not tested (row-level Cramer's V = 0.136)
+#>     fold-batch: χ² = 11.849 (df = 20), p = 0.921; test rows sharing a batch with training: 100.0%
+#>   study
+#>     batch-outcome: χ² = 0.396 (df = 3), p = 0.941 (Holm 1.000), Cramer's V = 0.099
+#>     batch varies within subjects; within-subject association not tested (row-level Cramer's V = 0.150)
+#>     fold-batch: χ² = 13.395 (df = 12), p = 0.341; test rows sharing a batch with training: 100.0%
+#>   Confounding needs batch linked to the outcome and batches shared by
+#>   training and test rows; the fold-batch test describes the split only.
 #> 
 #> Target Leakage Scan:
 #>   Features checked: 3 | Flagged (score ≥ 0.900): 0
 #>   No strong proxy features detected.
 #> 
 #> Multivariate Target Scan:
-#>   Metric: auc | Score: 0.302 | p = 0.030
+#>   Metric: auc | Score: 0.352 | p = 0.010
 #>   Features: 3 | Components: 3 | Interactions: 3 | Permutations: 100
 #> 
 #> Near-Duplicate Samples:
 #>   Scope: train/test only
-#>   20 pairs detected above cosine ≥ 0.995
+#>   1 pairs detected above cosine ≥ 0.995
+#>   Expected by chance: 0.0 pairs
 #>   Example pairs:
-#>    mechanism_class   i   j       sim cross_fold   cos_sim
-#>  duplicate_overlap   1   5 1.0000000       TRUE 1.0000000
-#>  duplicate_overlap  35  61 0.9994623       TRUE 0.9994623
-#>  duplicate_overlap  80 106 0.9990700       TRUE 0.9990700
-#>  duplicate_overlap 120 153 0.9978776       TRUE 0.9978776
-#>  duplicate_overlap   7 107 0.9976746       TRUE 0.9976746
+#>    mechanism_class i j sim cross_fold cos_sim
+#>  duplicate_overlap 1 5   1       TRUE       1
 #> 
 #> Mechanism Risk Assessment:
-#>        mechanism_class flagged        evidence statistic  p_value
-#>      non_random_signal    TRUE permutation_gap 0.0988852 0.047619
-#>  confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000
-#>   proxy_target_leakage   FALSE    target_assoc 0.3556299       NA
-#>      duplicate_overlap    TRUE      duplicates 1.0000000       NA
-#>     temporal_lookahead   FALSE      duplicates        NA       NA
+#>        mechanism_class flagged        evidence statistic   p_value
+#>      non_random_signal   FALSE permutation_gap 0.1084490 0.0952381
+#>  confounding_alignment   FALSE     batch_assoc 0.3082118 1.0000000
+#>   proxy_target_leakage   FALSE    target_assoc 0.3556299        NA
+#>      duplicate_overlap    TRUE      duplicates 1.0000000        NA
+#>     temporal_lookahead   FALSE      duplicates        NA        NA
 #> 
 #> Interpretation:
-#>   ✓ Strong non-random signal.
+#>   ⚠ No significant non-random signal (p = 0.095): performance is not distinguishable from the label-permutation null.
+#>   A significant gap shows predictions carry signal; it does not show the
+#>   absence of leakage, which also produces a large gap.
+#>   ⚠ Flagged leakage mechanisms: duplicate_overlap (see Mechanism Risk Assessment).
 pg <- audit_perm_gap(audit)
 if (!is.null(pg) && nrow(pg) > 0) {
   # Permutation significance results
   pg
 }
-#>     mechanism_class metric_obs perm_mean   perm_sd       gap       z  p_value
-#> 1 non_random_signal   0.614111  0.515225 0.0674816 0.0988852 2.16674 0.047619
+#>     mechanism_class metric_obs perm_mean   perm_sd      gap       z   p_value
+#> 1 non_random_signal   0.607103  0.498654 0.0754438 0.108449 2.29111 0.0952381
 #>   n_perm
 #> 1     20
 ba <- audit_batch_assoc(audit)
 if (!is.null(ba) && nrow(ba) > 0) {
-  # Batch/study association with folds (Cramer's V)
+  # Batch-outcome and fold-batch tests, and span_frac per batch column
   ba
 } else {
   cat("No batch or study associations detected.\n")
 }
-#>             mechanism_class batch_col repeat_id      stat df     pval  cramer_v
-#> batch confounding_alignment     batch         1 17.043088 20 0.650174 0.1631865
-#> study confounding_alignment     study         1  9.487022 12 0.660865 0.1405867
-#>       pval_adj
-#> batch        1
-#> study        1
+#>             mechanism_class batch_col repeat_id     stat df      pval  cramer_v
+#> batch confounding_alignment     batch         1 11.84942 20 0.9211613 0.1360688
+#> study confounding_alignment     study         1 13.39497 12 0.3409979 0.1670514
+#>        pval_adj by_design outcome_test outcome_stat outcome_df outcome_pval
+#> batch 0.9211613     FALSE        chisq    3.7997808          5    0.5785876
+#> study 0.6819959     FALSE        chisq    0.3958952          3    0.9410891
+#>       outcome_effect outcome_effect_min outcome_n outcome_method
+#> batch     0.30821181                0.1        40          units
+#> study     0.09948557                0.1        40          units
+#>       within_unit_effect outcome_pval_adj span_frac
+#> batch          0.1356174                1         1
+#> study          0.1495784                1         1
 ta <- audit_target_assoc(audit)
 if (!is.null(ta) && nrow(ta) > 0) {
   # Top features by target association score
@@ -2135,13 +2158,8 @@ if (!is.null(du) && nrow(du) > 0) {
 } else {
   cat("No near-duplicates detected.\n")
 }
-#>      mechanism_class   i   j       sim cross_fold   cos_sim
-#> 1  duplicate_overlap   1   5 1.0000000       TRUE 1.0000000
-#> 12 duplicate_overlap  35  61 0.9994623       TRUE 0.9994623
-#> 18 duplicate_overlap  80 106 0.9990700       TRUE 0.9990700
-#> 25 duplicate_overlap 120 153 0.9978776       TRUE 0.9978776
-#> 4  duplicate_overlap   7 107 0.9976746       TRUE 0.9976746
-#> 22 duplicate_overlap 104 142 0.9968751       TRUE 0.9968751
+#>     mechanism_class i j sim cross_fold cos_sim
+#> 1 duplicate_overlap 1 5   1       TRUE       1
 ```
 
 The permutation table reports the observed metric, the mean under random
@@ -2207,15 +2225,19 @@ info$perm_folds_reason
 #> [1] "auto: stratified splits, so the split plan is re-drawn on each permuted outcome."
 # Pooled and per-fold-mean permutation gaps (refit nulls only)
 info$perm_gap_summaries
-#>     summary metric_obs perm_mean    perm_sd        gap    p_value n_perm
-#> 1    pooled  0.6141105 0.5152254 0.06748161 0.09888517 0.04761905     20
-#> 2 fold_mean  0.6121717 0.5232547 0.06765256 0.08891695 0.09523810     20
+#>     summary metric_obs perm_mean    perm_sd       gap    p_value n_perm
+#> 1    pooled  0.6071030 0.4986542 0.07544381 0.1084488 0.09523810     20
+#> 2 fold_mean  0.6182829 0.5064782 0.07358662 0.1118047 0.04761905     20
 ```
 
-The batch association table reports chi-square statistics and Cramer’s
-V. Large p-values and small V values indicate that folds are not aligned
-with batch or study labels (which is the desired outcome when these
-should be independent).
+The batch association table has, per batch column, a batch-outcome test
+(`outcome_*` columns), a fold-batch test (`stat`, `pval`, `cramer_v`)
+that describes how batches are spread over folds, and `span_frac`, the
+share of test rows whose batch also occurs in training. Batch effects
+can inflate performance only when batch is associated with the outcome
+and batches are shared by training and test rows; a blocked design
+(`batch_blocked`, `study_loocv`) has `span_frac = 0` and a fold-batch V
+of 1 by construction.
 
 The target scan table lists features with the strongest associations
 with the outcome. For numeric features, the score is
@@ -2238,7 +2260,7 @@ that classifies leakage evidence into four mechanism classes:
 | Mechanism class | Evidence slot | Flagging rule |
 |----|----|----|
 | `non_random_signal` | permutation gap | p ≤ 0.05 and gap \> 0 |
-| `confounding_alignment` | batch association | p ≤ 0.05 and Cramér’s V ≥ 0.1 |
+| `confounding_alignment` | batch association | batch-outcome Holm p ≤ 0.05, effect ≥ small (Cramér’s V ≥ 0.1 or ε² ≥ 0.01), and `span_frac` \> 0 |
 | `proxy_target_leakage` | target scan | any feature flagged (FDR or raw) |
 | `duplicate_overlap` | duplicates | any cross-fold duplicates present |
 | `temporal_lookahead` | duplicates | cross-fold duplicates in time-series splits |
@@ -2254,12 +2276,12 @@ if (is.data.frame(mech) && nrow(mech) > 0) {
 } else {
   cat("No mechanism summary available.\n")
 }
-#>         mechanism_class flagged        evidence statistic  p_value
-#> 1     non_random_signal    TRUE permutation_gap 0.0988852 0.047619
-#> 2 confounding_alignment   FALSE     batch_assoc 0.1631865 1.000000
-#> 3  proxy_target_leakage   FALSE    target_assoc 0.3556299       NA
-#> 4     duplicate_overlap    TRUE      duplicates 1.0000000       NA
-#> 5    temporal_lookahead   FALSE      duplicates        NA       NA
+#>         mechanism_class flagged        evidence statistic   p_value
+#> 1     non_random_signal   FALSE permutation_gap 0.1084490 0.0952381
+#> 2 confounding_alignment   FALSE     batch_assoc 0.3082118 1.0000000
+#> 3  proxy_target_leakage   FALSE    target_assoc 0.3556299        NA
+#> 4     duplicate_overlap    TRUE      duplicates 1.0000000        NA
+#> 5    temporal_lookahead   FALSE      duplicates        NA        NA
 ```
 
 Each row reports whether the mechanism was flagged, the evidence type,
@@ -2275,6 +2297,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
+![](bioLeak-intro_files/figure-html/plot-perm-1.png)
+
 The histogram shows the null distribution (gray bars) of the performance
 metric under random label permutation.
 
@@ -2282,8 +2306,11 @@ The blue dashed line represents the average performance of a random
 model (the permuted mean). The red solid line represents the observed
 performance of the fitted model.
 
-A genuine signal is indicated when the red line lies well to the right
-of the gray distribution; overlap suggests weak or unstable signal.
+Non-random signal is indicated when the red line lies well to the right
+of the gray distribution; overlap suggests weak or unstable signal. The
+test cannot tell genuine signal from leakage, which also moves the red
+line to the right; the batch, target and duplicate checks address
+leakage.
 
 Use the mechanism risk assessment (`audit@info$mechanism_summary`) as a
 quick triage tool: flagged mechanisms point you to the specific audit
@@ -2368,15 +2395,15 @@ if (requireNamespace("ranger", quietly = TRUE) &&
 #>   |                                                                              |                                                                      |   0%  |                                                                              |=======================                                               |  33%  |                                                                              |===============================================                       |  67%  |                                                                              |======================================================================| 100%
 #> Per-learner audit summary:
 #> LeakAuditList with 2 learners
-#>  learner metric_obs perm_mean   gap p_value     z n_perm batch_p_min
-#>      glm      0.537     0.418 0.120    0.19 1.316     20          NA
-#>       rf      0.589     0.445 0.145    0.19 1.685     20          NA
-#>  batch_col_min_p batch_v_max batch_col_max_v dup_pairs dup_threshold
-#>             <NA>          NA            <NA>        NA         0.995
-#>             <NA>          NA            <NA>        NA         0.995
-#>  dup_max_sim
-#>           NA
-#>           NA
+#>  learner metric_obs perm_mean   gap p_value     z n_perm batch_outcome_p
+#>      glm      0.537     0.476 0.061   0.381 0.675     20              NA
+#>       rf      0.589     0.495 0.094   0.143 1.105     20              NA
+#>  batch_outcome_col batch_outcome_effect batch_span_max confounding_flag
+#>               <NA>                   NA             NA            FALSE
+#>               <NA>                   NA             NA            FALSE
+#>  dup_pairs dup_threshold dup_max_sim
+#>         NA         0.995          NA
+#>         NA         0.995          NA
 ```
 
 This example uses **ranger** for the random forest specification; if it
@@ -2579,13 +2606,19 @@ summary(audit_time)
 #>   Null: observed folds reused | Permutation: time_block | Summary: pooled
 #>   Observed metric: 0.601
 #>   Permuted mean ± SD: 0.500 ± 0.055
-#>   Gap: 0.101 (larger gap = stronger non-random signal)
+#>   Gap: 0.101, permutation p = 0.095 (B = 20)
 #>   This test does NOT diagnose information leakage. Use the Batch Association,
 #>   Target Leakage Scan, and Duplicate Detection sections to check for leakage.
 #> 
 #> Batch / Study Association:
-#>   batch (repeat 1): χ² = 8.237 (df = 10.000), p = 0.606
-#>   study (repeat 1): χ² = 2.383 (df = 6.000), p = 0.881
+#>   batch
+#>     batch-outcome: not tested (time-series rows are dependent; record a group)
+#>     fold-batch: χ² = 8.237 (df = 10), p = 0.606; test rows sharing a batch with training: 100.0%
+#>   study
+#>     batch-outcome: not tested (time-series rows are dependent; record a group)
+#>     fold-batch: χ² = 2.383 (df = 6), p = 0.881; test rows sharing a batch with training: 100.0%
+#>   Confounding needs batch linked to the outcome and batches shared by
+#>   training and test rows; the fold-batch test describes the split only.
 #> 
 #> Target Leakage Scan: not available.
 #> 
@@ -2595,14 +2628,17 @@ summary(audit_time)
 #> 
 #> Mechanism Risk Assessment:
 #>        mechanism_class flagged        evidence statistic   p_value
-#>      non_random_signal   FALSE permutation_gap 0.1009140 0.0952381
-#>  confounding_alignment   FALSE     batch_assoc 0.1852551 1.0000000
+#>      non_random_signal   FALSE permutation_gap  0.100914 0.0952381
+#>  confounding_alignment   FALSE     batch_assoc        NA        NA
 #>   proxy_target_leakage   FALSE    target_assoc        NA        NA
 #>      duplicate_overlap   FALSE      duplicates        NA        NA
 #>     temporal_lookahead   FALSE      duplicates        NA        NA
 #> 
 #> Interpretation:
-#>   ✓ Strong non-random signal.
+#>   ⚠ No significant non-random signal (p = 0.095): performance is not distinguishable from the label-permutation null.
+#>   A significant gap shows predictions carry signal; it does not show the
+#>   absence of leakage, which also produces a large gap.
+#>   No leakage mechanism flagged; these checks cannot rule leakage out.
 if (!is.null(audit_time@permutation_gap) && nrow(audit_time@permutation_gap) > 0) {
   # Time-series permutation significance results
   audit_time@permutation_gap
@@ -2619,6 +2655,8 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
 }
 ```
 
+![](bioLeak-intro_files/figure-html/time-series-safe-1.png)
+
 The safe fit summary provides the leakage-resistant performance
 estimate. Compare leaky vs. safe fits to gauge inflation risk;
 `features_final` should drop when the lookahead feature is removed.
@@ -2633,74 +2671,57 @@ requires numeric predictions and time metadata aligned to the fit.
 ### Cross-validation uncertainty with `cv_ci()`
 
 Standard cross-validation yields one metric value per fold. Because
-folds share training data, the per-fold values are positively
-correlated: the naive standard error `sd / sqrt(K)` systematically
-underestimates variability, making the resulting confidence intervals
-too narrow.
+folds share training data, and repeats re-partition the same samples,
+the per-fold values are positively correlated: the naive standard error
+`sd / sqrt(K)` underestimates variability badly.
 [`cv_ci()`](https://selcukorkmaz.github.io/bioLeak/reference/cv_ci.md)
-addresses this with two approaches:
+offers two methods:
 
-- **`"normal"`** (default): uses the naive SEM `sd / sqrt(K)` with a
-  *t*-distribution on `K − 1` degrees of freedom. Fast and appropriate
-  when fold overlap is low (large datasets, many folds).
+- **`"nadeau_bengio"`** (default): the Nadeau–Bengio (2003) corrected
+  variance `(1/K + n_test / n_train) × var(x)`, with a *t* reference on
+  `folds per repeat − 1` degrees of freedom (repeats sharpen the
+  estimate but add no independent information). In a simulation of
+  repeated 5-fold CV the 95% interval covered the true expected
+  performance about 98% of the time.
 
-- **`"nadeau_bengio"`**: applies the Nadeau–Bengio (2003) variance
-  correction `(1/K + n_test / n_train) × var(x)`, explicitly accounting
-  for the fraction of training samples shared across folds. Recommended
-  for small datasets or few-fold CV where fold correlation is
-  non-negligible.
+- **`"normal"`**: the naive `sd / sqrt(K)`. It ignores fold correlation
+  and in the same simulation covered only about 37% of the time; it is
+  kept for comparison.
 
-The function accepts any data frame with `fold` and `learner` columns —
-such as `fit@metrics` from a `LeakFit` object — and returns one row per
-learner with four columns per metric: `<metric>_mean`, `<metric>_sd`,
-`<metric>_ci_lo`, and `<metric>_ci_hi`.
+Pass the `LeakFit` itself:
+[`cv_ci()`](https://selcukorkmaz.github.io/bioLeak/reference/cv_ci.md)
+then reads the fold sizes and the number of folds per repeat from the
+fit. It returns one row per learner with four columns per metric:
+`<metric>_mean`, `<metric>_sd`, `<metric>_ci_lo`, and `<metric>_ci_hi`.
+A plain metrics data frame (such as `fit@metrics`) also works, with
+`n_train`, `n_test` and `folds_per_repeat` supplied by hand.
 
 ``` r
 
-# Standard 95% CI from the leakage-safe fit
-ci_std <- cv_ci(fit_safe@metrics, level = 0.95, method = "normal")
-cat("Standard 95% CI:\n")
-#> Standard 95% CI:
-print(ci_std)
-#>            learner  auc_mean    auc_sd auc_ci_lo auc_ci_hi accuracy_mean
-#> 1 logistic_reg/glm 0.6121717 0.1837801 0.3839785 0.8403648     0.5975198
-#>   accuracy_sd accuracy_ci_lo accuracy_ci_hi
-#> 1   0.1172633      0.4519182      0.7431215
-
-# Nadeau-Bengio corrected CI
-# For K-fold CV: n_train ≈ (K-1)/K × n, n_test ≈ n/K
-K_folds  <- length(unique(fit_safe@metrics$fold))
-n_total  <- nrow(fit_safe@splits@info$coldata)
-
-ci_nb <- cv_ci(
-  fit_safe@metrics,
-  level   = 0.95,
-  method  = "nadeau_bengio",
-  n_train = round(n_total * (K_folds - 1L) / K_folds),
-  n_test  = round(n_total / K_folds)
-)
+# Corrected 95% CI (default), sizes and folds per repeat taken from the fit
+ci_nb <- cv_ci(fit_safe)
 cat("Nadeau-Bengio corrected 95% CI:\n")
 #> Nadeau-Bengio corrected 95% CI:
 print(ci_nb)
 #>            learner  auc_mean    auc_sd auc_ci_lo auc_ci_hi accuracy_mean
-#> 1 logistic_reg/glm 0.6121717 0.1837801 0.2698819 0.9544614     0.5975198
+#> 1 logistic_reg/glm 0.6182829 0.1460538 0.3462583 0.8903075        0.5875
 #>   accuracy_sd accuracy_ci_lo accuracy_ci_hi
-#> 1   0.1172633      0.3791174      0.8159223
+#> 1  0.09478594      0.4109616      0.7640384
+
+# Naive CI, for comparison only: too narrow for cross-validation
+ci_naive <- cv_ci(fit_safe@metrics, method = "normal")
+cat("Naive 95% CI (ignores fold correlation):\n")
+#> Naive 95% CI (ignores fold correlation):
+print(ci_naive)
+#>            learner  auc_mean    auc_sd auc_ci_lo auc_ci_hi accuracy_mean
+#> 1 logistic_reg/glm 0.6182829 0.1460538 0.4369331 0.7996326        0.5875
+#>   accuracy_sd accuracy_ci_lo accuracy_ci_hi
+#> 1  0.09478594      0.4698077      0.7051923
 ```
 
-The Nadeau–Bengio interval is typically wider because it correctly
-inflates the variance to account for fold overlap. Use it whenever the
-training-set fraction shared between consecutive folds is large — for
-example, 5-fold CV reuses 80% of training data across fold pairs, so
-correcting for this correlation matters.
-
-When multiple learners were fit,
-[`cv_ci()`](https://selcukorkmaz.github.io/bioLeak/reference/cv_ci.md)
-returns one row per learner. For repeated K-fold CV, average `n_train`
-and `n_test` across folds before passing them in; `fit@metrics` already
-stores per-fold counts if
-[`audit_leakage()`](https://selcukorkmaz.github.io/bioLeak/reference/audit_leakage.md)
-annotated the object.
+The corrected interval is wider because it accounts for the training
+data that folds share; with 5-fold CV, any two training sets share
+three-quarters of their rows.
 
 ## Delta Leakage Sensitivity Index: Quantifying Performance Inflation
 
@@ -2941,10 +2962,7 @@ cat("Guarded AUC:", round(mean(fit_dlsi_guarded@metrics$auc, na.rm = TRUE), 3), 
 result_dlsi <- delta_lsi(
   fit_leaky   = fit_dlsi_naive,
   fit_guarded = fit_dlsi_guarded,
-  metric      = "auc",
-  M_boot      = 300L,
-  M_flip      = 300L,
-  seed        = 1L
+  metric      = "auc"
 )
 
 summary(result_dlsi)
@@ -2955,7 +2973,7 @@ summary(result_dlsi)
 #> 
 #> Metric:            auc
 #> Exchangeability:   iid  (reported only; same corrected test)
-#> Inference tier:    C_signflip  (label kept for compatibility; test is the corrected t)
+#> Inference tier:    C_ttest_3_9_folds  (label kept for compatibility; test is the corrected t)
 #> R_eff:             5 folds per repeat  (R_leaky=5, R_guarded=5, paired=TRUE)
 #> 
 #> Leaky pipeline:    0.716
@@ -2971,7 +2989,7 @@ summary(result_dlsi)
 #>   Corrected repeated-CV t (Nadeau & Bengio 2003; df = folds per repeat - 1)
 #>   t-test p:      0.0182 *  (df = 4)
 #> 
-#> Inference valid:   YES (C_signflip)
+#> Inference valid:   YES (C_ttest_3_9_folds)
 ```
 
 [`summary()`](https://rdrr.io/r/base/summary.html) reports seven
@@ -3015,9 +3033,11 @@ point estimate but do **not** add independent units or raise the tier:
 
 - **Tier D** (`D_insufficient`, point estimates only): fewer than 3
   folds per repeat, or unpaired fits.
-- **Tier C** (`C_signflip`): 3-9 folds per repeat, e.g. 5-fold CV.
-- **Tier B** (`B_signflip_ci`): 10-19 folds per repeat, e.g. 10-fold CV.
-- **Tier A** (`A_full_inference`): 20 or more folds per repeat, e.g.
+- **Tier C** (`C_ttest_3_9_folds`): 3-9 folds per repeat, e.g. 5-fold
+  CV.
+- **Tier B** (`B_ttest_10_19_folds`): 10-19 folds per repeat,
+  e.g. 10-fold CV.
+- **Tier A** (`A_ttest_ge20_folds`): 20 or more folds per repeat, e.g.
   leave-one-study-out with 20+ studies.
 
 Tiers A-C all report a p-value and CIs; the tier labels are kept from
@@ -3028,7 +3048,7 @@ the test has only 2 degrees of freedom and is conservative.
 ``` r
 
 cat("Tier:          ", result_dlsi@tier, "\n")
-#> Tier:           C_signflip
+#> Tier:           C_ttest_3_9_folds
 cat("R_eff:         ", result_dlsi@R_eff, "\n")
 #> R_eff:          5
 cat("inference_ok:  ", result_dlsi@inference_ok, "\n")
@@ -3111,10 +3131,12 @@ framework section above. Its inferential properties in this context are:
   $`\operatorname{median}(\boldsymbol{\Delta})`$ directly, which equals
   the common value.
 
-The `delta_lsi` and `delta_metric` estimates always have the same sign
-because the Huber estimator and the arithmetic mean agree on direction.
-They differ only in magnitude, and then only when one or more
-$`\Delta_r`$ are extreme relative to the bulk of the distribution.
+The `delta_lsi` and `delta_metric` estimates usually agree closely. They
+differ when one or more $`\Delta_r`$ are extreme relative to the bulk of
+the distribution: the Huber estimate down-weights those values, and a
+single large $`\Delta_r`$ can even give the two estimates opposite signs
+(for example $`\Delta = (-0.02, -0.01, -0.03, -0.02, 0.5)`$ has a
+positive mean but a negative Huber estimate).
 
 #### Pairing condition and the inference tier system
 
@@ -3136,9 +3158,9 @@ disabled.
 | Tier | Folds per repeat ($`R_{\text{eff}}`$) | `@delta_metric` | `@delta_lsi` | `@p_value` | CIs | `@inference_ok` |
 |----|----|:--:|:--:|:--:|:--:|:--:|
 | `D_insufficient` | $`< 3`$, or unpaired | ✓ | ✓ | `NA` | `NA` | `FALSE` |
-| `C_signflip` | $`3`$-$`9`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
-| `B_signflip_ci` | $`10`$-$`19`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
-| `A_full_inference` | $`\geq 20`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `C_ttest_3_9_folds` | $`3`$-$`9`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `B_ttest_10_19_folds` | $`10`$-$`19`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
+| `A_ttest_ge20_folds` | $`\geq 20`$ | ✓ | ✓ | ✓ | ✓ | `TRUE` |
 
 The code below shows direct slot access to confirm that the numbers
 correspond exactly to the quantities defined above:
@@ -3167,7 +3189,9 @@ cat("p-value:       ",
 **Paired** (recommended): both fits are produced from the same
 `LeakSplits` object. The per-repeat inflation scores $`\Delta_r`$ are
 computed as within-repeat differences, eliminating between-fold
-variability. $`R_{\text{eff}} = R`$ and all inference tiers are
+variability. $`R_{\text{eff}}`$ is the number of folds per repeat
+(repeats re-partition the same data, so they sharpen the estimate
+without adding independent units), and all inference tiers are
 reachable. Equal repeat counts with differing index patterns produce a
 warning and fall back to unpaired mode automatically.
 
@@ -3191,18 +3215,21 @@ splits_rand <- make_split_plan(
   repeats = 5L
 )
 
+# subject is not a split column here (folds are by row), so name it as an
+# identifier; otherwise its dummy columns would become predictors
 fit_naive_rand <- fit_resample(
   df_dlsi_naive,
   outcome = "outcome",
   splits  = splits_rand,
   learner = spec,
   metrics = "auc",
+  id_cols = "subject",
   seed    = 1L
 )
 #>   |                                                                              |                                                                      |   0%  |                                                                              |===                                                                   |   4%  |                                                                              |======                                                                |   8%  |                                                                              |========                                                              |  12%  |                                                                              |===========                                                           |  16%  |                                                                              |==============                                                        |  20%  |                                                                              |=================                                                     |  24%  |                                                                              |====================                                                  |  28%  |                                                                              |======================                                                |  32%  |                                                                              |=========================                                             |  36%  |                                                                              |============================                                          |  40%  |                                                                              |===============================                                       |  44%  |                                                                              |==================================                                    |  48%  |                                                                              |====================================                                  |  52%  |                                                                              |=======================================                               |  56%  |                                                                              |==========================================                            |  60%  |                                                                              |=============================================                         |  64%  |                                                                              |================================================                      |  68%  |                                                                              |==================================================                    |  72%  |                                                                              |=====================================================                 |  76%  |                                                                              |========================================================              |  80%  |                                                                              |===========================================================           |  84%  |                                                                              |==============================================================        |  88%  |                                                                              |================================================================      |  92%  |                                                                              |===================================================================   |  96%  |                                                                              |======================================================================| 100%
 
 r_unpaired <- suppressWarnings(
-  delta_lsi(fit_naive_rand, fit_dlsi_guarded, metric = "auc", seed = 1L)
+  delta_lsi(fit_naive_rand, fit_dlsi_guarded, metric = "auc")
 )
 
 cat(sprintf("Paired:        %s\n", r_unpaired@info$paired))
@@ -3211,7 +3238,7 @@ cat(sprintf("R_eff:         %d  (0 = unpaired, inference disabled)\n", r_unpaire
 #> R_eff:         0  (0 = unpaired, inference disabled)
 cat(sprintf("delta_metric:  %.4f  (naive raw mean - guarded raw mean)\n",
             r_unpaired@delta_metric))
-#> delta_metric:  -0.0585  (naive raw mean - guarded raw mean)
+#> delta_metric:  0.2177  (naive raw mean - guarded raw mean)
 cat(sprintf("p_value:       %s\n",
             if (is.na(r_unpaired@p_value)) "NA" else r_unpaired@p_value))
 #> p_value:       NA
@@ -3236,14 +3263,12 @@ paradoxically *better* performance — indicating leakage):
 r_hib_true  <- suppressWarnings(delta_lsi(
   fit_dlsi_naive, fit_dlsi_guarded,
   metric           = "auc",
-  higher_is_better = TRUE,
-  seed             = 1L
+  higher_is_better = TRUE
 ))
 r_hib_false <- suppressWarnings(delta_lsi(
   fit_dlsi_naive, fit_dlsi_guarded,
   metric           = "auc",
-  higher_is_better = FALSE,
-  seed             = 1L
+  higher_is_better = FALSE
 ))
 
 cat(sprintf("hib = TRUE:   delta_metric = %+.4f  (positive = naive inflated)\n",
@@ -3273,7 +3298,7 @@ for programmatic downstream use:
 |----|----|----|
 | `@metric` | character | Metric name used (e.g. `"auc"`, `"rmse"`) |
 | `@exchangeability` | character | Exchangeability setting requested (`"iid"`, `"by_group"`, `"within_batch"`, `"blocked_time"`). Reported only: every setting uses the corrected repeated-CV t-test |
-| `@tier` | character | Inference tier: `"A_full_inference"`, `"B_signflip_ci"`, `"C_signflip"`, or `"D_insufficient"` |
+| `@tier` | character | Inference tier: `"A_ttest_ge20_folds"`, `"B_ttest_10_19_folds"`, `"C_ttest_3_9_folds"`, or `"D_insufficient"` |
 | `@R_eff` | integer | Effective independent units: folds per repeat (studies for `study_loocv`); 0 when unpaired |
 | `@delta_metric` | numeric | Arithmetic mean of per-repeat inflation scores $`\bar{\Delta}`$; interpret directly in metric units |
 | `@delta_lsi` | numeric | Huber M-estimate of per-repeat inflation scores; more robust than `delta_metric` when repeat-level outliers are present |
@@ -3406,18 +3431,18 @@ summary(audit_naive_dlsi)
 #> ==============================
 #> 
 #> Task: binomial | Outcome: outcome | Splitting mode: subject_grouped | Positive class: control
-#> Hash: h0cc183b7 | Folds: 25 | Repeats: 1
+#> Hash: h0cc183b7 | Folds: 25 | Repeats: 5
 #> 
 #> Label-Permutation Association Test:
 #>   Method: refit per permutation (auto)
 #>   Null: observed folds reused | Permutation: group_restricted | Summary: pooled
 #>   Observed metric: 0.741
-#>   Permuted mean ± SD: 0.446 ± 0.065
-#>   Gap: 0.294 (larger gap = stronger non-random signal)
+#>   Permuted mean ± SD: 0.488 ± 0.092
+#>   Gap: 0.253, permutation p = 0.048 (B = 20)
 #>   This test does NOT diagnose information leakage. Use the Batch Association,
 #>   Target Leakage Scan, and Duplicate Detection sections to check for leakage.
 #> 
-#> Batch / Study Association: none detected.
+#> Batch / Study Association: not tested (no batch/study columns available).
 #> 
 #> Target Leakage Scan: not available.
 #> 
@@ -3427,14 +3452,17 @@ summary(audit_naive_dlsi)
 #> 
 #> Mechanism Risk Assessment:
 #>        mechanism_class flagged        evidence statistic  p_value
-#>      non_random_signal    TRUE permutation_gap  0.294444 0.047619
+#>      non_random_signal    TRUE permutation_gap  0.252991 0.047619
 #>  confounding_alignment   FALSE     batch_assoc        NA       NA
 #>   proxy_target_leakage   FALSE    target_assoc        NA       NA
 #>      duplicate_overlap   FALSE      duplicates        NA       NA
 #>     temporal_lookahead   FALSE      duplicates        NA       NA
 #> 
 #> Interpretation:
-#>   ✓ Strong non-random signal.
+#>   ✓ Non-random signal (p = 0.048, gap = 0.253).
+#>   A significant gap shows predictions carry signal; it does not show the
+#>   absence of leakage, which also produces a large gap.
+#>   No leakage mechanism flagged; these checks cannot rule leakage out.
 
 # Step 2: confirmed guards reduced inflation; check residual DLSI
 cat("\ndelta_metric (naive vs guarded):", round(result_dlsi@delta_metric, 4), "\n")
@@ -3564,8 +3592,8 @@ if (requireNamespace("glmnet", quietly = TRUE)) {
 #>   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%
 #>   |                                                                              |                                                                      |   0%  |                                                                              |==============                                                        |  20%  |                                                                              |============================                                          |  40%  |                                                                              |==========================================                            |  60%  |                                                                              |========================================================              |  80%  |                                                                              |======================================================================| 100%
 #>   seed metric_obs      gap  p_value         leakage            mode
-#> 1    1   0.828914 0.333128 0.047619 subject_overlap subject_grouped
-#> 2    2   0.825397 0.348524 0.047619 subject_overlap subject_grouped
+#> 1    1   0.842172 0.334991 0.047619 subject_overlap subject_grouped
+#> 2    2   0.820952 0.342270 0.047619 subject_overlap subject_grouped
 ```
 
 Each row corresponds to one simulation seed.

@@ -7,9 +7,9 @@
 <title>bioLeak: leakage-safe modeling and auditing for genomic and clinical data • bioLeak</title>
 <script src="lightswitch.js"></script><script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
-<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/Source_Sans_3-0.4.10/font.css" rel="stylesheet">
-<link href="deps/JetBrains_Mono-0.4.10/font.css" rel="stylesheet">
-<link href="deps/Source_Serif_4-0.4.10/font.css" rel="stylesheet">
+<script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/Source_Sans_3-0.5.0/font.css" rel="stylesheet">
+<link href="deps/JetBrains_Mono-0.5.0/font.css" rel="stylesheet">
+<link href="deps/Source_Serif_4-0.5.0/font.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="bioLeak: leakage-safe modeling and auditing for genomic and clinical data">
@@ -26,7 +26,7 @@
 
     <a class="navbar-brand me-2" href="index.html">bioLeak</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.3.8</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -79,7 +79,7 @@
 <li>
 <strong>Resampling violations:</strong> group overlap, study holdout, time-ordered evaluation, and multi-axis split constraints.</li>
 <li>
-<strong>Diagnostic evidence:</strong> permutation-based performance gaps, batch/fold association tests, target leakage scans, duplicate detection, and mechanism-level risk summaries.</li>
+<strong>Diagnostic evidence:</strong> permutation-based performance gaps, batch-outcome and fold-batch association tests, target leakage scans, duplicate detection, and mechanism-level risk summaries.</li>
 </ul>
 <p><strong>Out of scope:</strong></p>
 <ul>
@@ -112,7 +112,7 @@
 <tbody>
 <tr>
 <td><code><a href="reference/make_split_plan.html">make_split_plan()</a></code></td>
-<td>Leakage-aware splits: subject-grouped, batch-blocked, study leave-out, time-series, and N-axis combined modes with compact storage option and constraint-aware train/test exclusion</td>
+<td>Leakage-aware splits: subject-grouped, batch-blocked, study leave-out, time-series, and N-axis combined modes with compact storage option and constraint-aware train/test exclusion; stratification balances groups or, with <code>stratify_method = "rows"</code>, class row counts per fold</td>
 </tr>
 <tr>
 <td><code><a href="reference/check_split_overlap.html">check_split_overlap()</a></code></td>
@@ -173,7 +173,7 @@
 <tbody>
 <tr>
 <td><code><a href="reference/audit_leakage.html">audit_leakage()</a></code></td>
-<td>Permutation gap test, batch/study association tests, univariate and multivariate target leakage scans, near-duplicate detection, and mechanism-level risk summaries</td>
+<td>Permutation gap test, batch-outcome and fold-batch association tests, univariate and multivariate target leakage scans, near-duplicate detection with an expected chance count, and mechanism-level risk summaries</td>
 </tr>
 <tr>
 <td><code><a href="reference/audit_leakage_by_learner.html">audit_leakage_by_learner()</a></code></td>
@@ -209,7 +209,7 @@
 <tbody>
 <tr>
 <td><code><a href="reference/delta_lsi.html">delta_lsi()</a></code></td>
-<td>Leakage sensitivity index (ΔLSI) with Huber M-estimation, BCa confidence intervals, sign-flip inference, and blocked exchangeability for time-series designs</td>
+<td>Leakage sensitivity index (ΔLSI): Huber M-estimate of the paired performance gap, with a Nadeau–Bengio corrected repeated-CV t-test (p-value and confidence interval) and inference tiers by folds per repeat</td>
 </tr>
 <tr>
 <td><code><a href="reference/cv_ci.html">cv_ci()</a></code></td>
@@ -262,7 +262,7 @@
 <p>Non-obvious dependencies:</p>
 <ul>
 <li>
-<code>SummarizedExperiment</code> and <code>BiocGenerics</code> are Bioconductor packages (installed automatically by <code>remotes</code>, but can be installed manually with <code>BiocManager::install()</code> if needed).</li>
+<code>SummarizedExperiment</code> (Bioconductor, optional) is needed only for SummarizedExperiment input: <code>BiocManager::install("SummarizedExperiment")</code>.</li>
 <li>Optional packages enable specific features: <code>glmnet</code>, <code>ranger</code>, <code>pROC</code>, <code>PRROC</code>, <code>survival</code>, <code>future.apply</code>, <code>RANN</code>, <code>rmarkdown</code>, <code>tune</code>, <code>dials</code>.</li>
 </ul>
 </div>
@@ -278,7 +278,7 @@
 <span><span class="va">n</span> <span class="op">&lt;-</span> <span class="va">n_subject</span> <span class="op">*</span> <span class="va">rep_per_subject</span></span>
 <span></span>
 <span><span class="va">subject</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_subject</span><span class="op">)</span>, each <span class="op">=</span> <span class="va">rep_per_subject</span><span class="op">)</span></span>
-<span><span class="va">batch</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">6</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span></span>
+<span><span class="va">batch</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">6</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="va">n_subject</span><span class="op">)</span><span class="op">[</span><span class="va">subject</span><span class="op">]</span>  <span class="co"># one batch per subject</span></span>
 <span></span>
 <span><span class="co"># Subject-level latent risk creates dependence across repeated measures</span></span>
 <span><span class="va">subj_risk</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_subject</span>, sd <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
@@ -390,7 +390,9 @@
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"rsample"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"recipes"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"yardstick"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">rs</span> <span class="op">&lt;-</span> <span class="fu">rsample</span><span class="fu">::</span><span class="fu"><a href="https://rsample.tidymodels.org/reference/vfold_cv.html" class="external-link">vfold_cv</a></span><span class="op">(</span><span class="va">df</span>, v <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+<span>  <span class="co"># grouped resampling; split_cols names the design, since df also has a</span></span>
+<span>  <span class="co"># batch column and bioLeak will not guess between the two</span></span>
+<span>  <span class="va">rs</span> <span class="op">&lt;-</span> <span class="fu">rsample</span><span class="fu">::</span><span class="fu"><a href="https://rsample.tidymodels.org/reference/group_vfold_cv.html" class="external-link">group_vfold_cv</a></span><span class="op">(</span><span class="va">df</span>, group <span class="op">=</span> <span class="va">subject</span>, v <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
 <span>  <span class="va">rec</span> <span class="op">&lt;-</span> <span class="fu">recipes</span><span class="fu">::</span><span class="fu"><a href="https://recipes.tidymodels.org/reference/recipe.html" class="external-link">recipe</a></span><span class="op">(</span><span class="va">outcome</span> <span class="op">~</span> <span class="va">.</span>, data <span class="op">=</span> <span class="va">df</span><span class="op">)</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu">recipes</span><span class="fu">::</span><span class="fu"><a href="https://recipes.tidymodels.org/reference/step_normalize.html" class="external-link">step_normalize</a></span><span class="op">(</span><span class="fu">recipes</span><span class="fu">::</span><span class="fu"><a href="https://recipes.tidymodels.org/reference/has_role.html" class="external-link">all_numeric_predictors</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span>  <span class="va">ys</span> <span class="op">&lt;-</span> <span class="fu">yardstick</span><span class="fu">::</span><span class="fu"><a href="https://yardstick.tidymodels.org/reference/metric_set.html" class="external-link">metric_set</a></span><span class="op">(</span><span class="fu">yardstick</span><span class="fu">::</span><span class="va"><a href="https://yardstick.tidymodels.org/reference/roc_auc.html" class="external-link">roc_auc</a></span>, <span class="fu">yardstick</span><span class="fu">::</span><span class="va"><a href="https://yardstick.tidymodels.org/reference/accuracy.html" class="external-link">accuracy</a></span><span class="op">)</span></span>
@@ -399,6 +401,7 @@
 <span>    <span class="va">df</span>,</span>
 <span>    outcome <span class="op">=</span> <span class="st">"outcome"</span>,</span>
 <span>    splits <span class="op">=</span> <span class="va">rs</span>,</span>
+<span>    split_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>group <span class="op">=</span> <span class="st">"subject"</span><span class="op">)</span>,</span>
 <span>    learner <span class="op">=</span> <span class="va">spec</span>,</span>
 <span>    preprocess <span class="op">=</span> <span class="va">rec</span>,</span>
 <span>    metrics <span class="op">=</span> <span class="va">ys</span>,</span>
@@ -441,11 +444,11 @@
 <li>
 <strong>Permutation gap:</strong> large positive gaps indicate non-random signal; they do not by themselves indicate or refute leakage.</li>
 <li>
-<strong>Batch/study association warnings</strong> indicate that folds align with metadata; this can reflect leakage or study design constraints.</li>
+<strong>Batch/study confounding</strong> is flagged when batch is associated with the outcome and batches are shared by training and test rows; the fold-batch test only describes how batches are spread over folds.</li>
 <li>
 <strong>Target leakage flags</strong> identify features overly aligned with the outcome; inspect data provenance before removing them. When enabled, FDR-adjusted columns (<code>p_value_adj</code>, <code>flag_fdr</code>) provide a more conservative screen.</li>
 <li>
-<strong>Duplicate detection</strong> flags near-identical samples across train/test by default; use <code>duplicate_scope = "all"</code> to include within-fold duplicates and review for data-quality issues.</li>
+<strong>Duplicate detection</strong> flags near-identical samples across train/test by default and reports how many pairs would pass by chance (<code>audit@info$duplicate_null</code>); use <code>duplicate_scope = "all"</code> to include within-fold duplicates and review for data-quality issues.</li>
 <li>
 <strong>Mechanism risk summary</strong> (<code>audit@info$mechanism_summary</code>) provides a compact mechanism-level risk view across permutation, confounding, target-proxy, duplicate, and temporal signals.</li>
 </ul>

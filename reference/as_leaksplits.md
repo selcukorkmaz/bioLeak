@@ -47,10 +47,18 @@ as_leaksplits(
 
 - use_block_constraints:
 
-  Logical (default `FALSE`). When `TRUE` and the spec uses a grouped
-  mode with non-empty `spec$block_vars`, converts `group_var` and
-  `block_vars` into multi-axis `constraints` in
-  `make_split_plan(mode = "combined")`.
+  `FALSE` (default), `TRUE`, or a character vector of block variable
+  names. `spec$block_vars` lists the blocking annotations available in
+  the spec (batch_group, study_group, ...), not axes the split already
+  enforces. For a grouped spec, `TRUE` enforces all of them and a
+  character vector enforces the named ones, as secondary exclusion axes
+  in `make_split_plan(mode = "combined")`: training rows sharing a level
+  of any enforced axis with the test rows are excluded. Enforcing many
+  axes at once can leave no training data (an error names the axes) or
+  leave some rows never tested (a warning reports how many). Names are
+  checked against the spec's usable block_vars for every spec. For
+  non-grouped specs (ordered, batch, study) the option does not apply
+  and a warning is issued.
 
 - ...:
 
@@ -92,10 +100,11 @@ enforced. Unrecognised future modes fall back to grouped folds on
 Blocking variables declared on the spec (`batch_group`, `study_group`,
 `site_group`, `region_group`, `platform_group`, `assay_group`),
 stratification (`stratum` or `spec$stratum_var`), and ordering
-(`order_rank`) are forwarded automatically when relevant. When
-`use_block_constraints = TRUE`, non-missing `spec$block_vars` on a
-grouped spec are enforced as secondary exclusion axes via
-`make_split_plan(mode = "combined")`.
+(`order_rank`) are forwarded automatically when relevant; stratification
+is not requested for ordered specs, whose time-series folds are
+contiguous time blocks. When `use_block_constraints = TRUE`, non-missing
+`spec$block_vars` on a grouped spec are enforced as secondary exclusion
+axes via `make_split_plan(mode = "combined")`.
 
 ## See also
 

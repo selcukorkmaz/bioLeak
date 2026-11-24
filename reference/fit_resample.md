@@ -71,10 +71,12 @@ fit_resample(
   character learners. Each entry must contain `fit` and `predict`
   functions. The `fit` function should accept `x`, `y`, `task`, and
   `weights`, and return a model object. The `predict` function should
-  accept `object`, `newdata`, and `task`. For
-  binomial/regression/survival tasks it should return a numeric vector;
-  for multiclass tasks it should return either class labels or a
-  matrix/data.frame of class probabilities.
+  accept `object`, `newdata`, and `task`. For binomial/regression tasks
+  it should return a numeric vector; for survival tasks a numeric **risk
+  score** (higher = higher hazard, shorter survival, e.g. a Cox linear
+  predictor), which is what the C-index assumes; for multiclass tasks it
+  should return either class labels or a matrix/data.frame of class
+  probabilities.
 
 - metrics:
 
@@ -158,7 +160,14 @@ S4 object containing:
 
   Data.frame summarizing metrics across folds for each learner with
   columns `learner`, and `<metric>_mean` and `<metric>_sd` for each
-  requested metric.
+  requested metric, plus `<metric>_ci_lo`/`<metric>_ci_hi` when
+  [`cv_ci`](https://selcukorkmaz.github.io/bioLeak/reference/cv_ci.md)
+  succeeds. `_mean` and `_sd` are plain summaries over all fold rows;
+  the interval counts each distinct test set once (folds that repeat a
+  test set are averaged first) and uses the Nadeau-Bengio corrected
+  variance, so it is not `_mean` plus or minus a multiple of `_sd`. Its
+  centre is the mean over distinct test sets, which differs from `_mean`
+  when test sets repeat unequally often or some repeats have NA metrics.
 
 - `audit`:
 
@@ -225,13 +234,23 @@ preventing leakage from global imputation, scaling, or feature
 selection. When a \`recipes::recipe\` or \`workflows::workflow\` is
 supplied, the recipe is prepped on the training fold and baked on the
 test fold. For data.frame or matrix inputs, columns used to define
-splits (outcome, group, batch, study, time) are excluded from the
-predictor matrix. Use `learner_args` to pass model-specific arguments,
-either as a named list keyed by learner or a single list applied to all
-learners. For custom learners, `learner_args[[name]]` may be a list with
-`fit` and `predict` sublists to pass distinct arguments to each stage.
-For binomial tasks, predictions and metrics assume the positive class is
-the second factor level; use `positive_class` to control this. Use
+splits (outcome, group, batch, study, time, `stratify_by`, a sample-id
+column from
+[`as_leaksplits()`](https://selcukorkmaz.github.io/bioLeak/reference/as_leaksplits.md),
+and `id_cols`) are excluded from the predictor matrix. With a recipe,
+those columns keep a non-predictor role (`"bioLeak_split"`) so steps may
+still name them, but neither they nor columns derived from them (e.g. by
+`step_dummy()`) are passed to the learner. A step that selects them by
+type rather than role (e.g.
+`step_dummy(all_nominal(), -all_outcomes())`) is detected after `prep()`
+and stops the fold with an error naming the derived columns; use the
+`*_predictors()` selectors or `step_rm()` them. Use `learner_args` to
+pass model-specific arguments, either as a named list keyed by learner
+or a single list applied to all learners. For custom learners,
+`learner_args[[name]]` may be a list with `fit` and `predict` sublists
+to pass distinct arguments to each stage. For binomial tasks,
+predictions and metrics assume the positive class is the second factor
+level; use `positive_class` to control this. Use
 `classification_threshold` to change the probability cutoff used for
 class labels and accuracy. Parsnip learners must support probability
 predictions for binomial metrics (AUC/PR-AUC/accuracy) and multiclass

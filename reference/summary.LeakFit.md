@@ -84,9 +84,6 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
 #> 
   |                                                                            
   |                                                                      |   0%
-#> Warning: glm.fit: algorithm did not converge
-#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
-#> 
   |                                                                            
   |=======================                                               |  33%
   |                                                                            
@@ -106,11 +103,11 @@ summary_df <- summary(fit)
 #> Total folds: 3
 #> Fold status: 3 success, 0 skipped, 0 failed
 #> Refit performed: Yes
-#> Hash: h91c169ae
+#> Hash: h73da5e12
 #> 
 #> Cross-validated metrics (mean ± SD):
 #>   learner auc_mean auc_sd auc_ci_lo auc_ci_hi
-#> 1     glm    0.375  0.375    -1.098     1.848
+#> 1     glm    0.417  0.144     -0.15     0.984
 #> 
 #> Audit overview:
 #>  fold n_train n_test learner features_final
@@ -119,6 +116,6 @@ summary_df <- summary(fit)
 #>     3       8      4     glm              2
 #> 
 summary_df
-#>   learner auc_mean auc_sd auc_ci_lo auc_ci_hi
-#> 1     glm    0.375  0.375 -1.097912  1.847912
+#>   learner  auc_mean    auc_sd  auc_ci_lo auc_ci_hi
+#> 1     glm 0.4166667 0.1443376 -0.1502576 0.9835909
 ```

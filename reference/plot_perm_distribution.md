@@ -62,6 +62,7 @@ if (requireNamespace("ggplot2", quietly = TRUE)) {
   |===============================================                       |  67%
   |                                                                            
   |======================================================================| 100%
+#> audit_leakage(): perm_refit = "auto" refits the model on each permuted outcome: 20 permutations x 3 folds = 60 model fits, which can be slow. Set perm_refit = FALSE for the fixed-prediction test (no refitting).
 #> 
   |                                                                            
   |                                                                      |   0%

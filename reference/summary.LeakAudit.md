@@ -3,11 +3,10 @@
 Prints a concise, human-readable report for a \`LeakAudit\` object
 produced by \[audit_leakage()\]. The summary surfaces four diagnostics
 when available: label-permutation gap (prediction-label association by
-default), batch/study association tests (metadata aligned with fold
-splits), target leakage scan (features strongly associated with the
-outcome), and near-duplicate detection (high similarity in \`X_ref\`).
-The output reflects the stored audit results only; it does not recompute
-any tests.
+default), batch/study association tests (batch-outcome and fold-batch),
+target leakage scan (features strongly associated with the outcome), and
+near-duplicate detection (high similarity in \`X_ref\`). The output
+reflects the stored audit results only; it does not recompute any tests.
 
 ## Usage
 
@@ -44,18 +43,21 @@ Invisibly returns \`object\` after printing the summary.
 The permutation test quantifies prediction-label association when using
 fixed predictions; refit-based permutations require \`perm_refit =
 TRUE\` (or \`"auto"\` with refit data). It does not by itself prove or
-rule out leakage. Batch association flags metadata that align with fold
-assignment; this may reflect study design rather than leakage. Target
-leakage scan uses univariate feature-outcome associations and can miss
-multivariate proxies, interaction leakage, or features not included in
-\`X_ref\`. The multivariate scan (enabled by default for supported
-tasks) reports an additional model-based score. Duplicate detection only
-considers the provided \`X_ref\` features and the similarity threshold
-used during \[audit_leakage()\]. By default, \`duplicate_scope =
-"train_test"\` filters to pairs that cross train/test; set
-\`duplicate_scope = "all"\` to include within-fold duplicates. Sections
-are reported as "not available" when the corresponding audit component
-was not computed.
+rule out leakage. The batch section reports, per batch/study column, the
+batch-outcome test, the fold-batch test (how batches are spread over
+folds) and the share of test rows whose batch also occurs in training.
+Confounding is flagged in the mechanism assessment only when batch is
+associated with the outcome and batches are shared by training and test
+rows (see \[audit_leakage()\]). Target leakage scan uses univariate
+feature-outcome associations and can miss multivariate proxies,
+interaction leakage, or features not included in \`X_ref\`. The
+multivariate scan (enabled by default for supported tasks) reports an
+additional model-based score. Duplicate detection only considers the
+provided \`X_ref\` features and the similarity threshold used during
+\[audit_leakage()\]. By default, \`duplicate_scope = "train_test"\`
+filters to pairs that cross train/test; set \`duplicate_scope = "all"\`
+to include within-fold duplicates. Sections are reported as "not
+available" when the corresponding audit component was not computed.
 
 ## See also
 
@@ -104,6 +106,7 @@ fit <- fit_resample(df, outcome = "outcome", splits = splits,
   |======================================================================| 100%
 audit <- audit_leakage(fit, metric = "auc", B = 5,
                        X_ref = df[, c("x1", "x2")], seed = 1)
+#> audit_leakage(): perm_refit = "auto" refits the model on each permuted outcome: 5 permutations x 3 folds = 15 model fits, which can be slow. Set perm_refit = FALSE for the fixed-prediction test (no refitting).
 #> 
   |                                                                            
   |                                                                      |   0%
@@ -143,8 +146,6 @@ audit <- audit_leakage(fit, metric = "auc", B = 5,
 #> 
   |                                                                            
   |                                                                      |   0%
-#> Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
-#> 
   |                                                                            
   |=======================                                               |  33%
   |                                                                            
@@ -164,36 +165,35 @@ summary(audit) # prints the audit report and returns `audit` invisibly
 #>   Method: refit per permutation (auto)
 #>   Null: observed folds reused | Permutation: group_restricted | Summary: pooled
 #>   Observed metric: 0.611
-#>   Permuted mean ± SD: 0.294 ± 0.131
-#>   Gap: 0.317 (larger gap = stronger non-random signal)
+#>   Permuted mean ± SD: 0.344 ± 0.150
+#>   Gap: 0.267, permutation p = 0.167 (B = 5)
 #>   This test does NOT diagnose information leakage. Use the Batch Association,
 #>   Target Leakage Scan, and Duplicate Detection sections to check for leakage.
 #> 
-#> Batch / Study Association: none detected.
+#> Batch / Study Association: not tested (no batch/study columns available).
 #> 
 #> Target Leakage Scan:
 #>   Features checked: 2 | Flagged (score ≥ 0.900): 0
 #>   No strong proxy features detected.
 #> 
 #> Multivariate Target Scan:
-#>   Metric: auc | Score: 0.167 | p = 0.683
+#>   Metric: auc | Score: 0.167 | p = 0.693
 #>   Features: 2 | Components: 2 | Interactions: 1 | Permutations: 100
 #> 
-#> Near-Duplicate Samples:
-#>   Scope: train/test only
-#>   1 pairs detected above cosine ≥ 0.995
-#>   Example pairs:
-#>    mechanism_class  i  j       sim cross_fold   cos_sim
-#>  duplicate_overlap 10 11 0.9999945       TRUE 0.9999945
+#> No near-duplicates detected.
+#>   Expected by chance: 0.0 pairs
 #> 
 #> Mechanism Risk Assessment:
 #>        mechanism_class flagged        evidence statistic  p_value
-#>      non_random_signal   FALSE permutation_gap 0.3166670 0.166667
+#>      non_random_signal   FALSE permutation_gap 0.2666670 0.166667
 #>  confounding_alignment   FALSE     batch_assoc        NA       NA
 #>   proxy_target_leakage   FALSE    target_assoc 0.4444444       NA
-#>      duplicate_overlap    TRUE      duplicates 0.9999945       NA
+#>      duplicate_overlap   FALSE      duplicates        NA       NA
 #>     temporal_lookahead   FALSE      duplicates        NA       NA
 #> 
 #> Interpretation:
-#>   ✓ Strong non-random signal.
+#>   ⚠ No significant non-random signal (p = 0.167): performance is not distinguishable from the label-permutation null.
+#>   A significant gap shows predictions carry signal; it does not show the
+#>   absence of leakage, which also produces a large gap.
+#>   No leakage mechanism flagged; these checks cannot rule leakage out.
 ```

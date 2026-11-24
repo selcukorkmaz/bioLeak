@@ -48,8 +48,11 @@ tune_resample(
 
   LeakSplits object defining the outer resamples. If the splits do not
   already include inner folds, they are created from each outer training
-  fold using the same split metadata. rsample splits must already
-  include inner folds.
+  fold using the same split metadata (for plans from
+  \[as_leaksplits()\], the split_spec's design columns stored in the
+  plan). An rsample object is also accepted: the inner resamples of
+  \`rsample::nested_cv()\` are used as given; for other rsets, inner
+  folds are built from the split mode and columns (see \`split_cols\`).
 
 - learner:
 
@@ -168,7 +171,11 @@ A list of class \`"LeakTune"\` with components:
 - metric_summary:
 
   Mean/SD metrics across outer folds with columns `learner`, and
-  `<metric>_mean` and `<metric>_sd` for each metric.
+  `<metric>_mean` and `<metric>_sd` for each metric, plus
+  `<metric>_ci_lo`/`<metric>_ci_hi` from \[cv_ci()\] when available.
+  `_mean`/`_sd` summarize all outer fold rows; the interval counts each
+  distinct test set once (its centre is the mean over distinct test
+  sets) and uses the Nadeau-Bengio corrected variance.
 
 - best_params:
 
@@ -246,19 +253,18 @@ A list of class \`"LeakTune"\` with components:
   |                                                                            
   |======================================================================| 100%
 #> → A | warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
-#> There were issues with some computations   A: x2
-#> There were issues with some computations   A: x3
-#> 
 #> 
   |                                                                            
   |                                                                      |   0%
+#> Warning: one multinomial or binomial class has fewer than 8  observations; dangerous ground
+#> 
   |                                                                            
   |======================================================================| 100%
 #>               learner accuracy_mean accuracy_sd roc_auc_mean roc_auc_sd
-#> 1 logistic_reg/glmnet           0.5           0          0.5          0
+#> 1 logistic_reg/glmnet     0.5833333   0.1443376    0.6666667  0.1909407
 #>   pr_auc_mean pr_auc_sd accuracy_ci_lo accuracy_ci_hi roc_auc_ci_lo
-#> 1        0.75         0            0.5            0.5           0.5
+#> 1   0.6659722 0.3246415     0.01640906       1.150258   -0.08330366
 #>   roc_auc_ci_hi pr_auc_ci_lo pr_auc_ci_hi
-#> 1           0.5         0.75         0.75
+#> 1      1.416637   -0.6091436     1.941088
 # }
 ```

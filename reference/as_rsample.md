@@ -35,12 +35,14 @@ returned object is a tibble with class `rset` containing:
 
 - `id`:
 
-  Character column with fold identifiers (e.g., "Fold1").
+  Character column with fold identifiers (e.g., "Fold1"); with several
+  repeats, repeat identifiers (e.g., "Repeat1"), following rsample's
+  convention for repeated designs.
 
 - `id2`:
 
-  Character column with repeat identifiers (e.g., "Repeat1") when
-  multiple repeats are present; otherwise absent.
+  With several repeats, character column with fold identifiers (e.g.,
+  "Fold1"); otherwise absent.
 
 The object also carries attributes for `group`, `batch`, `study`, `time`
 (when available from the original `LeakSplits`), and `bioLeak_mode`

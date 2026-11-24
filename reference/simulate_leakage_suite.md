@@ -230,6 +230,7 @@ this function.
   |===============================================                       |  67%
   |                                                                            
   |======================================================================| 100%
+#> audit_leakage(): perm_refit = "auto" refits the model on each permuted outcome: 50 permutations x 3 folds = 150 model fits, which can be slow. Set perm_refit = FALSE for the fixed-prediction test (no refitting).
 #> 
   |                                                                            
   |                                                                      |   0%
@@ -680,7 +681,7 @@ this function.
   |===============================================                       |  67%
   |                                                                            
   |======================================================================| 100%
-#>   seed metric_obs    gap   p_value         leakage            mode
-#> 1    1   0.900857 0.4138 0.0196078 subject_overlap subject_grouped
+#>   seed metric_obs      gap   p_value         leakage            mode
+#> 1    1   0.884571 0.392557 0.0196078 subject_overlap subject_grouped
 # }
 ```

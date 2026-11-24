@@ -78,11 +78,13 @@ delta_lsi(
 
 - M_boot:
 
-  Ignored; retained for compatibility (no bootstrap is used).
+  Ignored; retained for compatibility (no bootstrap is used). A warning
+  is issued when it is supplied.
 
 - M_flip:
 
-  Ignored; retained for compatibility (no sign-flip test is used).
+  Ignored; retained for compatibility (no sign-flip test is used). A
+  warning is issued when it is supplied.
 
 - strict:
 
@@ -95,7 +97,8 @@ delta_lsi(
 
 - seed:
 
-  Ignored; retained for compatibility (the method is deterministic).
+  Ignored; retained for compatibility (the method is deterministic). A
+  warning is issued when it is supplied.
 
 - ...:
 
@@ -125,8 +128,9 @@ fold-level deltas, use the S4 accessor methods registered for
   – corrected repeated-CV t-test p-value.
 
 - [`dlsi_tier`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_tier.md)`(dlsi)`
-  – inference-tier label (`"A_full_inference"`, `"B_signflip_ci"`,
-  `"C_signflip"`, or `"D_insufficient"`).
+  – inference-tier label (`"A_ttest_ge20_folds"`,
+  `"B_ttest_10_19_folds"`, `"C_ttest_3_9_folds"`, or
+  `"D_insufficient"`).
 
 - [`dlsi_R_eff`](https://selcukorkmaz.github.io/bioLeak/reference/dlsi_R_eff.md)`(dlsi)`
   – effective number of independent units (folds per repeat).
@@ -186,18 +190,19 @@ number of studies), the number of effectively independent units.
 
 ### Inference tiers
 
-Tier labels are kept from earlier versions for compatibility; every tier
-except D reports a p-value and both CIs.
+Tiers A-C all report the corrected t-test p-value and both CIs; they
+differ only in how many folds per repeat (independent test sets) back
+the test. Tier D reports the point estimate only.
 
-- `"A_full_inference"`:
+- `"A_ttest_ge20_folds"`:
 
   R_eff \>= 20
 
-- `"B_signflip_ci"`:
+- `"B_ttest_10_19_folds"`:
 
   10 \<= R_eff \< 20
 
-- `"C_signflip"`:
+- `"C_ttest_3_9_folds"`:
 
   3 \<= R_eff \< 10
 
